@@ -1,0 +1,132 @@
+{
+  "common": {
+    "save": "Enregistrer les Modifications",
+    "saving": "Enregistrement...",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "update": "Mettre à jour",
+    "loading": "Chargement...",
+    "dashboard": "Tableau de Bord",
+    "settings": "Paramètres",
+    "logout": "Se Déconnecter",
+    "admin": "Panneau d'Administration"
+  },
+  "navigation": {
+    "dashboard": "Tableau de Bord",
+    "devices": "Appareils",
+    "alarms": "Alarmes",
+    "settings": "Paramètres",
+    "admin": "Administration",
+    "darkMode": "Mode Sombre"
+  },
+  "dashboard": {
+    "title": "Tableau de Bord",
+    "yourDevices": "Vos Appareils",
+    "deviceDescription": "Sélectionnez un appareil Gently pour voir ses détails, alarmes et paramètres.",
+    "noDevices": "Aucun appareil trouvé",
+    "addDevice": "Ajouter un Appareil",
+    "downloadApp": "Télécharger l'App",
+    "appDownload": {
+      "title": "Télécharger l'App Gently",
+      "description": "Obtenez l'application mobile pour gérer vos alarmes en déplacement.",
+      "downloadNow": "Télécharger Maintenant"
+    }
+  },
+  "devices": {
+    "title": "Appareils",
+    "yourDevices": "Vos Appareils",
+    "deviceDetails": "Détails de l'Appareil",
+    "alarms": "alarmes",
+    "alarm": "alarme",
+    "batteryLevel": "Niveau de Batterie",
+    "lastSync": "Dernière Synchronisation",
+    "syncStatus": "État de Synchronisation",
+    "notSynced": "Non Synchronisé",
+    "syncing": "Synchronisation",
+    "synced": "Synchronisé",
+    "error": "Erreur",
+    "addAlarm": "Ajouter une Alarme",
+    "editDevice": "Modifier l'Appareil",
+    "deleteDevice": "Supprimer l'Appareil"
+  },
+  "alarms": {
+    "title": "Alarmes",
+    "yourAlarms": "Vos Alarmes",
+    "addAlarm": "Ajouter une Alarme",
+    "editAlarm": "Modifier l'Alarme",
+    "deleteAlarm": "Supprimer l'Alarme",
+    "alarmTitle": "Titre de l'Alarme",
+    "description": "Description",
+    "schedule": "Horaire",
+    "priorityLabel": "Priorité",
+    "hapticLabel": "Retour Haptique",
+    "color": "Couleur",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "repeat": "Répéter",
+    "startDate": "Date de Début",
+    "endDate": "Date de Fin",
+    "noAlarms": "Aucune alarme trouvée",
+    "priority": {
+      "low": "Faible",
+      "medium": "Moyen",
+      "high": "Élevé"
+    },
+    "haptic": {
+      "standard": "Standard",
+      "strong": "Fort",
+      "soft": "Doux",
+      "double": "Double",
+      "pulse": "Pulsation",
+      "wave": "Vague"
+    }
+  },
+  "settings": {
+    "title": "Paramètres du Profil",
+    "name": "Nom",
+    "email": "E-mail",
+    "language": "Langue",
+    "profileImage": "URL de l'image de profil",
+    "namePlaceholder": "Votre nom",
+    "languagePlaceholder": "Sélectionner une langue...",
+    "profileUpdated": "Profil mis à jour !",
+    "validationErrors": {
+      "nameMin": "Le nom doit contenir au moins 2 caractères",
+      "nameMax": "Le nom doit contenir au maximum 50 caractères",
+      "invalidUrl": "Doit être une URL valide",
+      "languageRequired": "Veuillez sélectionner une langue"
+    }
+  },
+  "auth": {
+    "signIn": "Se Connecter",
+    "signOut": "Se Déconnecter",
+    "welcome": "Bienvenue",
+    "loginRequired": "Veuillez vous connecter pour continuer",
+    "welcomeToGently": "Bienvenue sur Gently",
+    "signInBelow": "Connectez-vous ci-dessous",
+    "google": "Google",
+    "apple": "Apple",
+    "signingIn": "Connexion...",
+    "orContinueWithEmail": "ou continuer avec email",
+    "checkYourEmail": "Vérifiez votre email",
+    "emailSentDescription": "Nous avons envoyé un lien de connexion à votre adresse email. Cliquez sur le lien pour continuer.",
+    "emailAddress": "Adresse email",
+    "enterEmailAddress": "Entrez votre adresse email",
+    "sendSignInLink": "Envoyer le lien de connexion",
+    "sendingLink": "Envoi du lien...",
+    "signInWithEmail": "Se connecter avec email"
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français"
+  },
+  "admin": {
+    "title": "Panneau d'Administration",
+    "users": "Utilisateurs",
+    "usersTitle": "Admin: Utilisateurs",
+    "usersDescription": "Gérer tous les utilisateurs du système"
+  }
+}
