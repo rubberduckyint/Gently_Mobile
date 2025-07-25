@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import type { DeviceType } from "@acme/db";
+import type { Device } from "@acme/db/schema";
 
 import { Badge } from "~/_components/ui/badge";
 import { Button } from "~/_components/ui/button";
@@ -57,7 +57,7 @@ export default function DeviceEditDialog({
   device,
   onSave,
 }: {
-  device: DeviceType;
+  device: Device;
   onSave?: () => void;
 }) {
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -83,6 +83,7 @@ export default function DeviceEditDialog({
   );
 
   const onSubmit = (values: DeviceFormValues) => {
+    console.log("Submitting device update:", values);
     mutation.mutate({ id: device.id, ...values });
   };
 

@@ -33,10 +33,11 @@ export const Device = pgTable("Device", (t) => ({
   id: pgCuid2("id").defaultRandom().primaryKey(),
   title: t.text().notNull(),
   description: t.text().notNull(),
-  createdAt: t.timestamp().defaultNow().notNull(),
-  updatedAt: t
-    .timestamp()
-    .$onUpdateFn(() => sql`now()`)
+  createdAt: t.timestamp({ withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: t.timestamp({ withTimezone: true, mode: "string" })
+    .$onUpdate(() => sql`NOW()`)
     .notNull(),
   syncStatus: syncStatusEnum().default("NOT_SYNCED").notNull(),
   batteryLevel: t.integer().default(100).notNull(),
@@ -56,10 +57,11 @@ export const Alarm = pgTable("Alarm", (t) => ({
   endDate: t.timestamp(),
   repeat: t.boolean().default(false).notNull(),
   cronExpression: t.text().notNull(),
-  createdAt: t.timestamp().defaultNow().notNull(),
-  updatedAt: t
-    .timestamp()
-    .$onUpdateFn(() => sql`now()`)
+  createdAt: t.timestamp({ withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: t.timestamp({ withTimezone: true, mode: "string" })
+    .$onUpdate(() => sql`NOW()`)
     .notNull(),
   color: t.text().default("#000000").notNull(),
   syncStatus: syncStatusEnum().default("NOT_SYNCED").notNull(),

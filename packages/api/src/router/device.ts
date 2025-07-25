@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { Alarm, Device } from "@acme/db";
+import { Alarm, Device } from "@acme/db/schema";
 
 import { protectedProcedure } from "../trpc";
 
@@ -117,9 +117,9 @@ export const deviceRouter = {
         description: z.string().min(1).optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }) => {      
       const { id, ...data } = input;
-
+      
       // First check if the device belongs to the current user
       const existingDevice = await ctx.db
         .select()
@@ -133,6 +133,9 @@ export const deviceRouter = {
           message: "Device not found or you don't have permission to update it",
         });
       }
+
+      
+      console.log("Updating device with data:", data);
 
       const result = await ctx.db
         .update(Device)

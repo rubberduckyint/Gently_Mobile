@@ -11,7 +11,7 @@ import {
   CreateAlarmSchema,
   Device,
   UpdateAlarmSchema,
-} from "@acme/db";
+} from "@acme/db/schema";
 
 import { protectedProcedure } from "../trpc";
 

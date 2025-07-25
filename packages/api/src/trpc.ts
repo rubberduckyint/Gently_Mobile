@@ -34,13 +34,6 @@ export const createTRPCContext = async (opts: {
   const session = await authApi.getSession({
     headers: opts.headers,
   });
-
-  // Debug logging for session issues
-  if (!session) {
-    console.log("No session found in tRPC context");
-    console.log("Headers:", Object.fromEntries(opts.headers.entries()));
-  }
-
   return {
     authApi,
     session,
@@ -123,7 +116,6 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(({ ctx, next }) => {
-    console.log(ctx);
     if (!ctx.session?.user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }

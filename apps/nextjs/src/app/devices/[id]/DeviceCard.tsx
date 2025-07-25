@@ -1,11 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { BatteryFull, Calendar, MoreHorizontal } from "lucide-react";
+import {
+  BatteryFull,
+  Calendar,
+  ChevronRight,
+  Home,
+  MoreHorizontal,
+} from "lucide-react";
 
-import type { DeviceType } from "@acme/db";
+import type { Device } from "@acme/db/schema";
 
 import { Badge } from "~/_components/ui/badge";
 import { Button } from "~/_components/ui/button";
@@ -56,19 +63,18 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
     });
   };
 
-  console.log("Device query result:", {
-    device,
-    isLoading,
-    error,
-    isError,
-    deviceId,
-  });
-
   return (
     <>
       <div>
-        <h2 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-          Device Details
+        <h2 className="mb-2 flex scroll-m-20 items-center gap-2 text-2xl font-semibold tracking-tight">
+          <Link
+            href="/dashboard"
+            className="hover:text-foreground flex items-center gap-1"
+          >
+            <Home className="h-6 w-6" />
+          </Link>
+          <ChevronRight className="text-muted-foreground h-4 w-4" />
+          <span>Device Details</span>
         </h2>
         <h3 className="text-muted-foreground mb-4 text-sm">
           Manage your device&#39;s details below.
@@ -186,7 +192,7 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
               <DialogHeaderUI>
                 <DialogTitleUI>Edit Device</DialogTitleUI>
               </DialogHeaderUI>
-              <DeviceForm device={device as DeviceType} onSave={handleSave} />
+              <DeviceForm device={device as Device} onSave={handleSave} />
             </DialogContent>
           </Dialog>
         </Card>

@@ -1,171 +1,427 @@
-import React, { useState } from "react";
-import { Button, Pressable, Text, TextInput, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link, Stack } from "expo-router";
-import { LegendList } from "@legendapp/list";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, router } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
 import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
 
-function PostCard(props: {
-  post: RouterOutputs["post"]["all"][number];
-  onDelete: () => void;
-}) {
+type DeviceWithAlarmsCount = RouterOutputs["device"]["getAll"][number];
+
+function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
+  const getBatteryColor = (level: number) => {
+    if (level > 50) return "#10b981"; // green
+    if (level > 20) return "#f59e0b"; // amber
+    return "#ef4444"; // red
+  };
+
+  const getSyncStatusText = (status: string) => {
+    switch (status) {
+      case "SYNCED":
+        return "✓ Synced";
+      case "SYNCING":
+        return "⟳ Syncing";
+      case "ERROR":
+        return "⚠ Error";
+      default:
+        return "○ Not Synced";
+    }
+  };
+
   return (
-    <View className="flex flex-row rounded-lg bg-muted p-4">
-      <View className="flex-grow">
-        <Link
-          asChild
-          href={{
-            pathname: "/post/[id]",
-            params: { id: props.post.id },
-          }}
-        >
-          <Pressable className="">
-            <Text className="text-xl font-semibold text-primary">
-              {props.post.title}
+    <Link
+      href={{
+        pathname: "/devices/[id]",
+        params: { id: device.id },
+      }}
+      asChild
+    >
+      <Pressable style={styles.deviceCard}>
+        <View style={styles.deviceHeader}>
+          <View style={styles.deviceAvatar}>
+            <Text style={styles.deviceInitials}>
+              {device.title.slice(0, 2).toUpperCase()}
             </Text>
-            <Text className="mt-2 text-foreground">{props.post.content}</Text>
-          </Pressable>
-        </Link>
-      </View>
-      <Pressable onPress={props.onDelete}>
-        <Text className="font-bold uppercase text-primary">Delete</Text>
+          </View>
+          <View style={styles.deviceInfo}>
+            <Text style={styles.deviceTitle}>{device.title}</Text>
+            <Text style={styles.deviceDescription}>{device.description}</Text>
+          </View>
+        </View>
+        <View style={styles.deviceStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>Alarms</Text>
+            <Text style={styles.statValue}>{device._count.alarms}</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>Battery</Text>
+            <Text
+              style={[
+                styles.statValue,
+                { color: getBatteryColor(device.batteryLevel) },
+              ]}
+            >
+              {device.batteryLevel}%
+            </Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>Status</Text>
+            <Text style={styles.syncStatus}>
+              {getSyncStatusText(device.syncStatus)}
+            </Text>
+          </View>
+        </View>
       </Pressable>
-    </View>
+    </Link>
   );
 }
 
-function CreatePost() {
-  const queryClient = useQueryClient();
-
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-
-  const { mutate, error } = useMutation(
-    trpc.post.create.mutationOptions({
-      async onSuccess() {
-        setTitle("");
-        setContent("");
-        await queryClient.invalidateQueries(trpc.post.all.queryFilter());
-      },
-    }),
-  );
-
+function LoginPrompt() {
   return (
-    <View className="mt-4 flex gap-2">
-      <TextInput
-        className="items-center rounded-md border border-input bg-background px-3 text-lg leading-[1.25] text-foreground"
-        value={title}
-        onChangeText={setTitle}
-        placeholder="Title"
-      />
-      {error?.data?.zodError?.fieldErrors.title && (
-        <Text className="mb-2 text-destructive">
-          {error.data.zodError.fieldErrors.title}
-        </Text>
-      )}
-      <TextInput
-        className="items-center rounded-md border border-input bg-background px-3 text-lg leading-[1.25] text-foreground"
-        value={content}
-        onChangeText={setContent}
-        placeholder="Content"
-      />
-      {error?.data?.zodError?.fieldErrors.content && (
-        <Text className="mb-2 text-destructive">
-          {error.data.zodError.fieldErrors.content}
-        </Text>
-      )}
-      <Pressable
-        className="flex items-center rounded bg-primary p-2"
-        onPress={() => {
-          mutate({
-            title,
-            content,
-          });
-        }}
-      >
-        <Text className="text-foreground">Create</Text>
-      </Pressable>
-      {error?.data?.code === "UNAUTHORIZED" && (
-        <Text className="mt-2 text-destructive">
-          You need to be logged in to create a post
-        </Text>
-      )}
-    </View>
-  );
-}
-
-function MobileAuth() {
-  const { data: session } = authClient.useSession();
-
-  return (
-    <>
-      <Text className="pb-2 text-center text-xl font-semibold text-zinc-900">
-        {session?.user.name ? `Hello, ${session.user.name}` : "Not logged in"}
+    <View style={styles.loginPrompt}>
+      <Text style={styles.loginTitle}>Welcome to Gently</Text>
+      <Text style={styles.loginDescription}>
+        Please sign in to manage your devices and alarms
       </Text>
-      <Button
-        onPress={() =>
-          session
-            ? authClient.signOut()
-            : authClient.signIn.social({
-                provider: "discord",
-                callbackURL: "/",
-              })
-        }
-        title={session ? "Sign Out" : "Sign In With Discord"}
-        color={"#5B65E9"}
-      />
-    </>
+      <Link href="/login" asChild>
+        <Pressable style={styles.loginButton}>
+          <Text style={styles.loginButtonText}>Sign In</Text>
+        </Pressable>
+      </Link>
+    </View>
   );
 }
 
-export default function Index() {
-  const queryClient = useQueryClient();
-
-  const postQuery = useQuery(trpc.post.all.queryOptions());
-
-  const deletePostMutation = useMutation(
-    trpc.post.delete.mutationOptions({
-      onSettled: () =>
-        queryClient.invalidateQueries(trpc.post.all.queryFilter()),
-    }),
-  );
-
+function EmptyState() {
   return (
-    <SafeAreaView className="bg-background">
-      {/* Changes page title visible on the header */}
-      <Stack.Screen options={{ title: "Home Page" }} />
-      <View className="h-full w-full bg-background p-4">
-        <Text className="pb-2 text-center text-5xl font-bold text-foreground">
-          Create <Text className="text-primary">T3</Text> Turbo
-        </Text>
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyTitle}>No Devices Yet</Text>
+      <Text style={styles.emptyDescription}>
+        Add your first device to get started with gentle alarms
+      </Text>
+      <Pressable
+        style={styles.addButton}
+        onPress={() => Alert.alert("Coming Soon", "Device creation will be available soon!")}
+      >
+        <Text style={styles.addButtonText}>+ Add Device</Text>
+      </Pressable>
+    </View>
+  );
+}
 
-        <MobileAuth />
+export default function DashboardPage() {
+  const [session, setSession] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-        <View className="py-2">
-          <Text className="font-semibold italic text-primary">
-            Press on a post
+  // Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const sessionData = await authClient.getSession();
+        setSession(sessionData);
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  // Fetch devices if authenticated
+  const {
+    data: devices,
+    isLoading: devicesLoading,
+    error,
+  } = useQuery({
+    ...trpc.device.getAll.queryOptions({}),
+    enabled: !!session?.user,
+  });
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!session?.user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <LoginPrompt />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Failed to load devices</Text>
+          <Text style={styles.errorDescription}>
+            {error.message || "Please try again later"}
           </Text>
         </View>
+      </SafeAreaView>
+    );
+  }
 
-        <LegendList
-          data={postQuery.data ?? []}
-          estimatedItemSize={20}
-          keyExtractor={(item) => item.id}
-          ItemSeparatorComponent={() => <View className="h-2" />}
-          renderItem={(p) => (
-            <PostCard
-              post={p.item}
-              onDelete={() => deletePostMutation.mutate(p.item.id)}
-            />
-          )}
-        />
-
-        <CreatePost />
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.welcomeText}>
+          Welcome back, {session.user.name || session.user.email}!
+        </Text>
+        <Text style={styles.headerDescription}>
+          Manage your devices and gentle alarms
+        </Text>
       </View>
+
+      {devicesLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text style={styles.loadingText}>Loading devices...</Text>
+        </View>
+      ) : devices && devices.length > 0 ? (
+        <FlatList
+          data={devices}
+          renderItem={({ item }) => <DeviceCard device={item} />}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.devicesList}
+          showsVerticalScrollIndicator={false}
+        />
+      ) : (
+        <EmptyState />
+      )}
+
+      <Pressable
+        style={styles.logoutButton}
+        onPress={async () => {
+          try {
+            await authClient.signOut();
+            setSession(null);
+            router.replace("/login");
+          } catch (error) {
+            Alert.alert("Error", "Failed to sign out");
+          }
+        }}
+      >
+        <Text style={styles.logoutButtonText}>Sign Out</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+    paddingHorizontal: 16,
+  },
+  header: {
+    paddingVertical: 20,
+    paddingHorizontal: 4,
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1f2937",
+    marginBottom: 4,
+  },
+  headerDescription: {
+    fontSize: 16,
+    color: "#6b7280",
+  },
+  devicesList: {
+    paddingBottom: 20,
+  },
+  deviceCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  deviceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  deviceAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#e5e7eb",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  deviceInitials: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  deviceInfo: {
+    flex: 1,
+  },
+  deviceTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 2,
+  },
+  deviceDescription: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  deviceStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+  },
+  statItem: {
+    alignItems: "center",
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  syncStatus: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "500",
+  },
+  loginPrompt: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  loginTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#1f2937",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  loginDescription: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  loginButton: {
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  loginButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1f2937",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptyDescription: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  addButton: {
+    backgroundColor: "#10b981",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  addButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#6b7280",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#dc2626",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  errorDescription: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+  },
+  logoutButton: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+    marginBottom: 20,
+    alignSelf: "center",
+  },
+  logoutButtonText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+});

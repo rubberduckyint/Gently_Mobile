@@ -1,17 +1,12 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "nativewind";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import { queryClient } from "~/utils/api";
-
-import "../styles.css";
-
-import { QueryClientProvider } from "@tanstack/react-query";
 
 // This is the main layout of the app
 // It wraps your pages with the providers they need
 export default function RootLayout() {
-  const { colorScheme } = useColorScheme();
   return (
     <QueryClientProvider client={queryClient}>
       {/*
@@ -21,14 +16,37 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: "#f472b6",
+            backgroundColor: "#f8fafc",
           },
+          headerTintColor: "#1f2937",
           contentStyle: {
-            backgroundColor: colorScheme == "dark" ? "#09090B" : "#FFFFFF",
+            backgroundColor: "#f8fafc",
           },
         }}
-      />
-      <StatusBar />
+      >
+        <Stack.Screen 
+          name="index" 
+          options={{ 
+            title: "Dashboard",
+            headerShown: true 
+          }} 
+        />
+        <Stack.Screen 
+          name="devices/[id]" 
+          options={{ 
+            title: "Device Details",
+            headerShown: true 
+          }} 
+        />
+        <Stack.Screen 
+          name="login" 
+          options={{ 
+            title: "Login",
+            headerShown: true 
+          }} 
+        />
+      </Stack>
+      <StatusBar style="dark" />
     </QueryClientProvider>
   );
 }

@@ -3,16 +3,16 @@ import { TRPCError } from "@trpc/server";
 import { count, desc, eq, like, or } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { db } from "@acme/db/client";
 import {
   Alarm,
   AlarmSelectSchema,
   Device,
   DeviceSelectSchema,
   user,
-} from "@acme/db";
-import { db } from "@acme/db/client";
+} from "@acme/db/schema";
 
-import { adminProcedure, createTRPCRouter } from "../trpc";
+import { adminProcedure } from "../trpc";
 
 // Admin-specific input schemas that aren't in the main schema
 const AdminUserCreateInputSchema = z.object({
@@ -267,11 +267,18 @@ export const adminRouter = {
       const transformedUser = {
         ...userData,
         emailVerified: userData.emailVerified ? new Date() : null, // Convert boolean to Date | null
+        updatedAt: new Date(userData.updatedAt), // Convert string to Date
         devices: userData.devices.map((device) => ({
           ...device,
+          updatedAt: new Date(device.updatedAt), // Convert string to Date
           _count: {
             alarms: device.alarms.length,
           },
+        })),
+        alarms: userData.alarms.map((alarm) => ({
+          ...alarm,
+          updatedAt: new Date(alarm.updatedAt), // Convert string to Date
+          device: alarm.device,
         })),
         _count: {
           devices: userData.devices.length,

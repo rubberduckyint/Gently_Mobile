@@ -23,6 +23,7 @@
     "@acme/db": "workspace:*",
     "@acme/validators": "workspace:*",
     "@trpc/server": "catalog:",
+    "minimatch": "^10.0.3",
     "superjson": "2.2.2",
     "zod": "catalog:"
   },

@@ -5,7 +5,7 @@
     "node": ">=22.14.0",
     "pnpm": ">=10.11.1"
   },
-  "packageManager": "pnpm@10.11.1",
+  "packageManager": "pnpm@10.13.1",
   "scripts": {
     "build": "turbo run build",
     "clean": "git clean -xdf node_modules",
@@ -33,5 +33,6 @@
     "turbo": "^2.5.5",
     "typescript": "catalog:"
   },
-  "prettier": "@acme/prettier-config"
+  "prettier": "@acme/prettier-config",
+  "version": "1.0.0"
 }

@@ -115,7 +115,6 @@ async function seedUsers() {
       from: new Date("2023-01-01"),
       to: new Date(),
     }),
-    updatedAt: new Date(),
   };
 
   users.push(adminUser);
@@ -137,7 +136,6 @@ async function seedUsers() {
         from: new Date("2023-01-01"),
         to: new Date(),
       }),
-      updatedAt: new Date(),
     };
 
     users.push(newUser);
@@ -167,7 +165,6 @@ async function seedDevices(users: { id: string; name: string }[]) {
         title: generateDeviceTitle(),
         description: faker.lorem.sentence({ min: 5, max: 15 }),
         createdAt,
-        updatedAt: faker.date.between({ from: createdAt, to: new Date() }),
         syncStatus: faker.helpers.arrayElement([
           "NOT_SYNCED",
           "SYNCING",
@@ -225,7 +222,6 @@ async function seedAlarms(
         repeat: isRepeating,
         cronExpression: generateCronExpression(),
         createdAt,
-        updatedAt: faker.date.between({ from: createdAt, to: new Date() }),
         color: generateColor(),
         syncStatus: faker.helpers.arrayElement([
           "NOT_SYNCED",

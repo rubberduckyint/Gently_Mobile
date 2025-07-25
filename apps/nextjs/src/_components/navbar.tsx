@@ -24,7 +24,7 @@ import { authClient } from "~/auth/client";
 import { useLocaleSwitch } from "~/hooks/useLocaleSwitch";
 
 export function Navbar() {
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const { setTheme, theme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { switchLocale } = useLocaleSwitch();
@@ -83,45 +83,83 @@ export function Navbar() {
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
-  // Prevent hydration mismatch by not rendering anything until mounted
-  if (!mounted) {
+  // Handle logout with proper redirect
+  const handleLogout = async () => {
+    try {
+      await authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            // Redirect to login page after successful logout
+            window.location.href = "/login";
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Logout failed:", error);
+      // Even if logout fails, redirect to login to be safe
+      window.location.href = "/login";
+    }
+  };
+
+  // Don't render if we're still loading session or not mounted
+  if (!mounted || isPending) {
     return (
       <div className="bg-background sticky top-0 z-50 w-full border-b">
-        <nav className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-3">
+        <nav className="mx-auto flex h-16 w-full max-w-4xl items-center justify-between px-6">
           <Link href="/dashboard" className="text-lg font-bold tracking-tight">
             <span className="sr-only">Gently</span>
+            {/* Use a stable logo during loading to prevent layout shift */}
+            <div className="relative h-8 w-[120px]">
+              <Image
+                src="/images/logo-dark.svg"
+                alt="Gently Logo"
+                width={120}
+                height={32}
+                priority
+                className="absolute inset-0"
+              />
+            </div>
+          </Link>
+          {/* Match the exact size and structure of the avatar button */}
+          <div className="flex h-10 w-10 items-center justify-center">
+            <div className="bg-muted h-8 w-8 animate-pulse rounded-full" />
+          </div>
+        </nav>
+      </div>
+    );
+  }
+
+  // Don't render navbar if no session
+  if (!session) return null;
+
+  return (
+    <div className="bg-background sticky top-0 z-50 w-full border-b">
+      <nav className="mx-auto flex h-16 w-full max-w-4xl items-center justify-between px-6">
+        <Link href="/dashboard" className="text-lg font-bold tracking-tight">
+          <span className="sr-only">Gently</span>
+          {/* Use theme-stable logo with CSS classes to prevent layout shifts */}
+          <div className="relative h-8 w-[120px]">
             <Image
               src="/images/logo-dark.svg"
               alt="Gently Logo"
               width={120}
               height={32}
               priority
+              className={`absolute inset-0 transition-opacity duration-200 ${
+                theme === "dark" ? "opacity-0" : "opacity-100"
+              }`}
             />
-          </Link>
-          <div className="bg-muted h-10 w-10 animate-pulse rounded-full" />
-        </nav>
-      </div>
-    );
-  }
-
-  if (!session) return null;
-
-  return (
-    <div className="bg-background sticky top-0 z-50 w-full border-b">
-      <nav className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-3">
-        <Link href="/dashboard" className="text-lg font-bold tracking-tight">
-          <span className="sr-only">Gently</span>
-          <Image
-            src={
-              theme === "dark"
-                ? "/images/logo-light.svg"
-                : "/images/logo-dark.svg"
-            }
-            alt="Gently Logo"
-            width={120}
-            height={32}
-            priority
-          />
+            <Image
+              src="/images/logo-light.svg"
+              alt="Gently Logo"
+              width={120}
+              height={32}
+              priority
+              className={`absolute inset-0 transition-opacity duration-200 ${
+                theme === "dark" ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          </div>
         </Link>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -199,7 +237,7 @@ export function Navbar() {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => authClient.signOut()}
+              onClick={handleLogout}
               className="text-destructive flex items-center gap-2 hover:cursor-pointer"
             >
               <LogOut className="h-4 w-4" />

@@ -7,8 +7,6 @@ export default function middleware(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
   const { pathname } = request.nextUrl;
 
-  console.log(pathname, sessionCookie);
-
   // IF user not authenticated AND
   // The current route is not the login route
   // Redirect the user to the login page
