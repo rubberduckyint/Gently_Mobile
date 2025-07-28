@@ -18,7 +18,7 @@ import { authClient } from "~/utils/auth";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleEmailAuth = async () => {
     if (!email.trim()) {
@@ -28,28 +28,25 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      if (isSignUp) {
-        await authClient.signUp.email({
+      // Use better-auth magic link
+      await authClient.$fetch("/magic-link/send", {
+        method: "POST",
+        body: {
           email: email.trim(),
-          password: "temporary-password", // In a real app, you'd collect this
-          name: email.split("@")[0] || "User", // Use email prefix as name
-        });
-        Alert.alert(
-          "Success", 
-          "Account created! Please check your email for verification.",
-          [{ text: "OK", onPress: () => router.replace("/") }]
-        );
-      } else {
-        await authClient.signIn.email({
-          email: email.trim(),
-          password: "temporary-password", // In a real app, you'd collect this
-        });
-        router.replace("/");
-      }
+          callbackURL: "gently://", // Use expo scheme for callback
+        },
+      });
+
+      setEmailSent(true);
+      Alert.alert(
+        "Check Your Email",
+        "We've sent a sign-in link to your email address. Click the link to continue.",
+        [{ text: "OK" }]
+      );
     } catch (error: any) {
       Alert.alert(
-        "Authentication Failed",
-        error.message || `Failed to ${isSignUp ? "create account" : "sign in"}`
+        "Failed to Send Magic Link",
+        error.message || "Please try again."
       );
     } finally {
       setIsLoading(false);
@@ -57,14 +54,18 @@ export default function LoginPage() {
   };
 
   const handleGoogleAuth = async () => {
+    console.log("Google auth button pressed");
     setIsLoading(true);
     try {
-      await authClient.signIn.social({
+      console.log("Starting Google social sign-in...");
+      const result = await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/",
+        callbackURL: "gently://", // Use expo scheme for callback
       });
+      console.log("Google sign-in result:", result);
       router.replace("/");
     } catch (error: any) {
+      console.error("Google auth error:", error);
       Alert.alert("Authentication Failed", error.message || "Failed to sign in with Google");
     } finally {
       setIsLoading(false);
@@ -81,65 +82,79 @@ export default function LoginPage() {
           <View style={styles.header}>
             <Text style={styles.title}>Welcome to Gently</Text>
             <Text style={styles.subtitle}>
-              {isSignUp ? "Create your account" : "Sign in to your account"}
+              {emailSent ? "Check your email for a sign-in link" : "Sign in to your account"}
             </Text>
           </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <TextInput
-                style={styles.textInput}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
+          {!emailSent && (
+            <>
+              <View style={styles.form}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="Enter your email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isLoading}
+                  />
+                </View>
 
-            <Pressable
-              style={[styles.primaryButton, isLoading && styles.disabledButton]}
-              onPress={handleEmailAuth}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.primaryButtonText}>
-                  {isSignUp ? "Create Account" : "Sign In"}
-                </Text>
-              )}
-            </Pressable>
+                <Pressable
+                  style={[styles.primaryButton, isLoading && styles.disabledButton]}
+                  onPress={handleEmailAuth}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>
+                      Send Sign-In Link
+                    </Text>
+                  )}
+                </Pressable>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
 
-            <Pressable
-              style={[styles.googleButton, isLoading && styles.disabledButton]}
-              onPress={handleGoogleAuth}
-              disabled={isLoading}
-            >
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
-            </Pressable>
+                <Pressable
+                  style={[styles.googleButton, isLoading && styles.disabledButton]}
+                  onPress={handleGoogleAuth}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
 
-            <Pressable
-              style={styles.switchButton}
-              onPress={() => setIsSignUp(!isSignUp)}
-              disabled={isLoading}
-            >
-              <Text style={styles.switchButtonText}>
-                {isSignUp
-                  ? "Already have an account? Sign in"
-                  : "Don't have an account? Sign up"}
+          {emailSent && (
+            <View style={styles.emailSentContainer}>
+              <Text style={styles.emailSentText}>
+                A sign-in link has been sent to {email}
               </Text>
-            </Pressable>
-          </View>
+              <Text style={styles.emailSentDescription}>
+                Click the link in your email to complete sign-in. You can close this screen.
+              </Text>
+              <Pressable
+                style={styles.tryAgainButton}
+                onPress={() => {
+                  setEmailSent(false);
+                  setEmail("");
+                }}
+              >
+                <Text style={styles.tryAgainButtonText}>
+                  Try with different email
+                </Text>
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
@@ -247,13 +262,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  switchButton: {
+  emailSentContainer: {
     alignItems: "center",
+    paddingVertical: 32,
   },
-  switchButtonText: {
-    color: "#3b82f6",
-    fontSize: 14,
+  emailSentText: {
+    fontSize: 18,
     fontWeight: "600",
+    color: "#059669",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  emailSentDescription: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  tryAgainButton: {
+    backgroundColor: "transparent",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  tryAgainButtonText: {
+    color: "#3b82f6",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
   },
   footer: {
     alignItems: "center",

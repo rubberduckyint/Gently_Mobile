@@ -144,7 +144,10 @@ export default function DashboardPage() {
     isLoading: devicesLoading,
     error,
   } = useQuery({
-    ...trpc.device.getAll.queryOptions({}),
+    queryKey: ["device", "getAll"],
+    queryFn: async () => {
+      return await trpc.device.getAll.query({});
+    },
     enabled: !!session?.user,
   });
 

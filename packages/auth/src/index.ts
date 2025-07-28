@@ -5,6 +5,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { magicLink, oAuthProxy } from "better-auth/plugins";
 
 import { db } from "@acme/db/client";
+import { EmailSender, MagicLinkService } from "@acme/email";
 
 export function initAuth(options: {
   baseUrl: string;
@@ -22,6 +23,21 @@ export function initAuth(options: {
   smtpUser?: string;
   smtpPassword?: string;
 }) {
+  // Initialize email service if SMTP is configured
+  let magicLinkService: MagicLinkService | null = null;
+  
+  if (options.smtpHost && options.smtpPort && options.emailFrom) {
+    const emailSender = new EmailSender({
+      smtpHost: options.smtpHost,
+      smtpPort: options.smtpPort,
+      smtpUser: options.smtpUser,
+      smtpPassword: options.smtpPassword,
+      emailFrom: options.emailFrom,
+    });
+    
+    magicLinkService = new MagicLinkService(emailSender);
+  }
+
   const config = {
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -43,13 +59,24 @@ export function initAuth(options: {
         productionURL: options.productionUrl,
       }),
       magicLink({
-        sendMagicLink: ({ email, url }) => {
-          // You can customize the email sending logic here
-          // For now, we'll use a simple console log for development
-          console.log(`Magic link for ${email}: ${url}`);
-
-          // In production, you would send an actual email here
-          // using your preferred email service (Resend, SendGrid, etc.)
+        sendMagicLink: async ({ email, url }) => {
+          try {
+            if (magicLinkService) {
+              await magicLinkService.sendMagicLink({
+                email,
+                url,
+                productName: "Gently",
+              });
+              console.log(`Magic link sent to ${email}`);
+            } else {
+              // Fallback for development or missing email config
+              console.log(`Magic link for ${email}: ${url}`);
+              console.warn("Email service not configured. Using console fallback.");
+            }
+          } catch (error) {
+            console.error("Failed to send magic link:", error);
+            throw error;
+          }
         },
       }),
       expo(),
@@ -61,7 +88,7 @@ export function initAuth(options: {
         redirectURI: `${options.productionUrl}/api/auth/callback/google`,
       },
     },
-    trustedOrigins: ["expo://"],
+    trustedOrigins: ["expo://", "expo://*"],
   } satisfies BetterAuthOptions;
 
   return betterAuth(config);

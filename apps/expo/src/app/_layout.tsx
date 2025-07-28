@@ -45,6 +45,13 @@ export default function RootLayout() {
             headerShown: true 
           }} 
         />
+        <Stack.Screen 
+          name="auth-callback" 
+          options={{ 
+            title: "Signing In",
+            headerShown: false 
+          }} 
+        />
       </Stack>
       <StatusBar style="dark" />
     </QueryClientProvider>

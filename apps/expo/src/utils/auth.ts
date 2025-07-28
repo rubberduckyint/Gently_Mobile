@@ -10,8 +10,8 @@ export const authClient = createAuthClient({
   baseURL: getBaseUrl(),
   plugins: [
     expoClient({
-      scheme: "expo",
-      storagePrefix: "expo",
+      scheme: "gently",
+      storagePrefix: "gently",
       storage: SecureStore,
     }),
   ],
