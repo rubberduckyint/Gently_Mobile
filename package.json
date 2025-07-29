@@ -2,8 +2,7 @@
   "name": "gently",
   "private": true,
   "engines": {
-    "node": ">=22.11.0",
-    "pnpm": ">=10.13.1"
+    "node": ">=22.11.0"
   },
   "packageManager": "pnpm@10.13.1",
   "scripts": {

@@ -1,8 +1,0 @@
-providers = ["node"]
-
-[phases.setup]
-cmds = [
-  "npm install -g corepack", # Install corepack globally
-  "corepack enable",         # Enable corepack
-  "corepack prepare pnpm@10.13.1 --activate", # Prepare and activate the desired pnpm version  
-]
