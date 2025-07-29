@@ -27,6 +27,13 @@ export default function RootLayout() {
         <Stack.Screen 
           name="index" 
           options={{ 
+            title: "Login",
+            headerShown: false 
+          }} 
+        />
+        <Stack.Screen 
+          name="dashboard" 
+          options={{ 
             title: "Dashboard",
             headerShown: false 
           }} 
@@ -36,13 +43,6 @@ export default function RootLayout() {
           options={{ 
             title: "Device Details",
             headerShown: true 
-          }} 
-        />
-        <Stack.Screen 
-          name="login" 
-          options={{ 
-            title: "Login",
-            headerShown: false 
           }} 
         />        
       </Stack>

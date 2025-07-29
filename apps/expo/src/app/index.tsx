@@ -1,162 +1,92 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link, router } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 
-import type { RouterOutputs } from "~/utils/api";
-import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
 
-type DeviceWithAlarmsCount = RouterOutputs["device"]["getAll"][number];
+export default function LoginPage() {
+  const { data: session, isPending } = authClient.useSession();
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
-function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
-  const getBatteryColor = (level: number) => {
-    if (level > 50) return "#10b981"; // green
-    if (level > 20) return "#f59e0b"; // amber
-    return "#ef4444"; // red
-  };
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (session?.user) {
+      router.replace("/dashboard");
+    }
+  }, [session]);
 
-  const getSyncStatusText = (status: string) => {
-    switch (status) {
-      case "SYNCED":
-        return "✓ Synced";
-      case "SYNCING":
-        return "⟳ Syncing";
-      case "ERROR":
-        return "⚠ Error";
-      default:
-        return "○ Not Synced";
+  const handleEmailAuth = async () => {
+    if (!email.trim()) {
+      Alert.alert("Error", "Please enter your email address");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Use better-auth magic link
+      await authClient.$fetch("/magic-link/send", {
+        method: "POST",
+        body: {
+          email: email.trim(),
+          callbackURL: "gently://", // Use expo scheme for callback
+        },
+      });
+
+      setEmailSent(true);
+      Alert.alert(
+        "Check Your Email",
+        "We've sent a sign-in link to your email address. Click the link to continue.",
+        [{ text: "OK" }]
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Failed to Send Magic Link",
+        error.message || "Please try again."
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return (
-    <Link
-      href={{
-        pathname: "/devices/[id]",
-        params: { id: device.id },
-      }}
-      asChild
-    >
-      <Pressable style={styles.deviceCard}>
-        <View style={styles.deviceHeader}>
-          <View style={styles.deviceAvatar}>
-            <Text style={styles.deviceInitials}>
-              {device.title.slice(0, 2).toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.deviceInfo}>
-            <Text style={styles.deviceTitle}>{device.title}</Text>
-            <Text style={styles.deviceDescription}>{device.description}</Text>
-          </View>
-        </View>
-        <View style={styles.deviceStats}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Alarms</Text>
-            <Text style={styles.statValue}>{device._count.alarms}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Battery</Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: getBatteryColor(device.batteryLevel) },
-              ]}
-            >
-              {device.batteryLevel}%
-            </Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Status</Text>
-            <Text style={styles.syncStatus}>
-              {getSyncStatusText(device.syncStatus)}
-            </Text>
-          </View>
-        </View>
-      </Pressable>
-    </Link>
-  );
-}
+  const handleGoogleAuth = async () => {
+    console.log("Google auth button pressed");
+    setIsLoading(true);
+    try {
+      console.log("Starting Google social sign-in...");
+      const result = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/dashboard",
+      });
+      console.log("Google sign-in result:", result);
+      router.replace("/dashboard");
+    } catch (error: any) {
+      console.error("Google auth error:", error);
+      Alert.alert("Authentication Failed", error.message || "Failed to sign in with Google");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-function EmptyState() {
-  return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>No Devices Yet</Text>
-      <Text style={styles.emptyDescription}>
-        Add your first device to get started with gentle alarms
-      </Text>
-      <Pressable
-        style={styles.addButton}
-        onPress={() => Alert.alert("Coming Soon", "Device creation will be available soon!")}
-      >
-        <Text style={styles.addButtonText}>+ Add Device</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-export default function DashboardPage() {
-  const { data: session, isPending } = authClient.useSession();
-
-  // Fetch devices if authenticated
-  const {
-    data: devices,
-    isLoading: devicesLoading,
-    error,
-  } = useQuery({
-    queryKey: ["device", "getAll"],
-    queryFn: async () => {
-      return await trpc.device.getAll.query({});
-    },
-    enabled: !!session?.user,
-  });
-
-  // Show loading while checking authentication
+  // Show loading while checking authentication status
   if (isPending) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3b82f6" />
+          <ActivityIndicator size="large" color="#6366f1" />
           <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Redirect to login if not authenticated
-  if (!session?.user) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3b82f6" />
-          <Text style={styles.loadingText}>Please log in...</Text>
-          <Pressable
-            style={styles.loginButton}
-            onPress={() => router.push("/login")}
-          >
-            <Text style={styles.loginButtonText}>Go to Login</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Failed to load devices</Text>
-          <Text style={styles.errorDescription}>
-            {error.message || "Please try again later"}
-          </Text>
         </View>
       </SafeAreaView>
     );
@@ -164,45 +94,95 @@ export default function DashboardPage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.welcomeText}>
-          Welcome back, {session.user.name || session.user.email}!
-        </Text>
-        <Text style={styles.headerDescription}>
-          Manage your devices and gentle alarms
-        </Text>
-      </View>
-
-      {devicesLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3b82f6" />
-          <Text style={styles.loadingText}>Loading devices...</Text>
-        </View>
-      ) : devices && devices.length > 0 ? (
-        <FlatList
-          data={devices}
-          renderItem={({ item }) => <DeviceCard device={item} />}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.devicesList}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <EmptyState />
-      )}
-
-      <Pressable
-        style={styles.logoutButton}
-        onPress={async () => {
-          try {
-            await authClient.signOut();
-            router.replace("/login");
-          } catch (error) {
-            Alert.alert("Error", "Failed to sign out");
-          }
-        }}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
       >
-        <Text style={styles.logoutButtonText}>Sign Out</Text>
-      </Pressable>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Welcome to Gently</Text>
+            <Text style={styles.subtitle}>
+              {emailSent ? "Check your email for a sign-in link" : "Sign in to your account"}
+            </Text>
+          </View>
+
+          {!emailSent && (
+            <>
+              <View style={styles.form}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="Enter your email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isLoading}
+                  />
+                </View>
+
+                <Pressable
+                  style={[styles.primaryButton, isLoading && styles.disabledButton]}
+                  onPress={handleEmailAuth}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>
+                      Send Sign-In Link
+                    </Text>
+                  )}
+                </Pressable>
+
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <Pressable
+                  style={[styles.googleButton, isLoading && styles.disabledButton]}
+                  onPress={handleGoogleAuth}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+
+          {emailSent && (
+            <View style={styles.emailSentContainer}>
+              <Text style={styles.emailSentText}>
+                A sign-in link has been sent to {email}
+              </Text>
+              <Text style={styles.emailSentDescription}>
+                Click the link in your email to complete sign-in. You can close this screen.
+              </Text>
+              <Pressable
+                style={styles.tryAgainButton}
+                onPress={() => {
+                  setEmailSent(false);
+                  setEmail("");
+                }}
+              >
+                <Text style={styles.tryAgainButtonText}>
+                  Try with different email
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Manage your devices and gentle alarms with ease
+            </Text>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -211,126 +191,134 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    paddingHorizontal: 16,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    justifyContent: "center",
   },
   header: {
-    paddingVertical: 20,
-    paddingHorizontal: 4,
-  },
-  welcomeText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 4,
-  },
-  headerDescription: {
-    fontSize: 16,
-    color: "#6b7280",
-  },
-  devicesList: {
-    paddingBottom: 20,
-  },
-  deviceCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  deviceHeader: {
-    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 48,
   },
-  deviceAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#e5e7eb",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  deviceInitials: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  deviceInfo: {
-    flex: 1,
-  },
-  deviceTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 2,
-  },
-  deviceDescription: {
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  deviceStats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-  },
-  statItem: {
-    alignItems: "center",
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginBottom: 2,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-  },
-  syncStatus: {
-    fontSize: 12,
-    color: "#059669",
-    fontWeight: "500",
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 24,
+  title: {
+    fontSize: 32,
     fontWeight: "bold",
     color: "#1f2937",
     marginBottom: 8,
     textAlign: "center",
   },
-  emptyDescription: {
+  subtitle: {
     fontSize: 16,
     color: "#6b7280",
     textAlign: "center",
-    marginBottom: 32,
-    lineHeight: 24,
   },
-  addButton: {
-    backgroundColor: "#10b981",
-    paddingHorizontal: 24,
+  form: {
+    width: "100%",
+  },
+  inputContainer: {
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "white",
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
+    fontSize: 16,
+    color: "#1f2937",
   },
-  addButtonText: {
+  primaryButton: {
+    backgroundColor: "#3b82f6",
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  primaryButtonText: {
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#d1d5db",
+  },
+  dividerText: {
+    paddingHorizontal: 16,
+    color: "#6b7280",
+    fontSize: 14,
+  },
+  googleButton: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  googleButtonText: {
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emailSentContainer: {
+    alignItems: "center",
+    paddingVertical: 32,
+  },
+  emailSentText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#059669",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  emailSentDescription: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  tryAgainButton: {
+    backgroundColor: "transparent",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  tryAgainButtonText: {
+    color: "#3b82f6",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  footer: {
+    alignItems: "center",
+    marginTop: 48,
+  },
+  footerText: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
   },
   loadingContainer: {
     flex: 1,
@@ -338,52 +326,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#6b7280",
-  },
-  loginButton: {
-    backgroundColor: "#3b82f6",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  loginButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  errorText: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#dc2626",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  errorDescription: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-  },
-  logoutButton: {
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
     marginTop: 16,
-    marginBottom: 20,
-    alignSelf: "center",
-  },
-  logoutButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
   },
 });

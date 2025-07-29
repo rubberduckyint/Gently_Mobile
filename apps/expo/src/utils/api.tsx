@@ -30,7 +30,7 @@ export const trpc = createTRPCProxyClient<AppRouter>({
     }),
     httpBatchLink({
       transformer: superjson,
-      url: `${getBaseUrl()}/api/trpc`,
+      url: `${process.env.EXPO_PUBLIC_BASE_URL}/api/trpc`,
       headers() {
         const headers = new Map<string, string>();
         headers.set("x-trpc-source", "expo-react");

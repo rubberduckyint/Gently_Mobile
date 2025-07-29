@@ -93,7 +93,120 @@ cp .env.example .env
 pnpm db:push
 ```
 
-### 2. Configure Expo `dev`-script
+### 2. Configure Environment Variables
+
+#### Root Environment Variables
+
+Copy the example environment file and configure it with your values:
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+```
+
+Update the `.env` file with your specific configuration:
+
+```bash
+# Database
+POSTGRES_URL="postgresql://gently:gently@localhost:5832/gently"
+
+# Authentication
+AUTH_SECRET='supersecret'  # Generate with: openssl rand -base64 32
+
+# Email Configuration (for magic link authentication)
+EMAIL_SERVER_HOST="smtp.gmail.com"
+EMAIL_SERVER_PORT="587"
+EMAIL_SERVER_USER="your-email@gmail.com"
+EMAIL_SERVER_PASSWORD="your-app-password"
+EMAIL_FROM="noreply@yourdomain.com"
+
+# Base URLs for API communication
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+EXPO_PUBLIC_BASE_URL=http://localhost:3000
+```
+
+> **Important**: When developing with Expo on a physical device, replace `localhost` in `EXPO_PUBLIC_BASE_URL` with your computer's local IP address (e.g., `http://192.168.1.100:3000`). You can find your IP with `ipconfig` (Windows) or `ifconfig` (Mac/Linux).
+
+#### Expo-Specific Environment Variables
+
+The Expo app requires `EXPO_PUBLIC_BASE_URL` to communicate with your backend. This should point to:
+
+- **Development**: Your local development server (e.g., `http://192.168.1.100:3000`)
+- **Production**: Your deployed Next.js app URL (e.g., `https://your-app.vercel.app`)
+
+### 3. Configure Android Development Environment
+
+#### Install Android Studio and SDK
+
+1. Download and install [Android Studio](https://developer.android.com/studio)
+
+2. During installation, make sure to install:
+   - Android SDK
+   - Android SDK Platform
+   - Android Virtual Device
+
+3. Set up environment variables by adding these to your shell profile (`.bashrc`, `.zshrc`, etc.):
+
+   ```bash
+   export ANDROID_HOME=$HOME/Library/Android/sdk
+   export PATH=$PATH:$ANDROID_HOME/emulator
+   export PATH=$PATH:$ANDROID_HOME/platform-tools
+   ```
+
+4. Reload your shell configuration:
+
+   ```bash
+   source ~/.zshrc  # or ~/.bashrc
+   ```
+
+#### Configure local.properties for Android
+
+Create or update the `local.properties` file in the Expo Android directory:
+
+```bash
+# Navigate to the expo android directory
+cd apps/expo/android
+
+# Create or edit local.properties
+echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
+```
+
+On Windows, the path should be:
+
+```bash
+sdk.dir=C:\\Users\\YourUsername\\AppData\\Local\\Android\\Sdk
+```
+
+On Linux, the path should be:
+
+```bash
+sdk.dir=/home/yourusername/Android/Sdk
+```
+
+> **Note**: The `local.properties` file is automatically generated when you run Android Studio for the first time, but you may need to create it manually if you're setting up the environment without using Android Studio.
+
+#### Verify Android Setup
+
+1. Check that Android SDK is properly installed:
+
+   ```bash
+   adb --version
+   ```
+
+2. List available Android Virtual Devices:
+
+   ```bash
+   emulator -list-avds
+   ```
+
+3. If no AVDs exist, create one using Android Studio:
+   - Open Android Studio
+   - Go to Tools → AVD Manager
+   - Create Virtual Device
+   - Choose a device definition and system image
+   - Finish setup
+
+### 4. Configure Expo `dev`-script
 
 #### Use iOS Simulator
 
@@ -119,7 +232,7 @@ pnpm db:push
 
 3. Run `pnpm dev` at the project root folder.
 
-### 3. Configuring Better-Auth to work with Expo
+### 5. Configuring Better-Auth to work with Expo
 
 In order to get Better-Auth to work with Expo, you must either:
 
@@ -133,7 +246,7 @@ By using the proxy plugin, the Next.js apps will forward any auth requests to th
 
 You can alternatively add your local IP (e.g. `192.168.x.y:$PORT`) to your OAuth provider. This may not be as reliable as your local IP may change when you change networks. Some OAuth providers may also only support a single callback URL for each app making this approach unviable for some providers (e.g. GitHub).
 
-### 4a. When it's time to add a new UI component
+### 6a. When it's time to add a new UI component
 
 Run the `ui-add` script to add a new UI component using the interactive `shadcn/ui` CLI:
 
@@ -143,11 +256,47 @@ pnpm ui-add
 
 When the component(s) has been installed, you should be good to go and start using it in your app.
 
-### 4b. When it's time to add a new package
+### 6b. When it's time to add a new package
 
 To add a new package, simply run `pnpm turbo gen init` in the monorepo root. This will prompt you for a package name as well as if you want to install any dependencies to the new package (of course you can also do this yourself later).
 
 The generator sets up the `package.json`, `tsconfig.json` and a `index.ts`, as well as configures all the necessary configurations for tooling around your package such as formatting, linting and typechecking. When the package is created, you're ready to go build out the package.
+
+## Troubleshooting
+
+### Environment Variable Issues
+
+**Expo app can't connect to backend:**
+
+- Ensure `EXPO_PUBLIC_BASE_URL` uses your computer's IP address, not `localhost`
+- Check that your development server is running on the specified port
+- Verify firewall settings aren't blocking the connection
+
+**Authentication not working:**
+
+- Verify `AUTH_SECRET` is set and properly generated
+- Check email configuration if using magic link authentication
+- Ensure the auth scheme in `apps/expo/src/utils/auth.ts` matches your app configuration
+
+### Android Development Issues
+
+**`adb` command not found:**
+
+- Verify Android SDK is installed
+- Check that `ANDROID_HOME` environment variable is set correctly
+- Ensure Android SDK platform-tools are in your PATH
+
+**Build fails with SDK not found:**
+
+- Check that `local.properties` exists in `apps/expo/android/`
+- Verify the SDK path in `local.properties` points to your actual Android SDK location
+- Try running Android Studio once to auto-generate the file
+
+**Emulator won't start:**
+
+- Ensure virtualization is enabled in BIOS
+- Check that you have enough RAM and disk space
+- Try creating a new AVD with different settings
 
 ## FAQ
 

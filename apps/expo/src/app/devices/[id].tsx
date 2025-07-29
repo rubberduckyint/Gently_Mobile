@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useGlobalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
@@ -73,14 +73,17 @@ function AlarmCard({ alarm }: { alarm: NonNullable<DeviceWithAlarms>["alarms"][n
 }
 
 export default function DeviceDetailPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useGlobalSearchParams<{ id: string }>();
 
   const {
     data: device,
     isLoading,
     error,
   } = useQuery({
-    ...trpc.device.getById.queryOptions({ id: id! }),
+    queryKey: ["device", "getById", { id: id! }],
+    queryFn: async () => {
+      return await trpc.device.getById.query({ id: id! });
+    },
     enabled: !!id,
   });
 
