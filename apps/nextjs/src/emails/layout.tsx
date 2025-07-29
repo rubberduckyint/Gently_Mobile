@@ -39,7 +39,7 @@ export default function Layout({
             <Row style={{ textAlign: "center" }}>
               <Column style={{ textAlign: "center" }}>
                 <Img
-                  src={`${env.AUTH_URL}/images/logo-dark.png`}
+                  src={`${env.NEXT_PUBLIC_BASE_URL}/images/logo-dark.png`}
                   alt="Gently Logo"
                   width="150"
                   height="40"

@@ -10,6 +10,9 @@ import { ConditionalLayout } from "~/_components/conditional-layout";
 import { Toaster } from "~/_components/ui/sonner";
 import { TRPCReactProvider } from "~/trpc/react";
 
+// Force dynamic rendering since we use cookies for locale detection
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Gently",
   description: "A gentle way to manage your tasks",

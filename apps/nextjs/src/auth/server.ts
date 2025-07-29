@@ -6,11 +6,11 @@ import { initAuth } from "@acme/auth";
 
 import { env } from "~/env";
 
-const baseUrl = env.AUTH_URL;
+const baseUrl = env.NEXT_PUBLIC_BASE_URL;
 
 export const auth = initAuth({
   baseUrl,
-  productionUrl: env.AUTH_URL,
+  productionUrl: env.NEXT_PUBLIC_BASE_URL,
   secret: env.AUTH_SECRET,
   googleClientId: env.AUTH_GOOGLE_ID,
   googleClientSecret: env.AUTH_GOOGLE_SECRET,

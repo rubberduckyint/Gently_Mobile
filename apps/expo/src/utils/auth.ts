@@ -4,10 +4,8 @@ import { createAuthClient } from "better-auth/react";
 
 import { getBaseUrl } from "./base-url";
 
-console.log("getBaseUrl", getBaseUrl());
-
 export const authClient = createAuthClient({
-  baseURL: getBaseUrl(),
+  baseURL: process.env.EXPO_PUBLIC_BASE_URL,
   plugins: [
     expoClient({
       scheme: "gently",
