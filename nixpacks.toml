@@ -1,6 +1,6 @@
 providers = ["node"]
 
-[phases.install]
+[phases.setup]
 cmds = [
   "npm install -g corepack", # Install corepack globally
   "corepack enable",         # Enable corepack
