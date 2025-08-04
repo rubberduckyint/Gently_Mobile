@@ -7,6 +7,11 @@ export default function middleware(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
   const { pathname } = request.nextUrl;
 
+  // Allow access to magic link verification page without authentication
+  if (pathname === "/auth/magic-link") {
+    return NextResponse.next();
+  }
+
   // IF user not authenticated AND
   // The current route is not the login route
   // Redirect the user to the login page
