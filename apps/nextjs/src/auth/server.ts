@@ -6,16 +6,6 @@ import { initAuth } from "@acme/auth";
 
 import { env } from "~/env";
 
-console.log("🚀 Auth server initialization starting...");
-console.log("🔧 Environment variables loaded:", {
-  baseUrl: env.NEXT_PUBLIC_BASE_URL,
-  emailFrom: env.EMAIL_FROM,
-  emailHost: env.EMAIL_SERVER_HOST,
-  emailPort: env.EMAIL_SERVER_PORT,
-  emailUser: env.EMAIL_SERVER_USER,
-  hasEmailPassword: !!env.EMAIL_SERVER_PASSWORD,
-});
-
 const baseUrl = env.NEXT_PUBLIC_BASE_URL;
 
 export const auth = initAuth({

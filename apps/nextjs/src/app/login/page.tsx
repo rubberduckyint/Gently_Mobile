@@ -123,7 +123,7 @@ export default function LoginPage() {
       // Use better-auth magic link via direct API call
       await authClient.signIn.magicLink({
         email: data.email,
-        callbackURL: "/auth/magic-link", // Use our custom redirect page
+        callbackURL: "/dashboard",
       });
 
       setEmailSent(true);
