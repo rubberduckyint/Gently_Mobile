@@ -49,12 +49,12 @@ export default function LoginPage() {
       Alert.alert(
         "Check Your Email",
         "We've sent a sign-in link to your email address. Click the link to continue.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         "Failed to Send Magic Link",
-        error.message || "Please try again."
+        (error as Error).message || "Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -72,9 +72,12 @@ export default function LoginPage() {
       });
       console.log("Google sign-in result:", result);
       router.replace("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Google auth error:", error);
-      Alert.alert("Authentication Failed", error.message || "Failed to sign in with Google");
+      Alert.alert(
+        "Authentication Failed",
+        (error as Error).message || "Failed to sign in with Google",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +105,9 @@ export default function LoginPage() {
           <View style={styles.header}>
             <Text style={styles.title}>Welcome to Gently</Text>
             <Text style={styles.subtitle}>
-              {emailSent ? "Check your email for a sign-in link" : "Sign in to your account"}
+              {emailSent
+                ? "Check your email for a sign-in link"
+                : "Sign in to your account"}
             </Text>
           </View>
 
@@ -124,7 +129,10 @@ export default function LoginPage() {
                 </View>
 
                 <Pressable
-                  style={[styles.primaryButton, isLoading && styles.disabledButton]}
+                  style={[
+                    styles.primaryButton,
+                    isLoading && styles.disabledButton,
+                  ]}
                   onPress={handleEmailAuth}
                   disabled={isLoading}
                 >
@@ -144,11 +152,16 @@ export default function LoginPage() {
                 </View>
 
                 <Pressable
-                  style={[styles.googleButton, isLoading && styles.disabledButton]}
+                  style={[
+                    styles.googleButton,
+                    isLoading && styles.disabledButton,
+                  ]}
                   onPress={handleGoogleAuth}
                   disabled={isLoading}
                 >
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  <Text style={styles.googleButtonText}>
+                    Continue with Google
+                  </Text>
                 </Pressable>
               </View>
             </>
@@ -160,7 +173,8 @@ export default function LoginPage() {
                 A sign-in link has been sent to {email}
               </Text>
               <Text style={styles.emailSentDescription}>
-                Click the link in your email to complete sign-in. You can close this screen.
+                Click the link in your email to complete sign-in. You can close
+                this screen.
               </Text>
               <Pressable
                 style={styles.tryAgainButton}

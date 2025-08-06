@@ -16,19 +16,26 @@ import {
 } from "~/_components/ui/dialog";
 import { useTRPC } from "~/trpc/react";
 
-type BluetoothDevice = {
+interface BluetoothDevice {
   id: string;
   name: string;
   rssi: number; // Signal strength
-};
+}
 
-type ConnectionStep = "scanning" | "found" | "connecting" | "connected" | "error";
+type ConnectionStep =
+  | "scanning"
+  | "found"
+  | "connecting"
+  | "connected"
+  | "error";
 
 export function AddDeviceButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<ConnectionStep>("scanning");
   const [foundDevices, setFoundDevices] = useState<BluetoothDevice[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<BluetoothDevice | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<BluetoothDevice | null>(
+    null,
+  );
   const [isScanning, setIsScanning] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -65,17 +72,19 @@ export function AddDeviceButton() {
     setStep("scanning");
 
     // Check if Web Bluetooth is supported
-    if (!('bluetooth' in navigator)) {
+    if (!("bluetooth" in navigator)) {
       setStep("error");
-      setErrorMessage("Bluetooth is not supported in your browser. Please use Chrome, Edge, or another supported browser.");
+      setErrorMessage(
+        "Bluetooth is not supported in your browser. Please use Chrome, Edge, or another supported browser.",
+      );
       setIsScanning(false);
       return;
     }
 
     try {
       // Simulate scanning with a delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // For now, we'll simulate finding devices since Web Bluetooth requires user interaction
       // In a real implementation, you would use: navigator.bluetooth.requestDevice()
       const mockDevices: BluetoothDevice[] = [
@@ -86,9 +95,11 @@ export function AddDeviceButton() {
 
       setFoundDevices(mockDevices);
       setStep("found");
-    } catch (error) {
+    } catch {
       setStep("error");
-      setErrorMessage("Failed to scan for devices. Please make sure Bluetooth is enabled.");
+      setErrorMessage(
+        "Failed to scan for devices. Please make sure Bluetooth is enabled.",
+      );
     } finally {
       setIsScanning(false);
     }
@@ -106,10 +117,10 @@ export function AddDeviceButton() {
 
     try {
       // Simulate connection process
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
       setStep("connected");
-      
+
       // Wait a moment to show success, then create the device
       setTimeout(() => {
         createDeviceMutation.mutate({
@@ -117,7 +128,7 @@ export function AddDeviceButton() {
           description: `Bluetooth device ${selectedDevice.id}`,
         });
       }, 1500);
-    } catch (error) {
+    } catch {
       setStep("error");
       setErrorMessage("Failed to connect to device. Please try again.");
     } finally {
@@ -128,7 +139,7 @@ export function AddDeviceButton() {
   const handleDialogOpen = (open: boolean) => {
     setIsOpen(open);
     if (open) {
-      handleStartScan();
+      void handleStartScan();
     } else {
       resetState();
     }
@@ -175,7 +186,7 @@ export function AddDeviceButton() {
                   <Loader2 className="absolute -top-2 -right-2 h-6 w-6 animate-spin text-blue-500" />
                 )}
               </div>
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-center text-sm">
                 Make sure your Gently device is in pairing mode
               </p>
             </div>
@@ -194,7 +205,7 @@ export function AddDeviceButton() {
               {foundDevices.map((device) => (
                 <div
                   key={device.id}
-                  className={`flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors ${
+                  className={`flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors ${
                     selectedDevice?.id === device.id
                       ? "border-blue-500 bg-blue-50"
                       : "border-gray-200 hover:bg-gray-50"
@@ -205,24 +216,34 @@ export function AddDeviceButton() {
                     <Bluetooth className="h-5 w-5 text-blue-500" />
                     <div>
                       <p className="font-medium">{device.name}</p>
-                      <p className="text-xs text-muted-foreground">{device.id}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {device.id}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-xs font-medium ${getSignalColor(device.rssi)}`}>
+                    <p
+                      className={`text-xs font-medium ${getSignalColor(device.rssi)}`}
+                    >
                       {getSignalStrength(device.rssi)}
                     </p>
-                    <p className="text-xs text-muted-foreground">{device.rssi} dBm</p>
+                    <p className="text-muted-foreground text-xs">
+                      {device.rssi} dBm
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={handleStartScan} disabled={isScanning}>
+              <Button
+                variant="outline"
+                onClick={handleStartScan}
+                disabled={isScanning}
+              >
                 Scan Again
               </Button>
-              <Button 
-                onClick={handleConnect} 
+              <Button
+                onClick={handleConnect}
                 disabled={!selectedDevice || isConnecting}
               >
                 Connect
@@ -249,7 +270,7 @@ export function AddDeviceButton() {
                   <Bluetooth className="h-12 w-12 text-blue-500 opacity-30" />
                 </div>
               </div>
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-center text-sm">
                 Please wait while we establish a connection...
               </p>
             </div>
@@ -263,14 +284,15 @@ export function AddDeviceButton() {
                 ✓ Connected Successfully
               </DialogTitle>
               <DialogDescription>
-                Your device has been connected and is being added to your account.
+                Your device has been connected and is being added to your
+                account.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 py-8">
               <div className="rounded-full bg-green-100 p-4">
                 <Bluetooth className="h-8 w-8 text-green-600" />
               </div>
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-center text-sm">
                 {selectedDevice?.name} is now ready to use!
               </p>
               {createDeviceMutation.isPending && (
@@ -287,15 +309,13 @@ export function AddDeviceButton() {
                 <WifiOff className="h-5 w-5" />
                 Connection Failed
               </DialogTitle>
-              <DialogDescription>
-                {errorMessage}
-              </DialogDescription>
+              <DialogDescription>{errorMessage}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 py-8">
               <div className="rounded-full bg-red-100 p-4">
                 <WifiOff className="h-8 w-8 text-red-600" />
               </div>
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-center text-sm">
                 Please check your device and try again.
               </p>
             </div>
@@ -303,9 +323,7 @@ export function AddDeviceButton() {
               <Button variant="outline" onClick={() => setIsOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleStartScan}>
-                Try Again
-              </Button>
+              <Button onClick={handleStartScan}>Try Again</Button>
             </DialogFooter>
           </>
         )}

@@ -192,7 +192,7 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
               <DialogHeaderUI>
                 <DialogTitleUI>Edit Device</DialogTitleUI>
               </DialogHeaderUI>
-              <DeviceForm device={device as Device} onSave={handleSave} />
+              <DeviceForm device={device as Device} onSaveAction={handleSave} />
             </DialogContent>
           </Dialog>
         </Card>

@@ -1,16 +1,18 @@
 import * as React from "react";
 import {
   Body,
-  Container,
   Column,
+  Container,
   Head,
   Html,
+  Img,
   Preview,
+  Row,
   Section,
   Text,
-  Img,
-  Row,
 } from "@react-email/components";
+
+import { env } from "~/env";
 import {
   bodyStyle,
   containerStyle,
@@ -18,7 +20,6 @@ import {
   footerTextStyle,
   headerStyle,
 } from "./styles";
-import { env } from "~/env";
 
 interface LayoutProps {
   preview?: string;

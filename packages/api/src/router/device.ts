@@ -117,9 +117,9 @@ export const deviceRouter = {
         description: z.string().min(1).optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {      
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
-      
+
       // First check if the device belongs to the current user
       const existingDevice = await ctx.db
         .select()
@@ -134,7 +134,6 @@ export const deviceRouter = {
         });
       }
 
-      
       console.log("Updating device with data:", data);
 
       const result = await ctx.db

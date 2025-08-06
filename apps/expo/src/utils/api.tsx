@@ -6,7 +6,6 @@ import superjson from "superjson";
 import type { AppRouter } from "@acme/api";
 
 import { authClient } from "./auth";
-import { getBaseUrl } from "./base-url";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,9 +49,7 @@ export const trpc = createTRPCProxyClient<AppRouter>({
  */
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 }
 

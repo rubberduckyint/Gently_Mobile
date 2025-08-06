@@ -1,4 +1,5 @@
 import * as nodemailer from "nodemailer";
+
 import type { EmailConfig, SendEmailOptions } from "./types";
 import { EmailConfigSchema, SendEmailSchema } from "./types";
 
@@ -8,15 +9,18 @@ export class EmailSender {
 
   constructor(config: EmailConfig) {
     this.config = EmailConfigSchema.parse(config);
-    
+
     this.transporter = nodemailer.createTransport({
       host: this.config.smtpHost,
       port: this.config.smtpPort,
       secure: this.config.smtpPort === 465, // true for 465, false for other ports
-      auth: this.config.smtpUser && this.config.smtpPassword ? {
-        user: this.config.smtpUser,
-        pass: this.config.smtpPassword,
-      } : undefined,
+      auth:
+        this.config.smtpUser && this.config.smtpPassword
+          ? {
+              user: this.config.smtpUser,
+              pass: this.config.smtpPassword,
+            }
+          : undefined,
       // Add TLS options for better compatibility
       tls: {
         // Do not fail on invalid certs (useful for development)
@@ -27,20 +31,22 @@ export class EmailSender {
 
   async sendEmail(options: SendEmailOptions): Promise<void> {
     const validatedOptions = SendEmailSchema.parse(options);
-    
+
     try {
-      const info = await this.transporter.sendMail({
+      const info = (await this.transporter.sendMail({
         from: this.config.emailFrom,
         to: validatedOptions.to,
         subject: validatedOptions.subject,
         text: validatedOptions.text,
         html: validatedOptions.html,
-      });
+      })) as { messageId: string };
 
       if (process.env.NODE_ENV !== "production") {
         console.log(`Email sent successfully: ${info.messageId}`, {
           subject: validatedOptions.subject,
-          to: Array.isArray(validatedOptions.to) ? validatedOptions.to.join(", ") : validatedOptions.to,
+          to: Array.isArray(validatedOptions.to)
+            ? validatedOptions.to.join(", ")
+            : validatedOptions.to,
         });
       }
     } catch (error) {
@@ -55,7 +61,7 @@ export class EmailSender {
           hasAuth: !!this.config.smtpUser,
         },
       });
-      
+
       throw error;
     }
   }

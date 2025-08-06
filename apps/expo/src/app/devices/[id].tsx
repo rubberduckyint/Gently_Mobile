@@ -10,14 +10,19 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useGlobalSearchParams } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
+import { bluetoothService } from "~/services/BluetoothService";
 import { trpc } from "~/utils/api";
 
 type DeviceWithAlarms = RouterOutputs["device"]["getById"];
 
-function AlarmCard({ alarm }: { alarm: NonNullable<DeviceWithAlarms>["alarms"][number] }) {
+function AlarmCard({
+  alarm,
+}: {
+  alarm: NonNullable<DeviceWithAlarms>["alarms"][number];
+}) {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "HIGH":
@@ -40,28 +45,30 @@ function AlarmCard({ alarm }: { alarm: NonNullable<DeviceWithAlarms>["alarms"][n
             <Text style={styles.alarmDescription}>{alarm.description}</Text>
           )}
         </View>
-        <View style={[
-          styles.priorityBadge,
-          { backgroundColor: getPriorityColor(alarm.priority) }
-        ]}>
+        <View
+          style={[
+            styles.priorityBadge,
+            { backgroundColor: getPriorityColor(alarm.priority) },
+          ]}
+        >
           <Text style={styles.priorityText}>{alarm.priority}</Text>
         </View>
       </View>
       <View style={styles.alarmDetails}>
         <View style={styles.alarmDetailItem}>
           <Text style={styles.detailLabel}>Status</Text>
-          <Text style={[
-            styles.detailValue,
-            { color: alarm.isActive ? "#10b981" : "#6b7280" }
-          ]}>
+          <Text
+            style={[
+              styles.detailValue,
+              { color: alarm.isActive ? "#10b981" : "#6b7280" },
+            ]}
+          >
             {alarm.isActive ? "Active" : "Inactive"}
           </Text>
         </View>
         <View style={styles.alarmDetailItem}>
           <Text style={styles.detailLabel}>Repeat</Text>
-          <Text style={styles.detailValue}>
-            {alarm.repeat ? "Yes" : "No"}
-          </Text>
+          <Text style={styles.detailValue}>{alarm.repeat ? "Yes" : "No"}</Text>
         </View>
         <View style={styles.alarmDetailItem}>
           <Text style={styles.detailLabel}>Haptic</Text>
@@ -74,18 +81,88 @@ function AlarmCard({ alarm }: { alarm: NonNullable<DeviceWithAlarms>["alarms"][n
 
 export default function DeviceDetailPage() {
   const { id } = useGlobalSearchParams<{ id: string }>();
+  const queryClient = useQueryClient();
 
   const {
     data: device,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["device", "getById", { id: id! }],
+    queryKey: ["device", "getById", { id: id }],
     queryFn: async () => {
-      return await trpc.device.getById.query({ id: id! });
+      return await trpc.device.getById.query({ id: id });
     },
     enabled: !!id,
   });
+
+  const deleteDeviceMutation = useMutation({
+    mutationFn: async () => {
+      return await trpc.device.delete.mutate({ id: id });
+    },
+    onSuccess: () => {
+      // Invalidate the devices list to refresh the dashboard
+      void queryClient.invalidateQueries({ queryKey: ["device", "getAll"] });
+      // Navigate back to dashboard
+      router.back();
+    },
+    onError: (error) => {
+      Alert.alert("Error", `Failed to delete device: ${error.message}`);
+    },
+  });
+
+  const [isSyncing, setIsSyncing] = React.useState(false);
+
+  const handleSyncDevice = async () => {
+    if (!device?.id) return;
+
+    setIsSyncing(true);
+    try {
+      console.log("🔄 Starting device sync for:", device.title);
+
+      const result = await bluetoothService.syncWithDevice(
+        device.id,
+        // For now, we'll pass undefined since we don't have serialNumber stored
+        // In the future, you might want to add serialNumber to the device model
+        undefined,
+      );
+
+      Alert.alert(
+        result.success ? "Sync Successful" : "Sync Failed",
+        result.message,
+        [{ text: "OK" }],
+      );
+
+      if (result.success) {
+        // Optionally refresh device data
+        void queryClient.invalidateQueries({
+          queryKey: ["device", "getById", { id: id }],
+        });
+      }
+    } catch (error) {
+      console.error("❌ Sync error:", error);
+      Alert.alert(
+        "Sync Error",
+        `Failed to sync with device: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleDeleteDevice = () => {
+    Alert.alert(
+      "Delete Device",
+      "Are you sure you want to delete this device? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteDeviceMutation.mutate(),
+        },
+      ],
+    );
+  };
 
   if (isLoading) {
     return (
@@ -106,10 +183,7 @@ export default function DeviceDetailPage() {
           <Text style={styles.errorDescription}>
             {error.message || "Please try again later"}
           </Text>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Go Back</Text>
           </Pressable>
         </View>
@@ -122,10 +196,7 @@ export default function DeviceDetailPage() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Device not found</Text>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Go Back</Text>
           </Pressable>
         </View>
@@ -154,12 +225,15 @@ export default function DeviceDetailPage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Device Header */}
         <View style={styles.deviceHeader}>
           <View style={styles.deviceAvatar}>
             <Text style={styles.deviceInitials}>
-              {device.title?.slice(0, 2).toUpperCase() || "??"}
+              {device.title?.slice(0, 2).toUpperCase() ?? "??"}
             </Text>
           </View>
           <View style={styles.deviceInfo}>
@@ -172,26 +246,27 @@ export default function DeviceDetailPage() {
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Battery Level</Text>
-            <Text style={[
-              styles.statValue,
-              { color: getBatteryColor(device.batteryLevel || 0) }
-            ]}>
-              {device.batteryLevel || 0}%
+            <Text
+              style={[
+                styles.statValue,
+                { color: getBatteryColor(device.batteryLevel ?? 0) },
+              ]}
+            >
+              {device.batteryLevel ?? 0}%
             </Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Sync Status</Text>
             <Text style={styles.statValue}>
-              {getSyncStatusText(device.syncStatus || "NOT_SYNCED")}
+              {getSyncStatusText(device.syncStatus ?? "NOT_SYNCED")}
             </Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Last Sync</Text>
             <Text style={styles.statValue}>
-              {device.lastSync 
+              {device.lastSync
                 ? new Date(device.lastSync).toLocaleDateString()
-                : "Never"
-              }
+                : "Never"}
             </Text>
           </View>
         </View>
@@ -199,10 +274,17 @@ export default function DeviceDetailPage() {
         {/* Alarms Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Alarms ({device.alarms.length})</Text>
+            <Text style={styles.sectionTitle}>
+              Alarms ({device.alarms.length})
+            </Text>
             <Pressable
               style={styles.addAlarmButton}
-              onPress={() => Alert.alert("Coming Soon", "Alarm creation will be available soon!")}
+              onPress={() =>
+                Alert.alert(
+                  "Coming Soon",
+                  "Alarm creation will be available soon!",
+                )
+              }
             >
               <Text style={styles.addAlarmButtonText}>+ Add Alarm</Text>
             </Pressable>
@@ -227,29 +309,30 @@ export default function DeviceDetailPage() {
         {/* Actions */}
         <View style={styles.actionsContainer}>
           <Pressable
-            style={styles.syncButton}
-            onPress={() => Alert.alert("Coming Soon", "Device sync will be available soon!")}
+            style={[styles.syncButton, isSyncing && styles.buttonDisabled]}
+            onPress={handleSyncDevice}
+            disabled={isSyncing}
           >
-            <Text style={styles.syncButtonText}>Sync Device</Text>
+            {isSyncing ? (
+              <View style={styles.syncingContainer}>
+                <ActivityIndicator size="small" color="white" />
+                <Text style={styles.syncButtonText}>Syncing...</Text>
+              </View>
+            ) : (
+              <Text style={styles.syncButtonText}>Sync Device</Text>
+            )}
           </Pressable>
           <Pressable
-            style={styles.deleteButton}
-            onPress={() => {
-              Alert.alert(
-                "Delete Device",
-                "Are you sure you want to delete this device? This action cannot be undone.",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: () => Alert.alert("Coming Soon", "Device deletion will be available soon!")
-                  }
-                ]
-              );
-            }}
+            style={[
+              styles.deleteButton,
+              deleteDeviceMutation.isPending && styles.deleteButtonDisabled,
+            ]}
+            onPress={handleDeleteDevice}
+            disabled={deleteDeviceMutation.isPending}
           >
-            <Text style={styles.deleteButtonText}>Delete Device</Text>
+            <Text style={styles.deleteButtonText}>
+              {deleteDeviceMutation.isPending ? "Deleting..." : "Delete Device"}
+            </Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -497,16 +580,27 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
+  syncingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   syncButtonText: {
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  buttonDisabled: {
+    backgroundColor: "#9ca3af",
   },
   deleteButton: {
     backgroundColor: "#ef4444",
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",
+  },
+  deleteButtonDisabled: {
+    backgroundColor: "#9ca3af",
   },
   deleteButtonText: {
     color: "white",

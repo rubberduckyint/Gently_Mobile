@@ -25,7 +25,7 @@ export function initAuth(options: {
 }) {
   // Initialize email service if SMTP is configured
   let magicLinkService: MagicLinkService | null = null;
-  
+
   if (options.smtpHost && options.smtpPort && options.emailFrom) {
     const emailSender = new EmailSender({
       smtpHost: options.smtpHost,
@@ -34,7 +34,7 @@ export function initAuth(options: {
       smtpPassword: options.smtpPassword,
       emailFrom: options.emailFrom,
     });
-    
+
     magicLinkService = new MagicLinkService(emailSender);
   }
 
@@ -71,7 +71,9 @@ export function initAuth(options: {
             } else {
               // Fallback for development or missing email config
               console.log(`Magic link for ${email}: ${url}`);
-              console.warn("Email service not configured. Using console fallback.");
+              console.warn(
+                "Email service not configured. Using console fallback.",
+              );
             }
           } catch (error) {
             console.error("Failed to send magic link:", error);
@@ -84,7 +86,7 @@ export function initAuth(options: {
     socialProviders: {
       google: {
         clientId: options.googleClientId,
-        clientSecret: options.googleClientSecret        
+        clientSecret: options.googleClientSecret,
       },
     },
     trustedOrigins: ["gently://", "gently://*"],

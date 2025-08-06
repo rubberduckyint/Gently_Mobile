@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { Check, ChevronsUpDown, Globe } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import { cn } from "~/lib/utils";
 import { Button } from "./button";
 import {
   Command,
@@ -12,8 +15,6 @@ import {
   CommandList,
 } from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
-import { cn } from "~/lib/utils";
-import { useTranslations } from "next-intl";
 
 const SUPPORTED_LANGUAGES = [
   { code: "en", name: "English", flag: "🇺🇸" },

@@ -22,9 +22,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       dark: "./assets/icon-dark.png",
     },
     infoPlist: {
-      NSBluetoothAlwaysUsageDescription: "This app uses Bluetooth to connect to your Gently devices for monitoring and control.",
-      NSBluetoothPeripheralUsageDescription: "This app uses Bluetooth to connect to your Gently devices for monitoring and control.",
-      NSLocationWhenInUseUsageDescription: "This app needs location access to scan for Bluetooth devices.",
+      NSBluetoothAlwaysUsageDescription:
+        "This app uses Bluetooth to connect to your Gently devices for monitoring and control.",
+      NSBluetoothPeripheralUsageDescription:
+        "This app uses Bluetooth to connect to your Gently devices for monitoring and control.",
+      NSLocationWhenInUseUsageDescription:
+        "This app needs location access to scan for Bluetooth devices.",
     },
   },
   android: {
@@ -36,7 +39,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     edgeToEdgeEnabled: true,
     permissions: [
       "android.permission.BLUETOOTH",
-      "android.permission.BLUETOOTH_ADMIN", 
+      "android.permission.BLUETOOTH_ADMIN",
       "android.permission.BLUETOOTH_SCAN",
       "android.permission.BLUETOOTH_CONNECT",
       "android.permission.ACCESS_FINE_LOCATION",
@@ -60,8 +63,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "@react-native-google-signin/google-signin",
       {
-        "iosUrlScheme": "com.googleusercontent.apps._some_id_here_"
-      }
+        iosUrlScheme: "com.googleusercontent.apps._some_id_here_",
+      },
     ],
     [
       "expo-splash-screen",

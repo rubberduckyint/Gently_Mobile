@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Globe } from "lucide-react";
+
 import { Button } from "~/_components/ui/button";
 import {
   DropdownMenu,
@@ -23,7 +24,7 @@ export function LanguageSelector() {
 
   useEffect(() => {
     const updateLocaleFromCookie = () => {
-      const cookieLocale = (/locale=([^;]+)/.exec(document.cookie))?.[1];
+      const cookieLocale = /locale=([^;]+)/.exec(document.cookie)?.[1];
       if (cookieLocale) {
         setCurrentLocale(cookieLocale);
       }

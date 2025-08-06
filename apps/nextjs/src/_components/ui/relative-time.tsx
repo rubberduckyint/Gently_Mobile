@@ -1,8 +1,11 @@
 "use client";
+
 import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { useSession } from "next-auth/react";
-import { formatInUserTimezone } from "~/utils/timezone";
+import { format, formatDistanceToNow } from "date-fns";
+
+// import { useSession } from "next-auth/react";
+
+// import { formatInUserTimezone } from "~/utils/timezone";
 
 interface RelativeTimeProps {
   date: Date | string | number;
@@ -15,23 +18,22 @@ export function RelativeTime({
   date,
   formatString = "MMMM d, yyyy, h:mm a",
   addSuffix = true,
-  showTimezone = false,
+  showTimezone: _showTimezone = false,
 }: RelativeTimeProps) {
-  const { data: session } = useSession();
+  // const { data: session } = useSession();
   const [relative, setRelative] = useState<string | null>(null);
-  const userTimezone =
-    (session?.user as { timezone?: string })?.timezone ?? "UTC";
+  // const userTimezone =
+  //   (session?.user as { timezone?: string })?.timezone ?? "UTC";
 
   useEffect(() => {
     // Use the original date for relative time calculation
     setRelative(formatDistanceToNow(new Date(date), { addSuffix }));
   }, [date, addSuffix]);
 
-  // Format the absolute time in user's timezone for the tooltip
-  const absoluteTime = formatInUserTimezone(
-    typeof date === "number" ? new Date(date) : date,
-    userTimezone,
-    showTimezone ? `${formatString} zzz` : formatString,
+  // Format the absolute time using simple date-fns format
+  const absoluteTime = format(
+    typeof date === "number" ? new Date(date) : new Date(date),
+    formatString,
   );
 
   if (relative) {
@@ -42,6 +44,6 @@ export function RelativeTime({
     );
   }
 
-  // Fallback for SSR: show timezone-aware absolute time
+  // Fallback for SSR: show absolute time
   return <>{absoluteTime}</>;
 }

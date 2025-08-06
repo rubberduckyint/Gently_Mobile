@@ -27,9 +27,9 @@ export default async function UserPage({ params }: UserPageProps) {
 function UserDetailsSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="h-8 w-32 animate-pulse rounded bg-muted" />
-      <div className="h-48 animate-pulse rounded bg-muted" />
-      <div className="h-64 animate-pulse rounded bg-muted" />
+      <div className="bg-muted h-8 w-32 animate-pulse rounded" />
+      <div className="bg-muted h-48 animate-pulse rounded" />
+      <div className="bg-muted h-64 animate-pulse rounded" />
     </div>
   );
 }

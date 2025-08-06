@@ -2,12 +2,12 @@ import nodemailer from "nodemailer";
 
 import { env } from "~/env";
 
-type SendMailProps = {
+interface SendMailProps {
   recipient: string | string[];
   subject: string;
   html: string | Promise<string>;
   contentText: string;
-};
+}
 
 const transporter = nodemailer.createTransport({
   host: env.EMAIL_SERVER_HOST,
@@ -25,7 +25,7 @@ const transporter = nodemailer.createTransport({
   // Add TLS options for better compatibility
   tls: {
     // Do not fail on invalid certs (useful for development)
-    rejectUnauthorized: process.env.NODE_ENV === "production",
+    rejectUnauthorized: env.NODE_ENV === "production",
   },
 });
 
@@ -58,18 +58,15 @@ const sendMail = async ({
       text: contentText,
       html: resolvedHtml,
     });
-    // Type guard for info
-    if (
-      typeof info !== "object" ||
-      info === null ||
-      typeof info.messageId !== "string"
-    ) {
+
+    // Check if the email was sent successfully
+    if (!info.messageId) {
       throw new Error(
         "Nodemailer did not return a valid SentMessageInfo object",
       );
     }
 
-    if (process.env.NODE_ENV !== "production") {
+    if (env.NODE_ENV !== "production") {
       console.log(`Email sent successfully: ${info.messageId}`, {
         subject,
         recipient: Array.isArray(recipient) ? recipient.join(", ") : recipient,

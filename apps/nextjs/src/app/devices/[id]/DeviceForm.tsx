@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import type { Alarm, Device } from "@acme/db";
+import type { Device } from "@acme/db";
 
 import { Button } from "~/_components/ui/button";
 import {
@@ -22,12 +22,12 @@ import { Textarea } from "~/_components/ui/textarea";
 import { useTRPC } from "~/trpc/react";
 
 // Type for the device data returned by tRPC getById query
-type DeviceWithAlarms = Device & {
-  alarms: Alarm[];
-  _count: {
-    alarms: number;
-  };
-};
+// type DeviceWithAlarms = Device & {
+//   alarms: Alarm[];
+//   _count: {
+//     alarms: number;
+//   };
+// };
 
 const deviceSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters").max(50),
@@ -40,10 +40,10 @@ type DeviceFormValues = z.infer<typeof deviceSchema>;
 
 export default function DeviceForm({
   device,
-  onSave,
+  onSaveAction,
 }: {
-  device: any; // Using any for now to fix the type errors
-  onSave?: () => void;
+  device: Device; // Properly type the device parameter
+  onSaveAction?: () => void; // Renamed to indicate Server Action
 }) {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
@@ -61,7 +61,7 @@ export default function DeviceForm({
         void queryClient.invalidateQueries({
           queryKey: trpc.device.getById.queryKey({ id: device.id }),
         });
-        onSave?.();
+        onSaveAction?.();
       },
       onError: (error) => {
         toast.error(`Failed to update device: ${error.message}`);

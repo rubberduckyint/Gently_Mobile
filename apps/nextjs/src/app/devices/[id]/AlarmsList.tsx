@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import type { AlarmType } from "@acme/db";
+import type { Alarm } from "@acme/db";
 
 import { AlarmEditForm } from "~/_components/alarm/AlarmEditForm";
 import {
@@ -148,7 +148,7 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [editAlarm, setEditAlarm] = useState<AlarmType | null>(null);
+  const [editAlarm, setEditAlarm] = useState<Alarm | null>(null);
   const [createAlarmOpen, setCreateAlarmOpen] = useState(false);
 
   // Fetch alarms for this device
@@ -186,11 +186,11 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
     }),
   );
 
-  const handleEdit = (alarm: AlarmType) => {
+  const handleEdit = (alarm: Alarm) => {
     setEditAlarm(alarm);
   };
 
-  const handleDelete = (alarm: AlarmType) => {
+  const handleDelete = (alarm: Alarm) => {
     setDeleteId(alarm.id);
   };
 

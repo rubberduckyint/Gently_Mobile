@@ -1,7 +1,10 @@
 "use client";
 
-import { formatInUserTimezone } from "~/utils/timezone";
-import { useSession } from "next-auth/react";
+import { format } from "date-fns";
+
+// import { useSession } from "next-auth/react";
+
+// import { formatInUserTimezone } from "~/utils/timezone";
 
 interface TimezoneAwareDateProps {
   date: Date | string;
@@ -11,18 +14,18 @@ interface TimezoneAwareDateProps {
 
 export function TimezoneAwareDate({
   date,
-  format = "MMM d, yyyy 'at' h:mm a",
-  fallbackTimezone = "UTC",
+  format: formatString = "MMM d, yyyy 'at' h:mm a",
+  fallbackTimezone: _fallbackTimezone = "UTC",
 }: TimezoneAwareDateProps) {
-  const { data: session } = useSession();
-  const userTimezone =
-    (session?.user as { timezone?: string })?.timezone ?? fallbackTimezone;
+  // const { data: session } = useSession();
+  // const userTimezone =
+  //   (session?.user as { timezone?: string })?.timezone ?? fallbackTimezone;
+
+  const dateObj = typeof date === "string" ? new Date(date) : date;
 
   return (
-    <span
-      title={`${formatInUserTimezone(date, "UTC", "yyyy-MM-dd HH:mm:ss 'UTC'")}`}
-    >
-      {formatInUserTimezone(date, userTimezone, format)}
+    <span title={format(dateObj, "yyyy-MM-dd HH:mm:ss")}>
+      {format(dateObj, formatString)}
     </span>
   );
 }
@@ -34,24 +37,20 @@ interface TimezoneAwareRelativeTimeProps {
 
 export function TimezoneAwareRelativeTime({
   date,
-  fallbackTimezone = "UTC",
+  fallbackTimezone: _fallbackTimezone = "UTC",
 }: TimezoneAwareRelativeTimeProps) {
-  const { data: session } = useSession();
-  const userTimezone =
-    (session?.user as { timezone?: string })?.timezone ?? fallbackTimezone;
+  // const { data: session } = useSession();
+  // const userTimezone =
+  //   (session?.user as { timezone?: string })?.timezone ?? fallbackTimezone;
+
+  const dateObj = typeof date === "string" ? new Date(date) : date;
 
   // For relative time, we can use the existing relative-time component
-  // but show the timezone-aware absolute time in the tooltip
+  // but show the absolute time in the tooltip
   return (
-    <span
-      title={formatInUserTimezone(
-        date,
-        userTimezone,
-        "MMM d, yyyy 'at' h:mm a zzz",
-      )}
-    >
+    <span title={format(dateObj, "MMM d, yyyy 'at' h:mm a")}>
       <time dateTime={typeof date === "string" ? date : date.toISOString()}>
-        {formatInUserTimezone(date, userTimezone, "MMM d, yyyy 'at' h:mm a")}
+        {format(dateObj, "MMM d, yyyy 'at' h:mm a")}
       </time>
     </span>
   );

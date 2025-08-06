@@ -5,8 +5,8 @@ import Image from "next/image";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle, Loader2, Mail } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useForm } from "react-hook-form";
 import { useTheme } from "next-themes";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -78,7 +78,7 @@ const AppleIcon = () => (
 
 export default function LoginPage() {
   const t = useTranslations();
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme: _resolvedTheme } = useTheme();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
   const [isEmailLoading, setIsEmailLoading] = useState(false);
@@ -141,7 +141,7 @@ export default function LoginPage() {
   return (
     <div className="bg-muted flex min-h-screen items-center justify-center p-4">
       <div className="flex w-full max-w-md flex-col items-center">
-        <div className="relative mb-8 h-[60px] w-[220px]">          
+        <div className="relative mb-8 h-[60px] w-[220px]">
           <Image
             src="/images/logo-dark.svg"
             alt="Gently Logo"
@@ -149,7 +149,7 @@ export default function LoginPage() {
             height={60}
             priority
             className={`absolute inset-0 transition-opacity duration-200`}
-          />          
+          />
         </div>
         <Card className="w-full shadow-lg">
           <CardHeader className="text-center">

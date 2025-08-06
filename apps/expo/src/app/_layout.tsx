@@ -24,27 +24,27 @@ export default function RootLayout() {
           },
         }}
       >
-        <Stack.Screen 
-          name="index" 
-          options={{ 
+        <Stack.Screen
+          name="index"
+          options={{
             title: "Login",
-            headerShown: false 
-          }} 
+            headerShown: false,
+          }}
         />
-        <Stack.Screen 
-          name="dashboard" 
-          options={{ 
+        <Stack.Screen
+          name="dashboard"
+          options={{
             title: "Dashboard",
-            headerShown: false 
-          }} 
+            headerShown: false,
+          }}
         />
-        <Stack.Screen 
-          name="devices/[id]" 
-          options={{ 
+        <Stack.Screen
+          name="devices/[id]"
+          options={{
             title: "Device Details",
-            headerShown: true 
-          }} 
-        />        
+            headerShown: true,
+          }}
+        />
       </Stack>
       <StatusBar style="dark" />
     </QueryClientProvider>

@@ -1,5 +1,9 @@
 import * as React from "react";
-import { Section, Text, Button, Column } from "@react-email/components";
+import { Button, Column, Section, Text } from "@react-email/components";
+import { render } from "@react-email/render";
+
+import Layout from "../layout";
+import sendMail from "../mailSender";
 import {
   buttonStyle,
   contentSectionStyle,
@@ -8,9 +12,6 @@ import {
   headingStyle,
   textStyle,
 } from "../styles";
-import { render } from "@react-email/render";
-import Layout from "../layout";
-import sendMail from "../mailSender";
 
 export interface UserLoginVerificationProps {
   email: string;

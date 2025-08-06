@@ -10,16 +10,24 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
+import { AddDeviceModal } from "~/components/AddDeviceModal";
 import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
-import { AddDeviceModal } from "~/components/AddDeviceModal";
 
 type DeviceWithAlarmsCount = RouterOutputs["device"]["getAll"][number];
 
-function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
+function DeviceCard({
+  device,
+  onDeleteDevice,
+}: {
+  device: DeviceWithAlarmsCount;
+  onDeleteDevice: (deviceId: string) => void;
+}) {
+  const [showDeleteButton, setShowDeleteButton] = React.useState(false);
+
   const getBatteryColor = (level: number) => {
     if (level > 50) return "#10b981"; // green
     if (level > 20) return "#f59e0b"; // amber
@@ -39,51 +47,84 @@ function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
     }
   };
 
+  const handleLongPress = () => {
+    setShowDeleteButton(!showDeleteButton);
+  };
+
+  const handleDeletePress = () => {
+    Alert.alert(
+      "Delete Device",
+      `Are you sure you want to delete "${device.title}"? This action cannot be undone.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => setShowDeleteButton(false),
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            onDeleteDevice(device.id);
+            setShowDeleteButton(false);
+          },
+        },
+      ],
+    );
+  };
+
   return (
-    <Link
-      href={{
-        pathname: "/devices/[id]",
-        params: { id: device.id },
-      }}
-      asChild
-    >
-      <Pressable style={styles.deviceCard}>
-        <View style={styles.deviceHeader}>
-          <View style={styles.deviceAvatar}>
-            <Text style={styles.deviceInitials}>
-              {device.title.slice(0, 2).toUpperCase()}
-            </Text>
+    <View style={styles.deviceCardContainer}>
+      <Link
+        href={{
+          pathname: "/devices/[id]",
+          params: { id: device.id },
+        }}
+        asChild
+      >
+        <Pressable style={styles.deviceCard} onLongPress={handleLongPress}>
+          <View style={styles.deviceHeader}>
+            <View style={styles.deviceAvatar}>
+              <Text style={styles.deviceInitials}>
+                {device.title.slice(0, 2).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.deviceInfo}>
+              <Text style={styles.deviceTitle}>{device.title}</Text>
+              <Text style={styles.deviceDescription}>{device.description}</Text>
+            </View>
           </View>
-          <View style={styles.deviceInfo}>
-            <Text style={styles.deviceTitle}>{device.title}</Text>
-            <Text style={styles.deviceDescription}>{device.description}</Text>
+          <View style={styles.deviceStats}>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Alarms</Text>
+              <Text style={styles.statValue}>{device._count.alarms}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Battery</Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: getBatteryColor(device.batteryLevel) },
+                ]}
+              >
+                {device.batteryLevel}%
+              </Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Status</Text>
+              <Text style={styles.syncStatus}>
+                {getSyncStatusText(device.syncStatus)}
+              </Text>
+            </View>
           </View>
-        </View>
-        <View style={styles.deviceStats}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Alarms</Text>
-            <Text style={styles.statValue}>{device._count.alarms}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Battery</Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: getBatteryColor(device.batteryLevel) },
-              ]}
-            >
-              {device.batteryLevel}%
-            </Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Status</Text>
-            <Text style={styles.syncStatus}>
-              {getSyncStatusText(device.syncStatus)}
-            </Text>
-          </View>
-        </View>
-      </Pressable>
-    </Link>
+        </Pressable>
+      </Link>
+      {showDeleteButton && (
+        <Pressable style={styles.deleteButton} onPress={handleDeletePress}>
+          <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -109,7 +150,7 @@ function EmptyState({ onDeviceAdded }: { onDeviceAdded: () => void }) {
           <Text style={styles.addButtonText}>+ Add Device</Text>
         </Pressable>
       </View>
-      
+
       <AddDeviceModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -122,6 +163,7 @@ function EmptyState({ onDeviceAdded }: { onDeviceAdded: () => void }) {
 export default function DashboardPage() {
   const { data: session, isPending } = authClient.useSession();
   const [showAddModal, setShowAddModal] = React.useState(false);
+  const queryClient = useQueryClient();
 
   // Redirect to login if not authenticated
   React.useEffect(() => {
@@ -144,9 +186,26 @@ export default function DashboardPage() {
     enabled: !!session?.user,
   });
 
+  const deleteDeviceMutation = useMutation({
+    mutationFn: async (deviceId: string) => {
+      return await trpc.device.delete.mutate({ id: deviceId });
+    },
+    onSuccess: () => {
+      // Invalidate queries to refresh the devices list
+      void queryClient.invalidateQueries({ queryKey: ["device", "getAll"] });
+    },
+    onError: (error) => {
+      Alert.alert("Error", `Failed to delete device: ${error.message}`);
+    },
+  });
+
   const handleDeviceAdded = () => {
     setShowAddModal(false);
-    refetchDevices();
+    void refetchDevices();
+  };
+
+  const handleDeleteDevice = (deviceId: string) => {
+    deleteDeviceMutation.mutate(deviceId);
   };
 
   // Show loading while checking authentication
@@ -206,7 +265,9 @@ export default function DashboardPage() {
       ) : devices && devices.length > 0 ? (
         <FlatList
           data={devices}
-          renderItem={({ item }) => <DeviceCard device={item} />}
+          renderItem={({ item }) => (
+            <DeviceCard device={item} onDeleteDevice={handleDeleteDevice} />
+          )}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.devicesList}
           showsVerticalScrollIndicator={false}
@@ -221,7 +282,7 @@ export default function DashboardPage() {
           try {
             await authClient.signOut();
             router.replace("/");
-          } catch (error) {
+          } catch {
             Alert.alert("Error", "Failed to sign out");
           }
         }}
@@ -274,11 +335,13 @@ const styles = StyleSheet.create({
   devicesList: {
     paddingBottom: 20,
   },
+  deviceCardContainer: {
+    marginBottom: 12,
+  },
   deviceCard: {
     backgroundColor: "white",
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -416,6 +479,19 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: "white",
     fontSize: 14,
+    fontWeight: "600",
+  },
+  deleteButton: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  deleteButtonText: {
+    color: "white",
+    fontSize: 12,
     fontWeight: "600",
   },
 });
