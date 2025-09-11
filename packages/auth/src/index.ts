@@ -4,8 +4,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { magicLink, oAuthProxy } from "better-auth/plugins";
 
-import { db } from "@acme/db/client";
-import { EmailSender, MagicLinkService } from "@acme/email";
+import { db } from "@gently/db/client";
+import { EmailSender, MagicLinkService } from "@gently/email";
 
 export function initAuth(options: {
   baseUrl: string;

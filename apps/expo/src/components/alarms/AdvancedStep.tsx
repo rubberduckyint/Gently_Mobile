@@ -49,6 +49,23 @@ export function AdvancedStep({
     <StepLayout
       title="Advanced Settings"
       subtitle="Customize priority and haptic feedback"
+      navigation={
+        <View style={[flex.row, flex.justifyBetween]}>
+          <Pressable
+            style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
+            onPress={onPrevious}
+          >
+            <Text style={[buttonText.secondary]}>Previous</Text>
+          </Pressable>
+
+          <Pressable
+            style={[buttons.base, buttons.primary, { flex: 0.45 }]}
+            onPress={onNext}
+          >
+            <Text style={[buttonText.primary]}>Review</Text>
+          </Pressable>
+        </View>
+      }
     >
       <View style={[cards.base, { marginBottom: spacing[6] }]}>
         {/* Priority */}
@@ -195,29 +212,6 @@ export function AdvancedStep({
             ))}
           </View>
         </View>
-      </View>
-
-      {/* Navigation Buttons */}
-      <View
-        style={[
-          flex.row,
-          flex.justifyBetween,
-          { marginTop: "auto", paddingTop: spacing[6] },
-        ]}
-      >
-        <Pressable
-          style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
-          onPress={onPrevious}
-        >
-          <Text style={[buttonText.secondary]}>Previous</Text>
-        </Pressable>
-
-        <Pressable
-          style={[buttons.base, buttons.primary, { flex: 0.45 }]}
-          onPress={onNext}
-        >
-          <Text style={[buttonText.primary]}>Review</Text>
-        </Pressable>
       </View>
     </StepLayout>
   );

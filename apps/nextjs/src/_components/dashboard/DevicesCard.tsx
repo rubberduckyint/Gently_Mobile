@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import type { DeviceWithAlarmsCount } from "@acme/db";
+import type { DeviceWithAlarmsCount } from "@gently/db";
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/_components/ui/avatar";
 import { Badge } from "~/_components/ui/badge";

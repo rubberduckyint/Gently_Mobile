@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { appRouter, createTRPCContext } from "@acme/api";
+import { appRouter, createTRPCContext } from "@gently/api";
 
 import { AppDownloadCard } from "~/_components/dashboard/AppDownloadCard";
 import { DevicesCard } from "~/_components/dashboard/DevicesCard";

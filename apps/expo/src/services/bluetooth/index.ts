@@ -3,7 +3,7 @@ export * from "./types";
 export * from "./permissions";
 export * from "./scanning";
 export * from "./connection";
-export * from "./deviceData";
+export * from "./commands";
 export * from "./useBluetooth";
 export * from "./protocol";
 export * from "./encryption";

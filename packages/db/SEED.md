@@ -39,8 +39,8 @@ pnpm seed
 pnpm seed:quick
 
 # Or from the project root
-pnpm --filter @acme/db seed
-pnpm --filter @acme/db seed:quick
+pnpm --filter @gently/db seed
+pnpm --filter @gently/db seed:quick
 ```
 
 The quick seed option is perfect for rapid development and testing with minimal data.

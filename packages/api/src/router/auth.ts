@@ -2,8 +2,8 @@ import type { TRPCRouterRecord } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { db } from "@acme/db/client";
-import { user } from "@acme/db/schema";
+import { db } from "@gently/db/client";
+import { user } from "@gently/db/schema";
 
 import { protectedProcedure, publicProcedure } from "../trpc";
 

@@ -4,5 +4,5 @@ export { DeviceList } from "./DeviceList";
 export { ErrorStep } from "./ErrorStep";
 export { FoundDevicesStep } from "./FoundDevicesStep";
 export { ScanningStep } from "./ScanningStep";
-export { StepLayout } from "./StepLayout";
+export { StepLayout as AddDeviceStepLayout } from "./StepLayout";
 export { SuccessStep } from "./SuccessStep";

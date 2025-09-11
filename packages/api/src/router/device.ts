@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { Alarm, Device } from "@acme/db/schema";
+import { Alarm, Device } from "@gently/db/schema";
 
 import { protectedProcedure } from "../trpc";
 
@@ -238,6 +238,53 @@ export const deviceRouter = {
         .limit(1);
 
       return device[0] ?? null;
+    }),
+
+  // Update sync status
+  updateSyncStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        syncStatus: z.enum(["NOT_SYNCED", "SYNCING", "SYNCED", "ERROR"]),
+        lastSync: z.date().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { id, syncStatus, lastSync } = input;
+
+      // Verify device ownership
+      const existingDevice = await ctx.db
+        .select()
+        .from(Device)
+        .where(and(eq(Device.id, id), eq(Device.userId, ctx.session.user.id)))
+        .limit(1);
+
+      if (!existingDevice.length) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Device not found or you don't have permission to update it",
+        });
+      }
+
+      // Prepare update data
+      const updateData: {
+        syncStatus: "NOT_SYNCED" | "SYNCING" | "SYNCED" | "ERROR";
+        lastSync?: Date;
+      } = {
+        syncStatus,
+      };
+
+      if (lastSync) {
+        updateData.lastSync = lastSync;
+      }
+
+      const result = await ctx.db
+        .update(Device)
+        .set(updateData)
+        .where(eq(Device.id, id))
+        .returning();
+
+      return result[0];
     }),
 
   // Delete device (only if it belongs to the current user)

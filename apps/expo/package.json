@@ -1,5 +1,5 @@
 {
-  "name": "@acme/expo",
+  "name": "@gently/expo",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -14,10 +14,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@acme/api": "workspace:*",
-    "@acme/auth": "workspace:*",
-    "@acme/db": "workspace:*",
-    "@acme/validators": "workspace:*",
+    "@gently/api": "workspace:*",
+    "@gently/auth": "workspace:*",
+    "@gently/db": "workspace:*",
+    "@gently/validators": "workspace:*",
     "@better-auth/expo": "1.3.4",
     "@expo/metro-config": "^0.20.17",
     "@react-native-google-signin/google-signin": "^15.0.0",
@@ -51,10 +51,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@acme/api": "workspace:*",
-    "@acme/eslint-config": "workspace:*",
-    "@acme/prettier-config": "workspace:*",
-    "@acme/tsconfig": "workspace:*",
+    "@gently/api": "workspace:*",
+    "@gently/eslint-config": "workspace:*",
+    "@gently/prettier-config": "workspace:*",
+    "@gently/tsconfig": "workspace:*",
     "@babel/core": "^7.28.0",
     "@babel/preset-env": "^7.28.0",
     "@babel/runtime": "^7.28.2",
@@ -64,5 +64,5 @@
     "prettier": "catalog:",
     "typescript": "catalog:"
   },
-  "prettier": "@acme/prettier-config"
+  "prettier": "@gently/prettier-config"
 }

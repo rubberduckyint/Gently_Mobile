@@ -1,1 +1,1 @@
-module.exports = [...require("@acme/eslint-config/base")];
+module.exports = [...require("@gently/eslint-config/base")];

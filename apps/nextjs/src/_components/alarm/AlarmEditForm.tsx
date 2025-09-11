@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import type { Alarm } from "@acme/db";
+import type { Alarm } from "@gently/db";
 
 import { Button } from "~/_components/ui/button";
 import { DialogClose, DialogFooter } from "~/_components/ui/dialog";

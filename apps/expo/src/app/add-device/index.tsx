@@ -22,7 +22,7 @@ import {
   FoundDevicesStep,
   ScanningStep,
   SuccessStep,
-} from "./components";
+} from "~/components/add-device";
 
 type ConnectionStep = "scanning" | "found" | "connecting" | "success" | "error";
 

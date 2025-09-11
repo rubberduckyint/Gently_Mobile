@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import type { Device } from "@acme/db";
+import type { Device } from "@gently/db";
 
 import { Button } from "~/_components/ui/button";
 import {

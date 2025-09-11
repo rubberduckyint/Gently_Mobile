@@ -12,7 +12,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 
-import type { Device } from "@acme/db/schema";
+import type { Device } from "@gently/db/schema";
 
 import { Badge } from "~/_components/ui/badge";
 import { Button } from "~/_components/ui/button";

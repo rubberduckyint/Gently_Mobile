@@ -12,10 +12,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const config = {
   /** Enables hot reloading for local packages without a build step */
   transpilePackages: [
-    "@acme/api",
-    "@acme/auth",
-    "@acme/db",
-    "@acme/validators",
+    "@gently/api",
+    "@gently/auth",
+    "@gently/db",
+    "@gently/validators",
   ],
 
   /** We already do linting and typechecking as separate tasks in CI */

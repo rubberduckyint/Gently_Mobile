@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCProxyClient, httpBatchLink, loggerLink } from "@trpc/client";
 import superjson from "superjson";
 
-import type { AppRouter } from "@acme/api";
+import type { AppRouter } from "@gently/api";
 
 import { authClient } from "./auth";
 
@@ -53,4 +53,4 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export { type RouterInputs, type RouterOutputs } from "@acme/api";
+export { type RouterInputs, type RouterOutputs } from "@gently/api";

@@ -2,7 +2,7 @@ import "server-only";
 
 import { headers } from "next/headers";
 
-import { initAuth } from "@acme/auth";
+import { initAuth } from "@gently/auth";
 
 import { env } from "~/env";
 

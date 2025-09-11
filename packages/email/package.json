@@ -1,5 +1,5 @@
 {
-  "name": "@acme/email",
+  "name": "@gently/email",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -23,8 +23,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@acme/eslint-config": "workspace:*",
-    "@acme/tsconfig": "workspace:*",
+    "@gently/eslint-config": "workspace:*",
+    "@gently/tsconfig": "workspace:*",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "catalog:react19",
     "eslint": "catalog:",

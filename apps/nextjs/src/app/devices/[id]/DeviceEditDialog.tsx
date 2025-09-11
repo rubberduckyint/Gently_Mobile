@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import type { Device } from "@acme/db/schema";
+import type { Device } from "@gently/db/schema";
 
 import { Badge } from "~/_components/ui/badge";
 import { Button } from "~/_components/ui/button";

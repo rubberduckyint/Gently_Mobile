@@ -57,7 +57,27 @@ export function ScheduleStep({
   };
 
   return (
-    <StepLayout title="Schedule" subtitle="Set when your alarm should activate">
+    <StepLayout
+      title="Schedule"
+      subtitle="Set when your alarm should activate"
+      navigation={
+        <View style={[flex.row, flex.justifyBetween]}>
+          <Pressable
+            style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
+            onPress={onPrevious}
+          >
+            <Text style={[buttonText.secondary]}>Previous</Text>
+          </Pressable>
+
+          <Pressable
+            style={[buttons.base, buttons.primary, { flex: 0.45 }]}
+            onPress={onNext}
+          >
+            <Text style={[buttonText.primary]}>Next</Text>
+          </Pressable>
+        </View>
+      }
+    >
       <View style={[cards.base, { marginBottom: spacing[6] }]}>
         {/* Start Date/Time - simplified for now */}
         <View style={inputs.container}>
@@ -241,29 +261,6 @@ export function ScheduleStep({
             )}
           </>
         )}
-      </View>
-
-      {/* Navigation Buttons */}
-      <View
-        style={[
-          flex.row,
-          flex.justifyBetween,
-          { marginTop: "auto", paddingTop: spacing[6] },
-        ]}
-      >
-        <Pressable
-          style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
-          onPress={onPrevious}
-        >
-          <Text style={[buttonText.secondary]}>Previous</Text>
-        </Pressable>
-
-        <Pressable
-          style={[buttons.base, buttons.primary, { flex: 0.45 }]}
-          onPress={onNext}
-        >
-          <Text style={[buttonText.primary]}>Next</Text>
-        </Pressable>
       </View>
     </StepLayout>
   );

@@ -1,5 +1,9 @@
 {
-  "extends": "@acme/tsconfig/internal-package.json",
-  "include": ["src"],
-  "exclude": ["node_modules"]
+  "extends": "@gently/tsconfig/internal-package.json",
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

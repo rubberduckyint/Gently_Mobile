@@ -33,7 +33,7 @@ import {
   BasicInfoStep,
   ReviewStep,
   ScheduleStep,
-} from "./components/index";
+} from "~/components/alarms";
 
 type AlarmStep = "basic" | "schedule" | "advanced" | "review";
 

@@ -73,6 +73,36 @@ export function ReviewStep({
     <StepLayout
       title="Review Alarm"
       subtitle="Check your alarm settings before creating"
+      navigation={
+        <View style={[flex.row, flex.justifyBetween]}>
+          <Pressable
+            style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
+            onPress={onPrevious}
+          >
+            <Text style={[buttonText.secondary]}>Previous</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              buttons.base,
+              buttons.primary,
+              { flex: 0.45 },
+              isLoading && buttons.disabled,
+            ]}
+            onPress={onFinish}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <View style={[flex.row, flex.itemsCenter, { gap: spacing[2] }]}>
+                <ActivityIndicator size="small" color={colors.text.inverse} />
+                <Text style={[buttonText.primary]}>Creating...</Text>
+              </View>
+            ) : (
+              <Text style={[buttonText.primary]}>Create Alarm</Text>
+            )}
+          </Pressable>
+        </View>
+      }
     >
       <View style={[cards.base, { marginBottom: spacing[6] }]}>
         {/* Basic Info */}
@@ -191,43 +221,6 @@ export function ReviewStep({
             </Text>
           </View>
         </View>
-      </View>
-
-      {/* Navigation Buttons */}
-      <View
-        style={[
-          flex.row,
-          flex.justifyBetween,
-          { marginTop: "auto", paddingTop: spacing[6] },
-        ]}
-      >
-        <Pressable
-          style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
-          onPress={onPrevious}
-          disabled={isLoading}
-        >
-          <Text style={[buttonText.secondary]}>Previous</Text>
-        </Pressable>
-
-        <Pressable
-          style={[
-            buttons.base,
-            buttons.primary,
-            { flex: 0.45 },
-            isLoading && buttons.disabled,
-          ]}
-          onPress={onFinish}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <View style={[flex.row, flex.itemsCenter, { gap: spacing[2] }]}>
-              <ActivityIndicator size="small" color={colors.text.inverse} />
-              <Text style={[buttonText.primary]}>Creating...</Text>
-            </View>
-          ) : (
-            <Text style={[buttonText.primary]}>Create Alarm</Text>
-          )}
-        </Pressable>
       </View>
     </StepLayout>
   );

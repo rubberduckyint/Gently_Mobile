@@ -4,7 +4,7 @@ import type { BleError, BleManager, Device } from "react-native-ble-plx";
 import type { AdvertisementData } from "./protocol";
 import type { BluetoothDevice, ScanCallbacks, ScanOptions } from "./types";
 import { base64ToUint8Array } from "../../utils/base64";
-import { parseManufacturerData } from "./deviceData";
+import { parseManufacturerData } from "./commands";
 import { GentlyBLEProtocol, isGentlyDeviceFromAdvertisement } from "./protocol";
 
 /**

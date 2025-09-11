@@ -13,10 +13,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { BluetoothDevice } from "~/services/bluetooth/types";
 import type { RouterOutputs } from "~/utils/api";
 import { useBluetooth } from "~/services/bluetooth";
-import { readComprehensiveDeviceDetails } from "~/services/bluetooth/deviceData";
+import {
+  getDeviceDetailsAndTime,
+  syncDeviceAlarms,
+} from "~/services/bluetooth/commands";
+import { cards, colors, spacing, typography } from "~/styles";
+import {
+  calculateNextAlarmOccurrence,
+  getAlarmStatusColor,
+} from "~/utils/alarmUtils";
 import { trpc } from "~/utils/api";
 
 type DeviceWithAlarms = RouterOutputs["device"]["getById"];
@@ -26,56 +33,193 @@ function AlarmCard({
 }: {
   alarm: NonNullable<DeviceWithAlarms>["alarms"][number];
 }) {
+  const scheduleInfo = calculateNextAlarmOccurrence({
+    isActive: alarm.isActive,
+    startDate: alarm.startDate,
+    endDate: alarm.endDate,
+    repeat: alarm.repeat,
+    cronExpression: alarm.cronExpression,
+  });
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "HIGH":
-        return "#ef4444";
+        return colors.error[500];
       case "MEDIUM":
-        return "#f59e0b";
+        return colors.warning[500];
       case "LOW":
-        return "#10b981";
+        return colors.success[500];
       default:
-        return "#6b7280";
+        return colors.text.secondary;
     }
   };
 
   return (
-    <View style={styles.alarmCard}>
-      <View style={styles.alarmHeader}>
-        <View style={styles.alarmInfo}>
-          <Text style={styles.alarmTitle}>{alarm.title}</Text>
+    <View style={[cards.base, { marginBottom: spacing[4] }]}>
+      <View
+        style={[
+          { flexDirection: "row", alignItems: "flex-start" },
+          { marginBottom: spacing[3] },
+        ]}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[typography.h4, { color: colors.text.primary }]}>
+            {alarm.title}
+          </Text>
           {alarm.description && (
-            <Text style={styles.alarmDescription}>{alarm.description}</Text>
+            <Text
+              style={[
+                typography.bodySmall,
+                { color: colors.text.secondary, marginTop: spacing[1] },
+              ]}
+            >
+              {alarm.description}
+            </Text>
           )}
         </View>
         <View
           style={[
-            styles.priorityBadge,
-            { backgroundColor: getPriorityColor(alarm.priority) },
+            {
+              paddingHorizontal: spacing[2],
+              paddingVertical: spacing[1],
+              borderRadius: spacing[1],
+              backgroundColor: getPriorityColor(alarm.priority),
+            },
           ]}
         >
-          <Text style={styles.priorityText}>{alarm.priority}</Text>
-        </View>
-      </View>
-      <View style={styles.alarmDetails}>
-        <View style={styles.alarmDetailItem}>
-          <Text style={styles.detailLabel}>Status</Text>
           <Text
             style={[
-              styles.detailValue,
-              { color: alarm.isActive ? "#10b981" : "#6b7280" },
+              typography.bodySmall,
+              { color: colors.text.inverse, fontWeight: "600" },
+            ]}
+          >
+            {alarm.priority}
+          </Text>
+        </View>
+      </View>
+
+      {/* Schedule Information */}
+      <View
+        style={[
+          {
+            backgroundColor: colors.background.tertiary,
+            padding: spacing[3],
+            borderRadius: spacing[2],
+            marginBottom: spacing[3],
+          },
+        ]}
+      >
+        <View
+          style={[
+            {
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            },
+            { marginBottom: spacing[2] },
+          ]}
+        >
+          <Text
+            style={[typography.bodySmall, { color: colors.text.secondary }]}
+          >
+            Next Occurrence:
+          </Text>
+          <Text
+            style={[
+              typography.bodySmall,
+              { color: getAlarmStatusColor(scheduleInfo), fontWeight: "600" },
+            ]}
+          >
+            {scheduleInfo.timeUntilNext}
+          </Text>
+        </View>
+
+        {scheduleInfo.nextOccurrence && (
+          <Text
+            style={[typography.bodySmall, { color: colors.text.secondary }]}
+          >
+            {scheduleInfo.formattedNextTime}
+          </Text>
+        )}
+      </View>
+
+      {/* Alarm Details */}
+      <View style={[{ flexDirection: "row", justifyContent: "space-between" }]}>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[typography.bodySmall, { color: colors.text.secondary }]}
+          >
+            Status
+          </Text>
+          <Text
+            style={[
+              typography.bodySmall,
+              {
+                color: alarm.isActive
+                  ? colors.text.success
+                  : colors.text.secondary,
+                fontWeight: "600",
+              },
             ]}
           >
             {alarm.isActive ? "Active" : "Inactive"}
           </Text>
         </View>
-        <View style={styles.alarmDetailItem}>
-          <Text style={styles.detailLabel}>Repeat</Text>
-          <Text style={styles.detailValue}>{alarm.repeat ? "Yes" : "No"}</Text>
+
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[typography.bodySmall, { color: colors.text.secondary }]}
+          >
+            Repeat
+          </Text>
+          <Text
+            style={[
+              typography.bodySmall,
+              { color: colors.text.primary, fontWeight: "600" },
+            ]}
+          >
+            {alarm.repeat ? "Yes" : "No"}
+          </Text>
         </View>
-        <View style={styles.alarmDetailItem}>
-          <Text style={styles.detailLabel}>Haptic</Text>
-          <Text style={styles.detailValue}>{alarm.hapticChoice}</Text>
+
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[typography.bodySmall, { color: colors.text.secondary }]}
+          >
+            Haptic
+          </Text>
+          <Text
+            style={[
+              typography.bodySmall,
+              { color: colors.text.primary, fontWeight: "600" },
+            ]}
+          >
+            {alarm.hapticChoice}
+          </Text>
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[typography.bodySmall, { color: colors.text.secondary }]}
+          >
+            Sync
+          </Text>
+          <Text
+            style={[
+              typography.bodySmall,
+              {
+                color:
+                  alarm.syncStatus === "SYNCED"
+                    ? colors.status.synced
+                    : alarm.syncStatus === "ERROR"
+                      ? colors.status.error
+                      : colors.status.syncing,
+                fontWeight: "600",
+              },
+            ]}
+          >
+            {alarm.syncStatus}
+          </Text>
         </View>
       </View>
     </View>
@@ -85,15 +229,7 @@ function AlarmCard({
 export default function DeviceDetailPage() {
   const { id } = useGlobalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const {
-    connect,
-    disconnect,
-    getDeviceInfo,
-    startScan,
-    stopScan,
-    getBluetoothState,
-    checkConnection,
-  } = useBluetooth();
+  const { connect, disconnect, getBluetoothState } = useBluetooth();
 
   const {
     data: device,
@@ -107,18 +243,29 @@ export default function DeviceDetailPage() {
     enabled: !!id,
   });
 
-  const deleteDeviceMutation = useMutation({
+  const deleteMutation = useMutation({
     mutationFn: async () => {
       return await trpc.device.delete.mutate({ id: id });
     },
     onSuccess: () => {
-      // Invalidate the devices list to refresh the dashboard
-      void queryClient.invalidateQueries({ queryKey: ["device", "getAll"] });
-      // Navigate back to dashboard
+      void queryClient.invalidateQueries({ queryKey: ["device"] });
       router.back();
     },
-    onError: (error) => {
-      Alert.alert("Error", `Failed to delete device: ${error.message}`);
+  });
+
+  const updateFromBluetoothMutation = useMutation({
+    mutationFn: async (data: {
+      id: string;
+      serialNumber: string;
+      batteryLevel?: number;
+      firmwareVersion?: string;
+    }) => {
+      return await trpc.device.updateFromBluetooth.mutate(data);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["device", "getById", { id: id }],
+      });
     },
   });
 
@@ -126,188 +273,65 @@ export default function DeviceDetailPage() {
   const [isGettingDetails, setIsGettingDetails] = React.useState(false);
 
   const handleGetDeviceDetails = async () => {
-    if (!device?.id) return;
+    if (!device) {
+      Alert.alert("Device Not Found", "Device information is not available.", [
+        { text: "OK" },
+      ]);
+      return;
+    }
+
+    if (!device.id || !device.serialNumber) {
+      Alert.alert(
+        "Missing Information",
+        "Cannot get device details without device ID and serial number. Please sync the device first.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
 
     setIsGettingDetails(true);
+
     try {
       console.log(
-        `🔍 Getting comprehensive device details for: ${device.title}`,
+        `🔍 Getting device details for serial: ${device.serialNumber}`,
       );
 
-      // Check if Bluetooth is available and enabled
-      const bluetoothState = await getBluetoothState();
-      console.log("📡 Bluetooth State:", bluetoothState);
+      const result = await getDeviceDetailsAndTime(connect, device.id);
 
-      if (bluetoothState !== State.PoweredOn) {
-        console.error(
-          "❌ Bluetooth is not powered on. Current state:",
-          bluetoothState,
-        );
-        return;
-      }
+      if (result.success && result.deviceInfo) {
+        // Update the device with the retrieved information
+        await updateFromBluetoothMutation.mutateAsync({
+          id: device.id,
+          serialNumber: result.deviceInfo.serialNumber,
+          batteryLevel: result.deviceInfo.batteryLevel,
+          firmwareVersion: result.deviceInfo.firmwareVersion,
+        });
 
-      // Check if device is nearby by scanning briefly
-      console.log("🔍 Checking if device is nearby...");
+        // Refresh the device data
+        await queryClient.invalidateQueries({
+          queryKey: ["device", "getById", { id: device.id }],
+        });
 
-      let deviceFound = false;
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          stopScan();
-          resolve();
-        }, 5000); // 5 second scan
-
-        startScan(
-          (foundDevice: BluetoothDevice) => {
-            if (foundDevice.id === device.id) {
-              console.log(
-                "✅ Device found during scan:",
-                foundDevice.name,
-                "RSSI:",
-                foundDevice.rssi,
-              );
-              deviceFound = true;
-              clearTimeout(timeout);
-              stopScan();
-              resolve();
-            }
-          },
-          { timeout: 5000 },
-        );
-      });
-
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (!deviceFound) {
-        console.warn(
-          "⚠️ Device not found during scan - may be out of range or not advertising",
-        );
-        console.log("� Attempting connection anyway...");
-      }
-
-      // Connect to the device
-      console.log("🔗 Attempting to connect...");
-      const result = await connect(device.id);
-      console.log("✅ Successfully connected to device");
-
-      // Get device info
-      const deviceInfo = getDeviceInfo();
-      console.log("📱 Device Information:", deviceInfo);
-
-      // Get device time and details
-      try {
-        const comprehensiveDetails =
-          await readComprehensiveDeviceDetails(result);
-        console.log("⏰ Comprehensive Device Details:", comprehensiveDetails);
-
-        // Store the serial number and other device info in the database
-        if (comprehensiveDetails.deviceInfo.serialNumber !== "unknown") {
-          console.log(
-            "💾 Storing device serial number:",
-            comprehensiveDetails.deviceInfo.serialNumber,
-          );
-
-          try {
-            // Check if we already have a device with this serial number
-            const existingDevice = await trpc.device.findBySerialNumber.query({
-              serialNumber: comprehensiveDetails.deviceInfo.serialNumber,
-            });
-
-            if (existingDevice && existingDevice.id !== device.id) {
-              Alert.alert(
-                "Device Conflict",
-                `This device's serial number (${comprehensiveDetails.deviceInfo.serialNumber}) is already associated with another device: "${existingDevice.title}". This might indicate a duplicate device entry.`,
-                [
-                  { text: "Continue Anyway", style: "destructive" },
-                  { text: "Cancel", style: "cancel" },
-                ],
-              );
-              return;
-            }
-
-            // Update the device with Bluetooth info
-            await trpc.device.updateFromBluetooth.mutate({
-              id: device.id,
-              serialNumber: comprehensiveDetails.deviceInfo.serialNumber,
-              batteryLevel: comprehensiveDetails.batteryLevel,
-              firmwareVersion: comprehensiveDetails.deviceInfo.firmwareVersion,
-            });
-
-            console.log("✅ Device info updated in database");
-
-            // Refresh the device data
-            await queryClient.invalidateQueries({
-              queryKey: ["device", "getById", { id: device.id }],
-            });
-
-            Alert.alert(
-              "Device Details Retrieved",
-              `✅ Successfully connected and updated device info!\n\nSerial Number: ${comprehensiveDetails.deviceInfo.serialNumber}\nFirmware: ${comprehensiveDetails.deviceInfo.firmwareVersion}\nBattery: ${comprehensiveDetails.batteryLevel}%\nDevice Time: ${comprehensiveDetails.deviceTime.toLocaleString()}`,
-              [{ text: "OK" }],
-            );
-          } catch (dbError) {
-            console.error("❌ Failed to update device in database:", dbError);
-
-            if (
-              dbError instanceof Error &&
-              dbError.message.includes("Serial number mismatch")
-            ) {
-              Alert.alert(
-                "Device Verification Failed",
-                `⚠️ ${dbError.message}\n\nPlease verify you're connecting to the correct device.`,
-                [{ text: "OK" }],
-              );
-            } else {
-              Alert.alert(
-                "Database Error",
-                "Failed to store device information in database, but device details were retrieved successfully.",
-                [{ text: "OK" }],
-              );
-            }
-          }
-        } else {
-          console.warn(
-            "⚠️ Device serial number is unknown - cannot verify device identity",
-          );
-          Alert.alert(
-            "Device Details Retrieved",
-            "✅ Connected to device but could not retrieve serial number for verification.\n\nThis is normal for some device firmware versions.",
-            [{ text: "OK" }],
-          );
-        }
-      } catch (timeError) {
-        console.error(
-          "❌ Failed to get comprehensive device details:",
-          timeError,
-        );
         Alert.alert(
-          "Connection Error",
-          "Failed to retrieve device details. The device may not be responding properly.",
+          "Device Details Retrieved",
+          `✅ Successfully retrieved device details!\n\nSerial: ${result.deviceInfo.serialNumber}\nFirmware: ${result.deviceInfo.firmwareVersion ?? "Unknown"}\nBattery: ${result.deviceInfo.batteryLevel}%\nDevice Time: ${result.deviceInfo.currentTime?.toLocaleString() ?? "Unknown"}`,
+          [{ text: "OK" }],
+        );
+      } else {
+        Alert.alert(
+          "Connection Issue",
+          result.message ||
+            "Failed to retrieve device details. The device may not be responding.",
           [{ text: "OK" }],
         );
       }
-
-      // Log current timestamp for comparison
-      const currentTime = new Date();
-      console.log("🕐 Current Time:", currentTime.toISOString());
-
-      // Disconnect after getting info
-      await disconnect();
-      console.log("🔌 Disconnected from device");
     } catch (error) {
       console.error("❌ Error getting device details:", error);
-
-      // Additional error information
-      if (error instanceof Error) {
-        console.error("❌ Error name:", error.name);
-        console.error("❌ Error message:", error.message);
-        console.error("❌ Error stack:", error.stack);
-      }
-
-      // Try to disconnect if there was a connection issue
-      try {
-        await disconnect();
-      } catch (disconnectError) {
-        console.error("❌ Error during cleanup disconnect:", disconnectError);
-      }
+      Alert.alert(
+        "Error",
+        "An unexpected error occurred while getting device details.",
+        [{ text: "OK" }],
+      );
     } finally {
       setIsGettingDetails(false);
     }
@@ -318,37 +342,86 @@ export default function DeviceDetailPage() {
 
     setIsSyncing(true);
     try {
-      console.log("🔄 Starting device sync for:", device.title);
+      console.log("🔄 Starting comprehensive device sync for:", device.title);
 
-      // Try to connect to the device
-      const connectedDevice = await connect(device.id);
-      console.log("✅ Connected to device:", connectedDevice.device.name);
+      // Check if Bluetooth is available and enabled
+      const bluetoothState = await getBluetoothState();
+      console.log("📡 Bluetooth State:", bluetoothState);
 
-      // Check connection health
-      const isConnected = await checkConnection();
-      if (isConnected) {
+      if (bluetoothState !== State.PoweredOn) {
         Alert.alert(
-          "Sync Successful",
-          "✅ Device connection is healthy and active! Your device is ready for use.",
+          "Bluetooth Required",
+          "Please enable Bluetooth to sync with your device.",
           [{ text: "OK" }],
         );
-
-        // Refresh device data
-        void queryClient.invalidateQueries({
-          queryKey: ["device", "getById", { id: id }],
-        });
-      } else {
-        Alert.alert(
-          "Sync Failed",
-          "❌ Could not establish a healthy connection with the device.",
-          [{ text: "OK" }],
-        );
+        return;
       }
+
+      // Update device sync status to SYNCING
+      await trpc.device.updateFromBluetooth.mutate({
+        id: device.id,
+        serialNumber: device.serialNumber ?? "unknown",
+      });
+
+      // Establish secure connection to the device (now handled in syncDeviceAlarms)
+      console.log("🔗 Starting device sync...");
+
+      // Perform comprehensive device synchronization
+      const syncResponse = await syncDeviceAlarms(
+        connect,
+        device.id,
+        device.serialNumber ?? "unknown",
+        device.alarms,
+      );
+
+      console.log("🔄 Sync completed:", syncResponse);
+
+      if (syncResponse.success) {
+        // Update device sync status to success
+        await updateFromBluetoothMutation.mutateAsync({
+          id: device.id,
+          serialNumber: device.serialNumber ?? "unknown",
+          batteryLevel: device.batteryLevel ?? undefined,
+        });
+
+        // Refresh device data to reflect sync status
+        await queryClient.invalidateQueries({
+          queryKey: ["device", "getById", { id: device.id }],
+        });
+
+        // Show results to user
+        Alert.alert("Sync Successful", syncResponse.message, [{ text: "OK" }]);
+      } else {
+        Alert.alert("Sync Failed", syncResponse.message, [{ text: "OK" }]);
+      }
+
+      // Disconnect from device
+      await disconnect();
+      console.log("🔌 Disconnected from device");
     } catch (error) {
-      console.error("❌ Sync error:", error);
+      console.error("❌ Device sync failed:", error);
+
+      // Update device sync status to ERROR
+      try {
+        await trpc.device.updateFromBluetooth.mutate({
+          id: device.id,
+          serialNumber: device.serialNumber ?? "unknown",
+        });
+      } catch (dbError) {
+        console.error("❌ Failed to update sync status:", dbError);
+      }
+
+      // Try to disconnect if there was a connection issue
+      try {
+        await disconnect();
+      } catch (disconnectError) {
+        console.error("❌ Error during cleanup disconnect:", disconnectError);
+      }
+
       Alert.alert(
-        "Sync Error",
-        `Failed to sync with device: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "Sync Failed",
+        `❌ Failed to sync with device: ${error instanceof Error ? error.message : "Unknown error"}\n\nPlease ensure your device is nearby and try again.`,
+        [{ text: "OK" }],
       );
     } finally {
       setIsSyncing(false);
@@ -364,7 +437,7 @@ export default function DeviceDetailPage() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => deleteDeviceMutation.mutate(),
+          onPress: () => deleteMutation.mutate(),
         },
       ],
     );
@@ -551,13 +624,13 @@ export default function DeviceDetailPage() {
           <Pressable
             style={[
               styles.deleteButton,
-              deleteDeviceMutation.isPending && styles.deleteButtonDisabled,
+              deleteMutation.isPending && styles.deleteButtonDisabled,
             ]}
             onPress={handleDeleteDevice}
-            disabled={deleteDeviceMutation.isPending}
+            disabled={deleteMutation.isPending}
           >
             <Text style={styles.deleteButtonText}>
-              {deleteDeviceMutation.isPending ? "Deleting..." : "Delete Device"}
+              {deleteMutation.isPending ? "Deleting..." : "Delete Device"}
             </Text>
           </Pressable>
         </View>

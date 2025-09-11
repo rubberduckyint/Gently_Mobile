@@ -3,14 +3,14 @@ import { TRPCError } from "@trpc/server";
 import { count, desc, eq, like, or } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { db } from "@acme/db/client";
+import { db } from "@gently/db/client";
 import {
   Alarm,
   AlarmSelectSchema,
   Device,
   DeviceSelectSchema,
   user,
-} from "@acme/db/schema";
+} from "@gently/db/schema";
 
 import { adminProcedure } from "../trpc";
 

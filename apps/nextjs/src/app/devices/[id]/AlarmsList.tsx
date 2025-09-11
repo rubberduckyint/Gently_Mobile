@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import type { Alarm } from "@acme/db";
+import type { Alarm } from "@gently/db";
 
 import { AlarmEditForm } from "~/_components/alarm/AlarmEditForm";
 import {

@@ -47,6 +47,29 @@ export function BasicInfoStep({
     <StepLayout
       title="Basic Information"
       subtitle="Give your alarm a name and choose how it looks"
+      navigation={
+        <View style={[flex.row, flex.justifyBetween]}>
+          <Pressable
+            style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
+            onPress={onCancel}
+          >
+            <Text style={[buttonText.secondary]}>Cancel</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              buttons.base,
+              buttons.primary,
+              { flex: 0.45 },
+              !canProceed && buttons.disabled,
+            ]}
+            onPress={onNext}
+            disabled={!canProceed}
+          >
+            <Text style={[buttonText.primary]}>Next</Text>
+          </Pressable>
+        </View>
+      }
     >
       <View style={[cards.base, { marginBottom: spacing[6] }]}>
         {/* Title */}
@@ -127,35 +150,6 @@ export function BasicInfoStep({
             ))}
           </View>
         </View>
-      </View>
-
-      {/* Navigation Buttons */}
-      <View
-        style={[
-          flex.row,
-          flex.justifyBetween,
-          { marginTop: "auto", paddingTop: spacing[6] },
-        ]}
-      >
-        <Pressable
-          style={[buttons.base, buttons.secondary, { flex: 0.45 }]}
-          onPress={onCancel}
-        >
-          <Text style={[buttonText.secondary]}>Cancel</Text>
-        </Pressable>
-
-        <Pressable
-          style={[
-            buttons.base,
-            buttons.primary,
-            { flex: 0.45 },
-            !canProceed && buttons.disabled,
-          ]}
-          onPress={onNext}
-          disabled={!canProceed}
-        >
-          <Text style={[buttonText.primary]}>Next</Text>
-        </Pressable>
       </View>
     </StepLayout>
   );

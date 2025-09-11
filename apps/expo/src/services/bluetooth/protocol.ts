@@ -93,6 +93,35 @@ export interface DeviceInformation {
   firmwareBuildNumber: number;
 }
 
+// Event state enumeration from BLE protocol
+export enum EventState {
+  OFF = 0x00,
+  ON_INACTIVE = 0x01,
+  ON_ACTIVE_VIBRATION = 0x02,
+  ON_ACTIVE_RETRIGGER_DELAY = 0x03,
+  ON_ACTIVE_SNOOZE_PERIOD = 0x04,
+}
+
+// Device event structure
+export interface DeviceEvent {
+  index: number; // 0-49
+  state: EventState;
+  name: string;
+  cronExpression: string;
+  // Additional fields from the BLE protocol would go here
+  // vibrationPattern, ledPattern, priority, etc.
+}
+
+// Event synchronization result
+export interface EventSyncResult {
+  totalEvents: number;
+  deviceEvents: DeviceEvent[];
+  addedToDevice: number;
+  removedFromDevice: number;
+  updatedOnDevice: number;
+  errors: string[];
+}
+
 /**
  * Gently BLE Protocol handler
  * Manages encryption, command formatting, and secure communication
@@ -518,6 +547,102 @@ export class GentlyBLEProtocol {
   createGetTimeRequest(): Uint8Array {
     const payload = new Uint8Array(6); // 6 bytes of padding
     return this.createRequest(CommandCode.GET_TIME, payload);
+  }
+
+  /**
+   * Create get all events request (Command 0x06)
+   */
+  createGetAllEventsRequest(): Uint8Array {
+    const payload = new Uint8Array(6); // 6 bytes of padding
+    return this.createRequest(CommandCode.GET_ALL_EVENTS, payload);
+  }
+
+  /**
+   * Create get number of events request (Command 0x09)
+   */
+  createGetNumberOfEventsRequest(): Uint8Array {
+    const payload = new Uint8Array(6); // 6 bytes of padding
+    return this.createRequest(CommandCode.GET_NUMBER_OF_EVENTS, payload);
+  }
+
+  /**
+   * Create get specific event request (Command 0x03)
+   */
+  createGetEventRequest(eventIndex: number): Uint8Array {
+    if (eventIndex < 0 || eventIndex > 49) {
+      throw new Error("Event index must be between 0 and 49");
+    }
+    const payload = new Uint8Array(6);
+    payload[0] = eventIndex; // Event index
+    // Remaining bytes are reserved (already zeroed)
+    return this.createRequest(CommandCode.GET_EVENT, payload);
+  }
+
+  /**
+   * Create add event request (Command 0x04)
+   * Note: This is a simplified version - the full implementation would need
+   * to handle the complex event structure with cron expressions, etc.
+   */
+  createAddEventRequest(
+    eventIndex: number,
+    eventName: string,
+    cronExpression: string,
+    _isActive = true,
+  ): Uint8Array {
+    if (eventIndex < 0 || eventIndex > 49) {
+      throw new Error("Event index must be between 0 and 49");
+    }
+    if (eventName.length > 10) {
+      throw new Error("Event name cannot exceed 10 characters");
+    }
+    if (cronExpression.length > 42) {
+      throw new Error("Cron expression cannot exceed 42 characters");
+    }
+
+    // This is a simplified implementation - the actual payload would be much more complex
+    // according to the BLE protocol specification
+    const payload = new Uint8Array(72); // Max size according to spec
+    payload[0] = eventIndex;
+
+    // For now, we'll create a basic payload structure
+    // A full implementation would need to handle vibration patterns, LED settings, etc.
+
+    return this.createRequest(CommandCode.ADD_EVENT, payload);
+  }
+
+  /**
+   * Create set event on/off request (Command 0x05)
+   */
+  createSetEventOnOffRequest(eventIndex: number, isOn: boolean): Uint8Array {
+    if (eventIndex < 0 || eventIndex > 49) {
+      throw new Error("Event index must be between 0 and 49");
+    }
+    const payload = new Uint8Array(6);
+    payload[0] = eventIndex; // Event index
+    payload[1] = isOn ? 0x01 : 0x00; // State: ON (0x01) or OFF (0x00)
+    // Remaining bytes are reserved (already zeroed)
+    return this.createRequest(CommandCode.SET_EVENT_ON_OFF, payload);
+  }
+
+  /**
+   * Create remove event request (Command 0x07)
+   */
+  createRemoveEventRequest(eventIndex: number): Uint8Array {
+    if (eventIndex < 0 || eventIndex > 49) {
+      throw new Error("Event index must be between 0 and 49");
+    }
+    const payload = new Uint8Array(6);
+    payload[0] = eventIndex; // Event index
+    // Remaining bytes are reserved (already zeroed)
+    return this.createRequest(CommandCode.REMOVE_EVENT, payload);
+  }
+
+  /**
+   * Create remove all events request (Command 0x08)
+   */
+  createRemoveAllEventsRequest(): Uint8Array {
+    const payload = new Uint8Array(6); // 6 bytes of padding
+    return this.createRequest(CommandCode.REMOVE_ALL_EVENTS, payload);
   }
 
   /**
