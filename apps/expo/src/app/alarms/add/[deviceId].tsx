@@ -19,6 +19,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
+  AdvancedStep,
+  BasicInfoStep,
+  ReviewStep,
+  ScheduleStep,
+} from "~/components/alarms";
+import {
   buttons,
   buttonText,
   colors,
@@ -28,12 +34,6 @@ import {
   typography,
 } from "~/styles";
 import { trpc } from "~/utils/api";
-import {
-  AdvancedStep,
-  BasicInfoStep,
-  ReviewStep,
-  ScheduleStep,
-} from "~/components/alarms";
 
 type AlarmStep = "basic" | "schedule" | "advanced" | "review";
 

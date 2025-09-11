@@ -5,6 +5,13 @@ import { router } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
 
 import type { BluetoothDevice, DeviceInfo } from "~/services/bluetooth";
+import {
+  ConnectingStep,
+  ErrorStep,
+  FoundDevicesStep,
+  ScanningStep,
+  SuccessStep,
+} from "~/components/add-device";
 import { useBluetooth } from "~/services/bluetooth";
 import {
   buttons,
@@ -16,13 +23,6 @@ import {
   typography,
 } from "~/styles";
 import { trpc } from "~/utils/api";
-import {
-  ConnectingStep,
-  ErrorStep,
-  FoundDevicesStep,
-  ScanningStep,
-  SuccessStep,
-} from "~/components/add-device";
 
 type ConnectionStep = "scanning" | "found" | "connecting" | "success" | "error";
 
