@@ -1,9 +1,8 @@
 import type { TRPCRouterRecord } from "@trpc/server";
+import { Alarm, Device } from "@gently/db/schema";
 import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { z } from "zod/v4";
-
-import { Alarm, Device } from "@gently/db/schema";
 
 import { protectedProcedure } from "../trpc";
 
