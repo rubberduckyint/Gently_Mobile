@@ -269,7 +269,12 @@ export default function DashboardPage() {
     mutationFn: async (deviceId: string) => {
       return await trpc.device.delete.mutate({ id: deviceId });
     },
-    onSuccess: () => {
+    onSuccess: (_, deviceId) => {
+      // Remove the specific device query from cache to prevent any lingering queries
+      queryClient.removeQueries({
+        queryKey: ["device", "getById", { id: deviceId }],
+      });
+      // Invalidate the devices list to refresh the dashboard
       void queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
     onError: (error) => {

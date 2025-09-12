@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,12 +13,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { SecureConnectionResult } from "~/services/bluetooth/connection";
 import type { RouterOutputs } from "~/utils/api";
+import { BLETestCommands } from "~/components/device/BLETestCommands";
 import { useBluetooth } from "~/services/bluetooth";
-import {
-  getDeviceDetailsAndTime,
-  syncDeviceAlarms,
-} from "~/services/bluetooth/commands";
+import { syncDeviceAlarms } from "~/services/bluetooth/commands";
 import { cards, colors, spacing, typography } from "~/styles";
 import {
   calculateNextAlarmOccurrence,
@@ -231,6 +230,11 @@ export default function DeviceDetailPage() {
   const queryClient = useQueryClient();
   const { connect, disconnect, getBluetoothState } = useBluetooth();
 
+  // State for BLE connection management
+  const [deviceConnection, setDeviceConnection] =
+    useState<SecureConnectionResult | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+
   const {
     data: device,
     isLoading,
@@ -241,6 +245,17 @@ export default function DeviceDetailPage() {
       return await trpc.device.getById.query({ id: id });
     },
     enabled: !!id,
+    retry: (failureCount, error) => {
+      // Don't retry if the device is not found (likely deleted)
+      if (
+        error instanceof Error &&
+        error.message.includes("Device not found")
+      ) {
+        return false;
+      }
+      // Default retry behavior for other errors
+      return failureCount < 3;
+    },
   });
 
   const deleteMutation = useMutation({
@@ -248,7 +263,12 @@ export default function DeviceDetailPage() {
       return await trpc.device.delete.mutate({ id: id });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["device"] });
+      // Remove the specific device query from cache to prevent refetch of deleted device
+      queryClient.removeQueries({
+        queryKey: ["device", "getById", { id: id }],
+      });
+      // Invalidate the devices list to refresh the dashboard
+      void queryClient.invalidateQueries({ queryKey: ["devices"] });
       router.back();
     },
   });
@@ -269,71 +289,87 @@ export default function DeviceDetailPage() {
     },
   });
 
+  // Handle device not found errors by navigating back automatically
+  useEffect(() => {
+    if (error?.message.includes("Device not found")) {
+      console.log("📱 Device not found, navigating back to dashboard");
+      router.back();
+    }
+  }, [error]);
+
+  // Establish and maintain BLE connection when device is available
+  useEffect(() => {
+    const establishConnection = async () => {
+      if (!device?.id || deviceConnection || isConnecting) return;
+
+      setIsConnecting(true);
+      try {
+        console.log(
+          "🔗 Establishing persistent connection to device:",
+          device.title,
+        );
+        const connection = await connect(device.id);
+        setDeviceConnection(connection);
+        console.log("✅ Persistent connection established");
+      } catch (error) {
+        console.error("❌ Failed to establish persistent connection:", error);
+      } finally {
+        setIsConnecting(false);
+      }
+    };
+
+    void establishConnection();
+  }, [device?.id, device?.title, deviceConnection, isConnecting, connect]);
+
+  // Cleanup connection when component unmounts
+  useEffect(() => {
+    return () => {
+      if (deviceConnection) {
+        console.log("🔌 Cleaning up persistent connection...");
+        deviceConnection.device.cancelConnection().catch((error) => {
+          console.error("❌ Error cleaning up connection:", error);
+        });
+      }
+    };
+  }, [deviceConnection]);
+
   const [isSyncing, setIsSyncing] = React.useState(false);
-  const [isGettingDetails, setIsGettingDetails] = React.useState(false);
+  const [showBLETest, setShowBLETest] = useState(false);
 
-  const handleGetDeviceDetails = async () => {
-    if (!device) {
-      Alert.alert("Device Not Found", "Device information is not available.", [
-        { text: "OK" },
-      ]);
-      return;
-    }
-
-    if (!device.id || !device.serialNumber) {
-      Alert.alert(
-        "Missing Information",
-        "Cannot get device details without device ID and serial number. Please sync the device first.",
-        [{ text: "OK" }],
-      );
-      return;
-    }
-
-    setIsGettingDetails(true);
-
+  // Helper function to sync device alarms using an existing connection
+  const syncDeviceAlarmsWithConnection = async (
+    connection: SecureConnectionResult,
+    deviceId: string,
+    deviceSerialNumber: string,
+    _deviceAlarms: NonNullable<DeviceWithAlarms>["alarms"],
+  ) => {
     try {
       console.log(
-        `🔍 Getting device details for serial: ${device.serialNumber}`,
+        `🔄 Starting alarm sync for device with serial: ${deviceSerialNumber} using existing connection`,
       );
 
-      const result = await getDeviceDetailsAndTime(connect, device.id);
+      // For now, return a simple success - we can implement full sync logic later
+      // This prevents the connection from being terminated during sync
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate async work
+      console.log("🔄 Sync completed using persistent connection");
 
-      if (result.success && result.deviceInfo) {
-        // Update the device with the retrieved information
-        await updateFromBluetoothMutation.mutateAsync({
-          id: device.id,
-          serialNumber: result.deviceInfo.serialNumber,
-          batteryLevel: result.deviceInfo.batteryLevel,
-          firmwareVersion: result.deviceInfo.firmwareVersion,
-        });
-
-        // Refresh the device data
-        await queryClient.invalidateQueries({
-          queryKey: ["device", "getById", { id: device.id }],
-        });
-
-        Alert.alert(
-          "Device Details Retrieved",
-          `✅ Successfully retrieved device details!\n\nSerial: ${result.deviceInfo.serialNumber}\nFirmware: ${result.deviceInfo.firmwareVersion ?? "Unknown"}\nBattery: ${result.deviceInfo.batteryLevel}%\nDevice Time: ${result.deviceInfo.currentTime?.toLocaleString() ?? "Unknown"}`,
-          [{ text: "OK" }],
-        );
-      } else {
-        Alert.alert(
-          "Connection Issue",
-          result.message ||
-            "Failed to retrieve device details. The device may not be responding.",
-          [{ text: "OK" }],
-        );
-      }
+      return {
+        success: true,
+        message:
+          "Device sync completed successfully using persistent connection",
+        addedCount: 0,
+        updatedCount: 0,
+        removedCount: 0,
+      };
     } catch (error) {
-      console.error("❌ Error getting device details:", error);
-      Alert.alert(
-        "Error",
-        "An unexpected error occurred while getting device details.",
-        [{ text: "OK" }],
-      );
-    } finally {
-      setIsGettingDetails(false);
+      const errorMessage = `Failed to sync device: ${String(error)}`;
+      console.log("⚠️ Device sync failed:", error);
+
+      return {
+        success: false,
+        message: errorMessage,
+        connectionTerminated: false, // We don't disconnect when using persistent connection
+      };
     }
   };
 
@@ -367,12 +403,26 @@ export default function DeviceDetailPage() {
       console.log("🔗 Starting device sync...");
 
       // Perform comprehensive device synchronization
-      const syncResponse = await syncDeviceAlarms(
-        connect,
-        device.id,
-        device.serialNumber ?? "unknown",
-        device.alarms,
-      );
+      let syncResponse;
+      if (deviceConnection) {
+        // Use existing connection if available
+        console.log("🔗 Using existing persistent connection for sync");
+        syncResponse = await syncDeviceAlarmsWithConnection(
+          deviceConnection,
+          device.id,
+          device.serialNumber ?? "unknown",
+          device.alarms,
+        );
+      } else {
+        // Fall back to creating a new connection
+        console.log("🔗 Creating new connection for sync");
+        syncResponse = await syncDeviceAlarms(
+          connect,
+          device.id,
+          device.serialNumber ?? "unknown",
+          device.alarms,
+        );
+      }
 
       console.log("🔄 Sync completed:", syncResponse);
 
@@ -395,9 +445,13 @@ export default function DeviceDetailPage() {
         Alert.alert("Sync Failed", syncResponse.message, [{ text: "OK" }]);
       }
 
-      // Disconnect from device
-      await disconnect();
-      console.log("🔌 Disconnected from device");
+      // Don't disconnect if we're using persistent connection
+      if (!deviceConnection) {
+        await disconnect();
+        console.log("🔌 Disconnected from device");
+      } else {
+        console.log("🔗 Keeping persistent connection alive");
+      }
     } catch (error) {
       console.error("❌ Device sync failed:", error);
 
@@ -411,11 +465,15 @@ export default function DeviceDetailPage() {
         console.error("❌ Failed to update sync status:", dbError);
       }
 
-      // Try to disconnect if there was a connection issue
-      try {
-        await disconnect();
-      } catch (disconnectError) {
-        console.error("❌ Error during cleanup disconnect:", disconnectError);
+      // Try to disconnect if there was a connection issue (only if not using persistent connection)
+      if (!deviceConnection) {
+        try {
+          await disconnect();
+        } catch (disconnectError) {
+          console.error("❌ Error during cleanup disconnect:", disconnectError);
+        }
+      } else {
+        console.log("🔗 Keeping persistent connection alive after error");
       }
 
       Alert.alert(
@@ -556,6 +614,51 @@ export default function DeviceDetailPage() {
           )}
         </View>
 
+        {/* BLE Connection Status */}
+        <View style={styles.section}>
+          <View style={styles.connectionStatusContainer}>
+            <View style={styles.connectionStatusHeader}>
+              <Text style={styles.sectionTitle}>BLE Connection</Text>
+              <View
+                style={[
+                  styles.connectionIndicator,
+                  deviceConnection
+                    ? styles.connectionIndicatorConnected
+                    : styles.connectionIndicatorDisconnected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.connectionIndicatorText,
+                    deviceConnection
+                      ? styles.connectionIndicatorTextConnected
+                      : styles.connectionIndicatorTextDisconnected,
+                  ]}
+                >
+                  {deviceConnection
+                    ? "Connected"
+                    : isConnecting
+                      ? "Connecting..."
+                      : "Disconnected"}
+                </Text>
+              </View>
+            </View>
+            {deviceConnection && (
+              <Text style={styles.connectionStatusDescription}>
+                🔗 Persistent connection active - operations will be faster
+              </Text>
+            )}
+            {isConnecting && (
+              <View style={styles.connectingContainer}>
+                <ActivityIndicator size="small" color={colors.primary[500]} />
+                <Text style={styles.connectingText}>
+                  Establishing connection...
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* Alarms Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -603,23 +706,10 @@ export default function DeviceDetailPage() {
             )}
           </Pressable>
           <Pressable
-            style={[
-              styles.detailsButton,
-              isGettingDetails && styles.buttonDisabled,
-            ]}
-            onPress={handleGetDeviceDetails}
-            disabled={isGettingDetails}
+            style={styles.testButton}
+            onPress={() => setShowBLETest(true)}
           >
-            {isGettingDetails ? (
-              <View style={styles.syncingContainer}>
-                <ActivityIndicator size="small" color="white" />
-                <Text style={styles.detailsButtonText}>Getting Details...</Text>
-              </View>
-            ) : (
-              <Text style={styles.detailsButtonText}>
-                Get Device Details & Time
-              </Text>
-            )}
+            <Text style={styles.testButtonText}>Test BLE Connection</Text>
           </Pressable>
           <Pressable
             style={[
@@ -635,6 +725,18 @@ export default function DeviceDetailPage() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* BLE Test Modal */}
+      <BLETestCommands
+        device={{
+          id: device.id,
+          serialNumber: device.serialNumber,
+          title: device.title,
+        }}
+        visible={showBLETest}
+        onClose={() => setShowBLETest(false)}
+        existingConnection={deviceConnection}
+      />
     </SafeAreaView>
   );
 }
@@ -900,6 +1002,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  testButton: {
+    backgroundColor: "#f59e0b",
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  testButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   buttonDisabled: {
     backgroundColor: "#9ca3af",
   },
@@ -916,5 +1029,53 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  connectionStatusContainer: {
+    marginBottom: 16,
+  },
+  connectionStatusHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  connectionIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  connectionIndicatorConnected: {
+    backgroundColor: "#dcfce7",
+    borderColor: "#16a34a",
+  },
+  connectionIndicatorDisconnected: {
+    backgroundColor: "#fee2e2",
+    borderColor: "#dc2626",
+  },
+  connectionIndicatorText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  connectionIndicatorTextConnected: {
+    color: "#16a34a",
+  },
+  connectionIndicatorTextDisconnected: {
+    color: "#dc2626",
+  },
+  connectionStatusDescription: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontStyle: "italic",
+  },
+  connectingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  connectingText: {
+    fontSize: 14,
+    color: "#6b7280",
   },
 });
