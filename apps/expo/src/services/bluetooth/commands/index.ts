@@ -7,11 +7,7 @@ export { sendSecureCommand } from "./core";
 export * from "./base";
 export * from "./registry";
 
-// Command registration (imports this to auto-register all commands)
-export { registerAllCommands } from "./registerCommands";
-
 // Individual BLE Command Classes
-export { BasicConnectionCommand } from "./BasicConnectionCommand";
 export { CreateEventCommand } from "./CreateEventCommand";
 export { DeviceInfoCommand } from "./DeviceInfoCommand";
 export { FindMeCommand } from "./FindMeCommand";
@@ -24,21 +20,20 @@ export { EnterDFUModeCommand } from "./EnterDFUModeCommand";
 export { GetNumberOfEventsCommand } from "./GetNumberOfEventsCommand";
 export { RemoveAllEventsCommand } from "./RemoveAllEventsCommand";
 
-// Legacy device info commands (for backward compatibility)
-export { readSecureDeviceInfo, readDeviceInfo } from "./deviceInfo";
+// Notification Commands (async from device)
+export { BatteryStatusNotifyCommand } from "./BatteryStatusNotifyCommand";
+export { ActiveEventNotifyCommand } from "./ActiveEventNotifyCommand";
+export { TimeNotifyCommand } from "./TimeNotifyCommand";
 
-// Legacy device status commands (for backward compatibility)
-export { readSecureBatteryLevel, readSecureDeviceTime } from "./deviceStatus";
-
-// Comprehensive device details
-export { readComprehensiveDeviceDetails } from "./comprehensive";
-
-// Device details and time retrieval
-export { getDeviceDetailsAndTime } from "./deviceDetails";
-
-// Event/alarm commands
-export { syncDeviceAlarms } from "./events";
-export type { SyncResult, DeviceDetailsResult } from "./events";
+// Notification handling utilities
+export {
+  processAsyncNotification,
+  isAsyncNotification,
+  type NotificationHandler,
+  type BatteryStatusData,
+  type ActiveEventData,
+  type TimeData,
+} from "./NotificationHandler";
 
 // Advertisement parsing
 export {

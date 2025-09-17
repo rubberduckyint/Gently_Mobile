@@ -4,10 +4,16 @@
  * Sets the device's current time.
  */
 
+import type { ResponseStatus } from "../protocol-types";
 import type { BLECommandExecutionContext, BLECommandMetadata } from "./base";
-import { CommandCode } from "../protocol";
+import { CommandCode } from "../protocol-types";
 import { BLECommand } from "./base";
 import { sendSecureCommand } from "./core";
+
+// Helper function to convert decimal to BCD
+function toBCD(decimal: number): number {
+  return ((Math.floor(decimal / 10) & 0x0f) << 4) | (decimal % 10 & 0x0f);
+}
 
 export interface SetTimeResponse {
   success: boolean;
@@ -38,6 +44,81 @@ export class SetTimeCommand extends BLECommand<SetTimeResponse> {
     ],
   };
 
+  /**
+   * Create the request payload for set time command
+   */
+  static createRequest(timestamp?: number): Uint8Array {
+    // Create time payload in BCD format as per protocol specification
+    // 7 bytes: Year(BCD), Month(BCD), Date(BCD), WeekDay, Hour(BCD), Minute(BCD), Seconds(BCD)
+    const payload = new Uint8Array(7);
+
+    const now = timestamp ? new Date(timestamp * 1000) : new Date();
+
+    // Protocol format:
+    // Byte#0: Year (BCD, 0x00-0x99 for 2000-2099)
+    // Byte#1: Month (BCD, 0x01-0x12)
+    // Byte#2: Date (BCD, 0x01-0x31)
+    // Byte#3: Week day (0-6, Sunday=0)
+    // Byte#4: Hour (BCD, 0x00-0x23)
+    // Byte#5: Minute (BCD, 0x00-0x59)
+    // Byte#6: Seconds (BCD, 0x00-0x59)
+
+    payload[0] = toBCD(now.getFullYear() - 2000); // Year relative to 2000
+    payload[1] = toBCD(now.getMonth() + 1); // Month (1-12)
+    payload[2] = toBCD(now.getDate()); // Date (1-31)
+    payload[3] = now.getDay(); // Week day (0-6, Sunday=0)
+    payload[4] = toBCD(now.getHours()); // Hour (0-23)
+    payload[5] = toBCD(now.getMinutes()); // Minute (0-59)
+    payload[6] = toBCD(now.getSeconds()); // Seconds (0-59)
+
+    // Log what we're setting for debugging
+    SetTimeCommand.logTimeBeingSet(now);
+
+    return payload;
+  }
+
+  /**
+   * Parse the response payload for set time command
+   */
+  static parseResponse(payload: Uint8Array, _status: ResponseStatus): boolean {
+    if (payload.length < 1) {
+      throw new Error("Invalid set time response");
+    }
+    const responseStatus = payload[0] ?? 0xff;
+    return responseStatus === 0x00;
+  }
+
+  /**
+   * Log human-readable details about the response payload
+   */
+  static logPayloadDetails(payload: Uint8Array): void {
+    if (payload.length >= 1) {
+      const status = payload[0];
+      const success = status === 0x00;
+      console.log(
+        `🔓 PROTOCOL:     📝 Time set result: ${success ? "✅ SUCCESS" : `❌ FAILED (status: 0x${status?.toString(16).padStart(2, "0")})`}`,
+      );
+    }
+  }
+
+  /**
+   * Log the time being set for debugging
+   */
+  static logTimeBeingSet(date: Date): void {
+    console.log(`🔓 PROTOCOL:     📝 Setting time to: ${date.toISOString()}`);
+    console.log(`🔓 PROTOCOL:     � Local Time: ${date.toLocaleString()}`);
+    console.log(
+      `🔓 PROTOCOL:     � BCD Format: Year=${toBCD(date.getFullYear() - 2000)
+        .toString(16)
+        .padStart(2, "0")}, Month=${toBCD(date.getMonth() + 1)
+        .toString(16)
+        .padStart(
+          2,
+          "0",
+        )}, Date=${toBCD(date.getDate()).toString(16).padStart(2, "0")}, WeekDay=${date.getDay()}, Hour=${toBCD(date.getHours()).toString(16).padStart(2, "0")}, Min=${toBCD(date.getMinutes()).toString(16).padStart(2, "0")}, Sec=${toBCD(date.getSeconds()).toString(16).padStart(2, "0")}`,
+    );
+  }
+
   protected async executeImpl(
     context: BLECommandExecutionContext,
   ): Promise<SetTimeResponse> {
@@ -61,14 +142,28 @@ export class SetTimeCommand extends BLECommand<SetTimeResponse> {
     }
 
     try {
-      // Create time payload (4 bytes, Unix timestamp in seconds, little endian)
-      const payload = new Uint8Array(4);
-      const timestamp = Math.floor(targetTime.getTime() / 1000);
-      const view = new DataView(payload.buffer);
-      view.setUint32(0, timestamp, true);
+      // Create time payload in BCD format as per protocol
+      const payload = new Uint8Array(7);
+
+      // Protocol format:
+      // Byte#0: Year (BCD, 0x00-0x99 for 2000-2099)
+      // Byte#1: Month (BCD, 0x01-0x12)
+      // Byte#2: Date (BCD, 0x01-0x31)
+      // Byte#3: Week day (0-6, Sunday=0)
+      // Byte#4: Hour (BCD, 0x00-0x23)
+      // Byte#5: Minute (BCD, 0x00-0x59)
+      // Byte#6: Seconds (BCD, 0x00-0x59)
+
+      payload[0] = toBCD(targetTime.getFullYear() - 2000); // Year relative to 2000
+      payload[1] = toBCD(targetTime.getMonth() + 1); // Month (1-12)
+      payload[2] = toBCD(targetTime.getDate()); // Date (1-31)
+      payload[3] = targetTime.getDay(); // Week day (0-6, Sunday=0)
+      payload[4] = toBCD(targetTime.getHours()); // Hour (0-23)
+      payload[5] = toBCD(targetTime.getMinutes()); // Minute (0-59)
+      payload[6] = toBCD(targetTime.getSeconds()); // Seconds (0-59)
 
       this.log("info", "Sending time to device...", {
-        timestamp,
+        time: targetTime.toISOString(),
         payload: Array.from(payload)
           .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
           .join(" "),

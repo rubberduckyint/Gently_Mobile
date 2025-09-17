@@ -6,7 +6,7 @@
  */
 
 import type { BLECommandExecutionContext, BLECommandMetadata } from "./base";
-import { CommandCode } from "../protocol";
+import { CommandCode } from "../protocol-types";
 import { BLECommand } from "./base";
 import { sendSecureCommand } from "./core";
 

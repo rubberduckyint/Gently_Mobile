@@ -5,9 +5,9 @@
  * firmware version, and other device-specific details.
  */
 
-import type { DeviceInformation } from "../protocol";
+import type { DeviceInformation } from "../protocol-types";
 import type { BLECommandExecutionContext, BLECommandMetadata } from "./base";
-import { CommandCode } from "../protocol";
+import { CommandCode, ResponseStatus } from "../protocol-types";
 import { BLECommand } from "./base";
 import { sendSecureCommand } from "./core";
 
@@ -26,6 +26,58 @@ export class DeviceInfoCommand extends BLECommand<DeviceInfoResponse> {
     estimatedDuration: 2000, // 2 seconds
     tags: ["device", "info", "hardware", "firmware"],
   };
+
+  /**
+   * Create the request payload for device info command
+   */
+  static createRequest(): Uint8Array {
+    // 6 bytes of padding as per protocol
+    return new Uint8Array(6);
+  }
+
+  /**
+   * Parse the response payload for device info command
+   */
+  static parseResponse(
+    payload: Uint8Array,
+    status: ResponseStatus,
+  ): DeviceInformation {
+    if (status !== ResponseStatus.OK) {
+      throw new Error(`Device info request failed with status: ${status}`);
+    }
+
+    if (payload.length < 4) {
+      throw new Error("Invalid device info response");
+    }
+
+    return {
+      hardwareVersion: payload[0] ?? 0,
+      firmwareVersionMajor: payload[1] ?? 0,
+      firmwareVersionMinor: payload[2] ?? 0,
+      firmwareBuildNumber: payload[3] ?? 0,
+    };
+  }
+
+  /**
+   * Log human-readable details about the response payload
+   */
+  static logPayloadDetails(payload: Uint8Array): void {
+    if (payload.length >= 4) {
+      const hwVersion = payload[0] ?? 0;
+      const swVersionMajor = payload[1] ?? 0;
+      const swVersionMinor = payload[2] ?? 0;
+      const buildNumber = payload[3] ?? 0;
+      console.log(`🔓 PROTOCOL:     💾 Hardware Version: ${hwVersion}`);
+      console.log(
+        `🔓 PROTOCOL:     🔢 Software Version: ${swVersionMajor}.${swVersionMinor}`,
+      );
+      console.log(`🔓 PROTOCOL:     🏗️  Build Number: ${buildNumber}`);
+    } else {
+      console.log(
+        `🔓 PROTOCOL:     ⚠️  Device info payload too short: ${payload.length} bytes`,
+      );
+    }
+  }
 
   protected async executeImpl(
     context: BLECommandExecutionContext,

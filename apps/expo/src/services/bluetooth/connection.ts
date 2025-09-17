@@ -4,6 +4,17 @@ import { State } from "react-native-ble-plx";
 
 import type { AdvertisementData, DeviceInformation } from "./protocol";
 import { base64ToUint8Array, uint8ArrayToBase64 } from "../../utils/base64";
+import { ActiveEventNotifyCommand } from "./commands/ActiveEventNotifyCommand";
+import { BatteryStatusNotifyCommand } from "./commands/BatteryStatusNotifyCommand";
+import { CreateEventCommand } from "./commands/CreateEventCommand";
+import { DeviceInfoCommand } from "./commands/DeviceInfoCommand";
+import { GetAllEventsCommand } from "./commands/GetAllEventsCommand";
+import { GetDeviceStatusCommand } from "./commands/GetDeviceStatusCommand";
+import { GetNumberOfEventsCommand } from "./commands/GetNumberOfEventsCommand";
+import { GetTimeCommand } from "./commands/GetTimeCommand";
+import { GetUptimeCommand } from "./commands/GetUptimeCommand";
+import { SetTimeCommand } from "./commands/SetTimeCommand";
+import { TimeNotifyCommand } from "./commands/TimeNotifyCommand";
 import {
   CommandCode,
   DEFAULT_FACTORY_KEY,
@@ -272,9 +283,18 @@ export async function connectToGentlyDevice(
           );
 
           // IMMEDIATELY DECRYPT AND LOG THE NOTIFICATION
+          let isAsyncNotification = false;
+
           try {
             const encryptedData = base64ToUint8Array(characteristic.value);
             const decryptedResponse = protocol.parseResponse(encryptedData);
+
+            // Determine if this is an async notification (no corresponding request)
+            isAsyncNotification = [
+              CommandCode.BATTERY_STATUS_NOTIFY,
+              CommandCode.ACTIVE_EVENT_NOTIFY,
+              CommandCode.TIME_NOTIFY,
+            ].includes(decryptedResponse.command);
 
             console.log(`${logPrefix}: 🔓 DECRYPTED NOTIFICATION:`);
             console.log(
@@ -314,6 +334,137 @@ export async function connectToGentlyDevice(
               console.log(
                 `${logPrefix}: 🔓   ℹ️  DEVICE INFO response received`,
               );
+              DeviceInfoCommand.logPayloadDetails(decryptedResponse.payload);
+            } else if (
+              decryptedResponse.command === CommandCode.GET_DEVICE_STATUS
+            ) {
+              console.log(
+                `${logPrefix}: 🔓   📊 DEVICE STATUS response received`,
+              );
+              GetDeviceStatusCommand.logPayloadDetails(
+                decryptedResponse.payload,
+              );
+            } else if (decryptedResponse.command === CommandCode.GET_TIME) {
+              console.log(`${logPrefix}: 🔓   🕐 GET TIME response received`);
+              GetTimeCommand.logPayloadDetails(decryptedResponse.payload);
+            } else if (decryptedResponse.command === CommandCode.SET_TIME) {
+              console.log(`${logPrefix}: 🔓   🕐 SET TIME response received`);
+              SetTimeCommand.logPayloadDetails(decryptedResponse.payload);
+            } else if (decryptedResponse.command === CommandCode.ADD_EVENT) {
+              console.log(`${logPrefix}: 🔓   📅 ADD EVENT response received`);
+              CreateEventCommand.logPayloadDetails(decryptedResponse.payload);
+            } else if (
+              decryptedResponse.command === CommandCode.GET_NUMBER_OF_EVENTS
+            ) {
+              console.log(
+                `${logPrefix}: 🔓   📋 GET NUMBER OF EVENTS response received`,
+              );
+              GetNumberOfEventsCommand.logPayloadDetails(
+                decryptedResponse.payload,
+              );
+            } else if (
+              decryptedResponse.command === CommandCode.GET_ALL_EVENTS
+            ) {
+              console.log(
+                `${logPrefix}: 🔓   📋 GET ALL EVENTS response received`,
+              );
+              try {
+                // Parse the event response immediately
+                const { packetNumber, totalPackets, eventInfo } =
+                  GetAllEventsCommand.parseEventResponse(
+                    decryptedResponse.payload,
+                  );
+
+                console.log(
+                  `${logPrefix}: 🔓   📋 Processing event packet ${packetNumber}/${totalPackets}`,
+                );
+
+                if (eventInfo) {
+                  console.log(
+                    `${logPrefix}: 🔓   📋 Event #${eventInfo.eventIndex}: "${eventInfo.eventName}"`,
+                  );
+                  console.log(
+                    `${logPrefix}: 🔓   📋 State: ${GetAllEventsCommand.getStateDescription(eventInfo.currentState)}`,
+                  );
+                  console.log(
+                    `${logPrefix}: 🔓   📋 Cron: "${eventInfo.cronExpression}"`,
+                  );
+                  console.log(
+                    `${logPrefix}: 🔓   📋 Settings: ${GetAllEventsCommand.getVibrationDescription(eventInfo.vibrationIntensity)} vibration, ${GetAllEventsCommand.getLedDescription(eventInfo.ledColor, eventInfo.ledPattern)} LED`,
+                  );
+                } else {
+                  console.log(
+                    `${logPrefix}: 🔓   📋 No event data (empty response)`,
+                  );
+                }
+
+                // Log detailed payload info
+                GetAllEventsCommand.logPayloadDetails(
+                  decryptedResponse.payload,
+                );
+
+                // TODO: Store parsed event data in a global state or emit event for UI to consume
+                // For now, we're processing and logging immediately
+              } catch (error) {
+                console.error(
+                  `${logPrefix}: Failed to parse GET_ALL_EVENTS response:`,
+                  error,
+                );
+                GetAllEventsCommand.logPayloadDetails(
+                  decryptedResponse.payload,
+                );
+              }
+            } else if (
+              decryptedResponse.command === CommandCode.BATTERY_STATUS_NOTIFY
+            ) {
+              // Battery status notification - async from device
+              console.log(
+                `${logPrefix}: 🔓   🔋 BATTERY STATUS NOTIFICATION (async):`,
+              );
+              try {
+                const batteryData =
+                  BatteryStatusNotifyCommand.parseNotification(
+                    decryptedResponse.payload,
+                  );
+                BatteryStatusNotifyCommand.logNotificationDetails(batteryData);
+              } catch (error) {
+                console.error(
+                  `${logPrefix}: Failed to parse battery notification:`,
+                  error,
+                );
+              }
+            } else if (
+              decryptedResponse.command === CommandCode.ACTIVE_EVENT_NOTIFY
+            ) {
+              // Active event notification - async from device
+              console.log(
+                `${logPrefix}: 🔓   📅 ACTIVE EVENT NOTIFICATION (async):`,
+              );
+              try {
+                const eventData = ActiveEventNotifyCommand.parseNotification(
+                  decryptedResponse.payload,
+                );
+                ActiveEventNotifyCommand.logNotificationDetails(eventData);
+              } catch (error) {
+                console.error(
+                  `${logPrefix}: Failed to parse event notification:`,
+                  error,
+                );
+              }
+            } else if (decryptedResponse.command === CommandCode.TIME_NOTIFY) {
+              // Time notification - async from device
+              console.log(`${logPrefix}: 🔓   🕐 TIME NOTIFICATION (async):`);
+              try {
+                const timeData = TimeNotifyCommand.parseNotification(
+                  decryptedResponse.payload,
+                );
+                TimeNotifyCommand.logNotificationDetails(timeData);
+              } catch (error) {
+                console.error(
+                  `${logPrefix}: Failed to parse time notification:`,
+                  error,
+                );
+              }
             }
           } catch (decryptError) {
             console.error(
@@ -322,6 +473,7 @@ export async function connectToGentlyDevice(
             );
           }
 
+          // Determine if this is an async notification (no corresponding request) or a response to a request
           if (waitingForResponse && currentResponseResolver) {
             // Someone is waiting for this response
             console.log(
@@ -331,8 +483,13 @@ export async function connectToGentlyDevice(
             currentResponseResolver = null;
             currentResponseRejecter = null;
             waitingForResponse = false;
+          } else if (isAsyncNotification) {
+            // This is an async notification - don't queue it since it's already been processed above
+            console.log(
+              `${logPrefix}: 📩 Async notification processed (not queued)`,
+            );
           } else {
-            // Queue the response for later
+            // This is a response to a request but no one is waiting - queue it
             console.log(
               `${logPrefix}: 📩 Queueing response for later (queue size: ${responseQueue.length + 1})`,
             );
@@ -397,7 +554,20 @@ export async function connectToGentlyDevice(
     console.log(`${logPrefix}: Command Code: 0x01 (GET_UPTIME)`);
 
     // Step 1: Get uptime (encrypted with bracelet key)
-    const uptimeRequest = protocol.createUptimeRequest();
+    const uptimeRequestPayload = GetUptimeCommand.createRequest();
+    console.log(
+      `${logPrefix}: Request payload (before encryption): ${Array.from(
+        uptimeRequestPayload,
+      )
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")}`,
+    );
+
+    // Encrypt the request using the protocol
+    const uptimeRequest = protocol.createRequest(
+      CommandCode.GET_UPTIME,
+      uptimeRequestPayload,
+    );
     console.log(
       `${logPrefix}: Encrypted request payload: ${Array.from(uptimeRequest)
         .map((b) => b.toString(16).padStart(2, "0"))
@@ -500,9 +670,22 @@ export async function connectToGentlyDevice(
     console.log(`${logPrefix}: Command Code: 0x02 (GET_DEVICE_INFO)`);
 
     // Step 2: Get device info (encrypted with dynamic key)
-    const deviceInfoRequest = protocol.createDeviceInfoRequest();
+    const deviceInfoRequest = DeviceInfoCommand.createRequest();
     console.log(
-      `${logPrefix}: Encrypted request payload: ${Array.from(deviceInfoRequest)
+      `${logPrefix}: Request payload (before encryption): ${Array.from(
+        deviceInfoRequest,
+      )
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")}`,
+    );
+
+    // Encrypt the request using the protocol
+    const encryptedRequest = protocol.createRequest(
+      CommandCode.GET_DEVICE_INFO,
+      deviceInfoRequest,
+    );
+    console.log(
+      `${logPrefix}: Encrypted request payload: ${Array.from(encryptedRequest)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("")}`,
     );
@@ -510,7 +693,7 @@ export async function connectToGentlyDevice(
     await device.writeCharacteristicWithResponseForService(
       GENTLY_SERVICE_UUID,
       REQUEST_CHARACTERISTIC_UUID,
-      uint8ArrayToBase64(deviceInfoRequest),
+      uint8ArrayToBase64(encryptedRequest),
     );
     console.log(
       `${logPrefix}: ✅ Device info request sent to characteristic 0xF023`,
@@ -540,8 +723,13 @@ export async function connectToGentlyDevice(
     );
     console.log(`${logPrefix}: Decryption: Using Dynamic Key`);
 
-    const deviceInfo = protocol.parseDeviceInfoResponse(
+    // Parse the response using the protocol first, then the command parser
+    const parsedResponse = protocol.parseResponse(
       base64ToUint8Array(deviceInfoResponseValue),
+    );
+    const deviceInfo = DeviceInfoCommand.parseResponse(
+      parsedResponse.payload,
+      parsedResponse.status,
     );
 
     console.log(`${logPrefix}: ✅ Device info successfully decrypted:`);

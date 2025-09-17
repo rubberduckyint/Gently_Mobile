@@ -89,6 +89,31 @@ export default function BLETestPage() {
     setLogs([]);
   };
 
+  const getDefaultParametersForCommand = (
+    commandMetadata: BLECommandMetadata,
+  ): Record<string, unknown> => {
+    const parameters: Record<string, unknown> = {};
+
+    // Use default values from command metadata parameters
+    commandMetadata.parameters?.forEach((param) => {
+      if (param.defaultValue !== undefined) {
+        parameters[param.name] = param.defaultValue;
+      }
+    });
+
+    // Add some specific defaults for testing
+    if (commandMetadata.id === "create-event") {
+      parameters.eventIndex = parameters.eventIndex ?? 0;
+      parameters.eventName = parameters.eventName ?? "Test Event";
+      parameters.minutesInFuture = parameters.minutesInFuture ?? 5;
+      parameters.severityLevel = parameters.severityLevel ?? 2; // Important
+      parameters.vibrationIntensity = parameters.vibrationIntensity ?? 1; // Medium
+      parameters.ledColor = parameters.ledColor ?? 4; // Red
+    }
+
+    return parameters;
+  };
+
   const executeCommand = async (commandMetadata: BLECommandMetadata) => {
     if (!device?.id || !device.serialNumber) {
       Alert.alert(
@@ -141,6 +166,7 @@ export default function BLETestPage() {
         connection: currentConnection, // Pass existing connection if available
         connect: () => connectBySerialNumber(device.serialNumber ?? ""),
         disconnect,
+        parameters: getDefaultParametersForCommand(commandMetadata),
         options: {
           captureConsoleLogs: true,
           logLevel: "info",

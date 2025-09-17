@@ -8,7 +8,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { State } from "react-native-ble-plx";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,7 +15,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SecureConnectionResult } from "~/services/bluetooth/connection";
 import type { RouterOutputs } from "~/utils/api";
 import { useBluetoothContext } from "~/services/bluetooth/BluetoothContext";
-import { syncDeviceAlarms } from "~/services/bluetooth/commands";
 import { cards, colors, spacing, typography } from "~/styles";
 import {
   calculateNextAlarmOccurrence,
@@ -232,13 +230,8 @@ function AlarmCard({
 export default function DeviceDetailPage() {
   const { id } = useGlobalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const {
-    connectBySerialNumber,
-    disconnect,
-    getBluetoothState,
-    isDeviceIdConnected,
-    stopScan,
-  } = useBluetoothContext();
+  const { connectBySerialNumber, isDeviceIdConnected, stopScan } =
+    useBluetoothContext();
 
   // State for BLE connection management
   const [deviceConnection, setDeviceConnection] =
@@ -282,22 +275,6 @@ export default function DeviceDetailPage() {
       // Invalidate the devices list to refresh the dashboard
       void queryClient.invalidateQueries({ queryKey: ["devices"] });
       router.back();
-    },
-  });
-
-  const updateFromBluetoothMutation = useMutation({
-    mutationFn: async (data: {
-      id: string;
-      serialNumber: string;
-      batteryLevel?: number;
-      firmwareVersion?: string;
-    }) => {
-      return await trpc.device.updateFromBluetooth.mutate(data);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["device", "getById", { id: id }],
-      });
     },
   });
 
@@ -467,7 +444,6 @@ export default function DeviceDetailPage() {
     };
   }, [deviceConnection, stopScan]);
 
-  const [isSyncing, setIsSyncing] = React.useState(false);
   const [connectionDurationTick, setConnectionDurationTick] = useState(0);
 
   // Update connection duration every second
@@ -480,159 +456,6 @@ export default function DeviceDetailPage() {
 
     return () => clearInterval(interval);
   }, [deviceConnection, connectionTime]);
-
-  // Helper function to sync device alarms using an existing connection
-  const syncDeviceAlarmsWithConnection = async (
-    connection: SecureConnectionResult,
-    deviceId: string,
-    deviceSerialNumber: string,
-    _deviceAlarms: NonNullable<DeviceWithAlarms>["alarms"],
-  ) => {
-    try {
-      console.log(
-        `🔄 Starting alarm sync for device with serial: ${deviceSerialNumber} using existing connection`,
-      );
-
-      // For now, return a simple success - we can implement full sync logic later
-      // This prevents the connection from being terminated during sync
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate async work
-      console.log("🔄 Sync completed using persistent connection");
-
-      return {
-        success: true,
-        message:
-          "Device sync completed successfully using persistent connection",
-        addedCount: 0,
-        updatedCount: 0,
-        removedCount: 0,
-      };
-    } catch (error) {
-      const errorMessage = `Failed to sync device: ${String(error)}`;
-      console.log("⚠️ Device sync failed:", error);
-
-      return {
-        success: false,
-        message: errorMessage,
-        connectionTerminated: false, // We don't disconnect when using persistent connection
-      };
-    }
-  };
-
-  const handleSyncDevice = async () => {
-    if (!device?.id) return;
-
-    setIsSyncing(true);
-    try {
-      console.log("🔄 Starting comprehensive device sync for:", device.title);
-
-      // Check if Bluetooth is available and enabled
-      const bluetoothState = await getBluetoothState();
-      console.log("📡 Bluetooth State:", bluetoothState);
-
-      if (bluetoothState !== State.PoweredOn) {
-        Alert.alert(
-          "Bluetooth Required",
-          "Please enable Bluetooth to sync with your device.",
-          [{ text: "OK" }],
-        );
-        return;
-      }
-
-      // Update device sync status to SYNCING
-      await trpc.device.updateFromBluetooth.mutate({
-        id: device.id,
-        serialNumber: device.serialNumber ?? "unknown",
-      });
-
-      // Establish secure connection to the device (now handled in syncDeviceAlarms)
-      console.log("🔗 Starting device sync...");
-
-      // Perform comprehensive device synchronization
-      let syncResponse;
-      if (deviceConnection) {
-        // Use existing connection if available
-        console.log("🔗 Using existing persistent connection for sync");
-        syncResponse = await syncDeviceAlarmsWithConnection(
-          deviceConnection,
-          device.id,
-          device.serialNumber ?? "unknown",
-          device.alarms,
-        );
-      } else {
-        // Fall back to creating a new connection using serial number
-        if (!device.serialNumber) {
-          throw new Error("Device has no serial number for connection");
-        }
-        console.log("🔗 Creating new connection for sync using serial number");
-        syncResponse = await syncDeviceAlarms(
-          connectBySerialNumber,
-          device.serialNumber,
-          device.serialNumber,
-          device.alarms,
-        );
-      }
-
-      console.log("🔄 Sync completed:", syncResponse);
-
-      if (syncResponse.success) {
-        // Update device sync status to success
-        await updateFromBluetoothMutation.mutateAsync({
-          id: device.id,
-          serialNumber: device.serialNumber ?? "unknown",
-          batteryLevel: device.batteryLevel ?? undefined,
-        });
-
-        // Refresh device data to reflect sync status
-        await queryClient.invalidateQueries({
-          queryKey: ["device", "getById", { id: device.id }],
-        });
-
-        // Show results to user
-        Alert.alert("Sync Successful", syncResponse.message, [{ text: "OK" }]);
-      } else {
-        Alert.alert("Sync Failed", syncResponse.message, [{ text: "OK" }]);
-      }
-
-      // Don't disconnect if we're using persistent connection
-      if (!deviceConnection) {
-        await disconnect();
-        console.log("🔌 Disconnected from device");
-      } else {
-        console.log("🔗 Keeping persistent connection alive");
-      }
-    } catch (error) {
-      console.error("❌ Device sync failed:", error);
-
-      // Update device sync status to ERROR
-      try {
-        await trpc.device.updateFromBluetooth.mutate({
-          id: device.id,
-          serialNumber: device.serialNumber ?? "unknown",
-        });
-      } catch (dbError) {
-        console.error("❌ Failed to update sync status:", dbError);
-      }
-
-      // Try to disconnect if there was a connection issue (only if not using persistent connection)
-      if (!deviceConnection) {
-        try {
-          await disconnect();
-        } catch (disconnectError) {
-          console.error("❌ Error during cleanup disconnect:", disconnectError);
-        }
-      } else {
-        console.log("🔗 Keeping persistent connection alive after error");
-      }
-
-      Alert.alert(
-        "Sync Failed",
-        `❌ Failed to sync with device: ${error instanceof Error ? error.message : "Unknown error"}\n\nPlease ensure your device is nearby and try again.`,
-        [{ text: "OK" }],
-      );
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const handleDeleteDevice = () => {
     Alert.alert(
@@ -884,24 +707,18 @@ export default function DeviceDetailPage() {
         {/* Actions */}
         <View style={styles.actionsContainer}>
           <Pressable
-            style={[styles.syncButton, isSyncing && styles.buttonDisabled]}
-            onPress={handleSyncDevice}
-            disabled={isSyncing}
-          >
-            {isSyncing ? (
-              <View style={styles.syncingContainer}>
-                <ActivityIndicator size="small" color="white" />
-                <Text style={styles.syncButtonText}>Syncing...</Text>
-              </View>
-            ) : (
-              <Text style={styles.syncButtonText}>Sync Device</Text>
-            )}
-          </Pressable>
-          <Pressable
-            style={styles.testButton}
+            style={[
+              styles.testButton,
+              !deviceConnection && styles.buttonDisabled,
+            ]}
             onPress={() => router.push(`/ble-test?deviceId=${device.id}`)}
+            disabled={!deviceConnection}
           >
-            <Text style={styles.testButtonText}>Test BLE Connection</Text>
+            <Text style={styles.testButtonText}>
+              {deviceConnection
+                ? "Test BLE Connection"
+                : "Connect Device First"}
+            </Text>
           </Pressable>
           <Pressable
             style={[

@@ -15,7 +15,22 @@ import type {
   BLECommandMetadata,
   BLECommandResult,
 } from "./base";
-import { registerAllCommands } from "./registerCommands";
+import { ActiveEventNotifyCommand } from "./ActiveEventNotifyCommand";
+import { BatteryStatusNotifyCommand } from "./BatteryStatusNotifyCommand";
+// Import all command classes for auto-registration
+import { CreateEventCommand } from "./CreateEventCommand";
+import { DeviceInfoCommand } from "./DeviceInfoCommand";
+import { EnterDFUModeCommand } from "./EnterDFUModeCommand";
+import { FindMeCommand } from "./FindMeCommand";
+import { GetAllEventsCommand } from "./GetAllEventsCommand";
+import { GetDeviceStatusCommand } from "./GetDeviceStatusCommand";
+import { GetNumberOfEventsCommand } from "./GetNumberOfEventsCommand";
+import { GetTimeCommand } from "./GetTimeCommand";
+import { GetUptimeCommand } from "./GetUptimeCommand";
+import { RebootDeviceCommand } from "./RebootDeviceCommand";
+import { RemoveAllEventsCommand } from "./RemoveAllEventsCommand";
+import { SetTimeCommand } from "./SetTimeCommand";
+import { TimeNotifyCommand } from "./TimeNotifyCommand";
 
 /**
  * Constructor type for BLE commands
@@ -274,7 +289,36 @@ export function getBLECommandRegistry(): BLECommandRegistry {
 function registerBuiltInCommands(): void {
   // Register all commands synchronously
   try {
-    registerAllCommands();
+    if (!globalRegistry) return;
+
+    // Register core connection and device info commands
+    globalRegistry.register(DeviceInfoCommand);
+    globalRegistry.register(FindMeCommand);
+
+    // Register device status and time commands
+    globalRegistry.register(GetUptimeCommand);
+    globalRegistry.register(GetDeviceStatusCommand);
+    globalRegistry.register(GetTimeCommand);
+    globalRegistry.register(SetTimeCommand);
+
+    // Register device control commands
+    globalRegistry.register(RebootDeviceCommand);
+    globalRegistry.register(EnterDFUModeCommand);
+
+    // Register event management commands
+    globalRegistry.register(GetAllEventsCommand);
+    globalRegistry.register(GetNumberOfEventsCommand);
+    globalRegistry.register(RemoveAllEventsCommand);
+    globalRegistry.register(CreateEventCommand);
+
+    // Register notification commands (async from device)
+    globalRegistry.register(BatteryStatusNotifyCommand);
+    globalRegistry.register(ActiveEventNotifyCommand);
+    globalRegistry.register(TimeNotifyCommand);
+
+    console.log(
+      `✅ Registered ${globalRegistry.getStats().totalCommands} BLE commands`,
+    );
     console.log(
       "🔧 BLE Command Registry initialized with all built-in commands",
     );
