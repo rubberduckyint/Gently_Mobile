@@ -218,23 +218,14 @@ export async function connectToGentlyDevice(
       `${logPrefix}: STEP 5 - Enabling notifications on response characteristic`,
     );
 
-    const responseQueue: string[] = [];
+    // Simple notification handling - process responses immediately
     let waitingForResponse = false;
     let currentResponseResolver: ((value: string) => void) | null = null;
     let currentResponseRejecter: ((reason: Error) => void) | null = null;
 
     const waitForNotification = (): Promise<string> => {
       return new Promise((resolve, reject) => {
-        // If there's already a response in the queue, return it immediately
-        if (responseQueue.length > 0) {
-          const response = responseQueue.shift();
-          if (response) {
-            resolve(response);
-            return;
-          }
-        }
-
-        // Otherwise, wait for the next response
+        // Wait for the next response
         waitingForResponse = true;
         currentResponseResolver = resolve;
         currentResponseRejecter = reject;
@@ -283,18 +274,9 @@ export async function connectToGentlyDevice(
           );
 
           // IMMEDIATELY DECRYPT AND LOG THE NOTIFICATION
-          let isAsyncNotification = false;
-
           try {
             const encryptedData = base64ToUint8Array(characteristic.value);
             const decryptedResponse = protocol.parseResponse(encryptedData);
-
-            // Determine if this is an async notification (no corresponding request)
-            isAsyncNotification = [
-              CommandCode.BATTERY_STATUS_NOTIFY,
-              CommandCode.ACTIVE_EVENT_NOTIFY,
-              CommandCode.TIME_NOTIFY,
-            ].includes(decryptedResponse.command);
 
             console.log(`${logPrefix}: 🔓 DECRYPTED NOTIFICATION:`);
             console.log(
@@ -483,17 +465,12 @@ export async function connectToGentlyDevice(
             currentResponseResolver = null;
             currentResponseRejecter = null;
             waitingForResponse = false;
-          } else if (isAsyncNotification) {
-            // This is an async notification - don't queue it since it's already been processed above
-            console.log(
-              `${logPrefix}: 📩 Async notification processed (not queued)`,
-            );
           } else {
-            // This is a response to a request but no one is waiting - queue it
+            // This is either an async notification or a response with no one waiting
+            // Both cases are already processed above in the immediate decryption section
             console.log(
-              `${logPrefix}: 📩 Queueing response for later (queue size: ${responseQueue.length + 1})`,
+              `${logPrefix}: 📩 Response processed immediately (no queue)`,
             );
-            responseQueue.push(characteristic.value);
           }
         }
       },
