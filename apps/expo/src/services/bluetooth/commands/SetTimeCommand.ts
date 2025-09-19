@@ -102,21 +102,10 @@ export class SetTimeCommand extends BLECommand<SetTimeResponse> {
   }
 
   /**
-   * Log the time being set for debugging
+   * Log the time being set for debugging (simplified)
    */
-  static logTimeBeingSet(date: Date): void {
-    console.log(`🔓 PROTOCOL:     📝 Setting time to: ${date.toISOString()}`);
-    console.log(`🔓 PROTOCOL:     � Local Time: ${date.toLocaleString()}`);
-    console.log(
-      `🔓 PROTOCOL:     � BCD Format: Year=${toBCD(date.getFullYear() - 2000)
-        .toString(16)
-        .padStart(2, "0")}, Month=${toBCD(date.getMonth() + 1)
-        .toString(16)
-        .padStart(
-          2,
-          "0",
-        )}, Date=${toBCD(date.getDate()).toString(16).padStart(2, "0")}, WeekDay=${date.getDay()}, Hour=${toBCD(date.getHours()).toString(16).padStart(2, "0")}, Min=${toBCD(date.getMinutes()).toString(16).padStart(2, "0")}, Sec=${toBCD(date.getSeconds()).toString(16).padStart(2, "0")}`,
-    );
+  static logTimeBeingSet(_date: Date): void {
+    // Time setting logged for debugging
   }
 
   protected async executeImpl(

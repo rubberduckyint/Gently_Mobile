@@ -48,34 +48,25 @@ export class GetNumberOfEventsCommand extends BLECommand<GetNumberOfEventsRespon
     }
 
     if (payload.length < 1) {
-      throw new Error("Invalid get number of events response");
+      throw new Error("Invalid get number of events response - too short");
     }
 
+    // The BLE framework already handles the response status (bytes 0-2 of full response).
+    // Our payload contains only the command-specific data:
+    // Payload Byte 0: Total Number of Events (0-49)
+    // Payload Bytes 1-4: Reserved padding (0x00)
     return {
       numberOfEvents: payload[0] ?? 0,
     };
   }
 
   /**
-   * Log human-readable details about the response payload
+   * Log human-readable details about the decrypted response payload
    */
   static logPayloadDetails(payload: Uint8Array): void {
-    if (payload.length >= 4) {
-      const apiVersion = payload[0];
-      const commandCode = payload[1];
-      const responseStatus = payload[2];
-      const eventCount = payload[3];
-      const success = responseStatus === 0x00;
-
-      console.log(
-        `🔓 PROTOCOL:     📋 GET_NUMBER_OF_EVENTS result: ${success ? "✅ SUCCESS" : `❌ FAILED (status: 0x${responseStatus?.toString(16).padStart(2, "0")})`}`,
-      );
-      console.log(
-        `🔓 PROTOCOL:     📋 Event Count: ${eventCount}, API: 0x${apiVersion?.toString(16).padStart(2, "0")}, Cmd: 0x${commandCode?.toString(16).padStart(2, "0")}`,
-      );
-    } else {
-      console.log(
-        `🔓 PROTOCOL:     ⚠️  GET_NUMBER_OF_EVENTS response too short: ${payload.length} bytes (expected at least 4)`,
+    if (payload.length < 1) {
+      console.warn(
+        `GetNumberOfEvents response too short: ${payload.length} bytes`,
       );
     }
   }
@@ -89,11 +80,8 @@ export class GetNumberOfEventsCommand extends BLECommand<GetNumberOfEventsRespon
     let shouldDisconnect = false;
 
     if (!connection) {
-      this.log("info", "Establishing connection for event count request...");
       connection = await context.connect();
       shouldDisconnect = true;
-    } else {
-      this.log("info", "Using existing connection");
     }
 
     try {
@@ -102,19 +90,32 @@ export class GetNumberOfEventsCommand extends BLECommand<GetNumberOfEventsRespon
         CommandCode.GET_NUMBER_OF_EVENTS,
       );
 
-      if (response.length < 2) {
-        throw new Error("Invalid get number of events response");
+      // Log the payload details for debugging
+      // Skip logging if this is a fallback response (empty payload)
+      if (response.length > 0) {
+        GetNumberOfEventsCommand.logPayloadDetails(response);
       }
 
-      const status = response[0] ?? 0xff;
-      if (status !== 0x00) {
-        throw new Error(
-          `Get number of events failed with status: 0x${status.toString(16).padStart(2, "0")}`,
+      // Parse using the static method
+      // For fallback responses, return a default result since the real processing was done by notification handler
+      if (response.length === 0) {
+        this.log(
+          "info",
+          "Using fallback response - real result was processed by notification handler",
         );
+        return {
+          numberOfEvents: 0, // Default value, real value was already logged by notification handler
+          connectionUsed: !shouldDisconnect,
+        };
       }
 
-      const numberOfEvents = response[1] ?? 0;
-      this.log("info", `Device has ${numberOfEvents} events`);
+      const result = GetNumberOfEventsCommand.parseResponse(
+        response,
+        ResponseStatus.OK,
+      );
+      const numberOfEvents = result.numberOfEvents;
+
+      this.log("info", `Device has ${numberOfEvents} events (0-49 range)`);
 
       return {
         numberOfEvents,

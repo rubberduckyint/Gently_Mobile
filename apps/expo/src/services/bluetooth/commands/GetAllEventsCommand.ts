@@ -2,13 +2,14 @@
  * Get All Events Command
  *
  * Retrieves information about all events/alarms stored on the device.
- * Returns multiple response packets, one for each configured event.
+ * This command properly handles multiple response packets as specified in the BLE protocol,
+ * with each packet containing data for one event.
  */
 
 import type { BLECommandExecutionContext, BLECommandMetadata } from "./base";
 import { CommandCode } from "../protocol-types";
 import { BLECommand } from "./base";
-import { sendSecureCommand } from "./core";
+import { sendSecureCommandMultiPacket } from "./core";
 
 export interface EventInfo {
   eventIndex: number;
@@ -100,18 +101,25 @@ export class GetAllEventsCommand extends BLECommand<GetAllEventsResponse> {
     totalPackets: number;
     eventInfo: EventInfo | null;
   } {
-    if (payload.length < 5) {
+    if (payload.length < 2) {
       throw new Error(
-        "Invalid get all events response - expected at least 5 bytes for header",
+        "Invalid get all events response - expected at least 2 bytes for header",
       );
     }
 
-    // Parse the response according to protocol specification
-    const packetNumber = payload[3] ?? 0;
-    const totalPackets = payload[4] ?? 0;
+    // The BLE framework already handles the API version, command, and response status.
+    // Our payload contains only the command-specific data:
+    // Payload Byte 0: Packet number Uint8 (1, …, N)
+    // Payload Byte 1: Total Packets Expected (N) Uint8
+    // Payload Byte 2: Current Event Index (0-49)
+    // Payload Byte 3: Event Current State
+    // ... (rest of event data)
+
+    const packetNumber = payload[0] ?? 0;
+    const totalPackets = payload[1] ?? 0;
 
     // Check if this is an empty response (no events)
-    if (payload.length < 24 || totalPackets === 0) {
+    if (payload.length < 21 || totalPackets === 0) {
       return {
         packetNumber,
         totalPackets,
@@ -119,32 +127,32 @@ export class GetAllEventsCommand extends BLECommand<GetAllEventsResponse> {
       };
     }
 
-    const eventIndex = payload[5] ?? 0;
-    const currentState = (payload[6] ?? 0) as EventState;
+    const eventIndex = payload[2] ?? 0;
+    const currentState = (payload[3] ?? 0) as EventState;
 
     // Parse vibration byte (bits 0-5: pattern, bits 6-7: intensity)
-    const vibrationByte = payload[7] ?? 0;
+    const vibrationByte = payload[4] ?? 0;
     const vibrationPattern = vibrationByte & 0x3f;
     const vibrationIntensity = ((vibrationByte >> 6) &
       0x03) as VibrationIntensity;
 
     // Parse LED byte (bits 0-4: pattern, bits 5-7: color)
-    const ledByte = payload[8] ?? 0;
+    const ledByte = payload[5] ?? 0;
     const ledPattern = (ledByte & 0x1f) as LedPattern;
     const ledColor = ((ledByte >> 5) & 0x07) as LedColor;
 
-    const severityLevel = (payload[9] ?? 0) as SeverityLevel;
-    const snoozePeriod = payload[10] ?? 0;
-    const snoozeTimeout = payload[11] ?? 0;
-    const retriggerDelay = payload[12] ?? 0;
-    const retriggerTimeout = payload[13] ?? 0;
+    const severityLevel = (payload[6] ?? 0) as SeverityLevel;
+    const snoozePeriod = payload[7] ?? 0;
+    const snoozeTimeout = payload[8] ?? 0;
+    const retriggerDelay = payload[9] ?? 0;
+    const retriggerTimeout = payload[10] ?? 0;
 
-    // Parse event name (starting at byte 14, null-terminated, max 10 chars)
-    let nameEndIndex = 14;
+    // Parse event name (starting at byte 11, null-terminated, max 10 chars)
+    let nameEndIndex = 11;
     while (nameEndIndex < payload.length && payload[nameEndIndex] !== 0) {
       nameEndIndex++;
     }
-    const eventName = new TextDecoder().decode(payload.slice(14, nameEndIndex));
+    const eventName = new TextDecoder().decode(payload.slice(11, nameEndIndex));
 
     // Parse cron expression (starting after name + null terminator)
     const cronStartIndex = nameEndIndex + 1;
@@ -183,50 +191,22 @@ export class GetAllEventsCommand extends BLECommand<GetAllEventsResponse> {
    * Log human-readable details about the response payload
    */
   static logPayloadDetails(payload: Uint8Array): void {
-    if (payload.length < 5) {
+    if (payload.length < 2) {
       console.log(
-        `🔓 PROTOCOL:     ⚠️  GET_ALL_EVENTS response too short: ${payload.length} bytes (expected at least 5)`,
+        `🔓 PROTOCOL:     ⚠️  GET_ALL_EVENTS response too short: ${payload.length} bytes (expected at least 2)`,
       );
       return;
     }
 
-    const apiVersion = payload[0];
-    const commandCode = payload[1];
-    const status = payload[2];
-    const packetNumber = payload[3];
-    const totalPackets = payload[4];
+    const _packetNumber = payload[0];
+    const _totalPackets = payload[1];
 
-    console.log(
-      `🔓 PROTOCOL:     📋 GET_ALL_EVENTS response: API 0x${apiVersion?.toString(16).padStart(2, "0")}, Cmd 0x${commandCode?.toString(16).padStart(2, "0")}, Status 0x${status?.toString(16).padStart(2, "0")}`,
-    );
-    console.log(
-      `🔓 PROTOCOL:     📋 Packet ${packetNumber}/${totalPackets}, Payload size: ${payload.length} bytes`,
-    );
-
-    if (totalPackets === 0 || payload.length < 24) {
-      console.log(`🔓 PROTOCOL:     📋 No events found (empty response)`);
-      return;
-    }
-
-    try {
-      const { eventInfo } = this.parseEventResponse(payload);
-      if (eventInfo) {
-        console.log(
-          `🔓 PROTOCOL:     📋 GET_ALL_EVENTS packet ${packetNumber}/${totalPackets}: Event #${eventInfo.eventIndex}`,
-        );
-        console.log(
-          `🔓 PROTOCOL:     📋 Name: "${eventInfo.eventName}", State: ${this.getStateDescription(eventInfo.currentState)}`,
-        );
-        console.log(
-          `🔓 PROTOCOL:     📋 Cron: "${eventInfo.cronExpression}", Severity: ${this.getSeverityDescription(eventInfo.severityLevel)}`,
-        );
-        console.log(
-          `🔓 PROTOCOL:     📋 Vibration: ${this.getVibrationDescription(eventInfo.vibrationIntensity)}, LED: ${this.getLedDescription(eventInfo.ledColor, eventInfo.ledPattern)}`,
-        );
-      }
-    } catch (error) {
+    // Verbose packet logging removed for conciseness
+    if (payload.length >= 21) {
+      const eventIndex = payload[2];
+      const currentState = payload[3];
       console.log(
-        `🔓 PROTOCOL:     ⚠️  GET_ALL_EVENTS response parse error: ${String(error)}`,
+        `🔓 PROTOCOL:     📋 Event Index: ${eventIndex}, State: ${currentState}`,
       );
     }
   }
@@ -337,52 +317,140 @@ export class GetAllEventsCommand extends BLECommand<GetAllEventsResponse> {
     }
 
     try {
-      // Note: This command may return multiple response packets
-      // For now, we'll handle the first response to get the total count
-      // In a full implementation, we'd need to handle multiple packets
-      const response = await sendSecureCommand(
-        connection,
-        CommandCode.GET_ALL_EVENTS,
+      this.log(
+        "debug",
+        "📤 Sending GET_ALL_EVENTS command with multi-packet support...",
       );
 
-      if (response.length < 5) {
-        throw new Error("Invalid get all events response - too short");
-      }
+      // Use the new multi-packet response handler
+      // For GET_ALL_EVENTS, packet number is at index 1 and total packets at index 2
+      const responses = await sendSecureCommandMultiPacket(
+        connection,
+        CommandCode.GET_ALL_EVENTS,
+        undefined, // no payload for GET_ALL_EVENTS
+        {
+          packetNumberIndex: 0, // Updated: packet number is now at index 0
+          totalPacketsIndex: 1, // Updated: total packets is now at index 1
+          maxPackets: 50, // Safety limit for maximum events
+        },
+      );
 
-      const status = response[0] ?? 0xff;
-      if (status !== 0x00) {
-        throw new Error(
-          `Get all events failed with status: 0x${status.toString(16).padStart(2, "0")}`,
-        );
-      }
+      this.log("info", `📦 Received ${responses.length} response packets`);
 
-      // Parse the first response packet to get total count
-      const { packetNumber, totalPackets, eventInfo } =
-        GetAllEventsCommand.parseEventResponse(response);
-
-      if (eventInfo) {
-        this.log(
-          "info",
-          `Received packet ${packetNumber}/${totalPackets} - First event: "${eventInfo.eventName}"`,
-        );
-        const events: EventInfo[] = [eventInfo];
-
-        return {
-          events,
-          totalEvents: totalPackets,
-          connectionUsed: !shouldDisconnect,
-        };
-      } else {
-        this.log("info", `No events found on device (received empty response)`);
-
+      if (responses.length === 0) {
+        this.log("info", `📭 No events found on device`);
         return {
           events: [],
           totalEvents: 0,
           connectionUsed: !shouldDisconnect,
         };
       }
+
+      // Parse all the response packets to extract events
+      const events: EventInfo[] = [];
+      const receivedPacketNumbers = new Set<number>();
+      let totalPackets = 0;
+
+      for (let i = 0; i < responses.length; i++) {
+        const response = responses[i];
+        if (!response) {
+          this.log("error", `❌ Missing response packet at index ${i}`);
+          continue;
+        }
+
+        this.log(
+          "debug",
+          `📥 Processing response packet ${i + 1}/${responses.length}`,
+          {
+            responseLength: response.length,
+            responseBytes: Array.from(response)
+              .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+              .join(" "),
+          },
+        );
+
+        // Log the payload details for debugging
+        GetAllEventsCommand.logPayloadDetails(response);
+
+        try {
+          // Parse each response packet
+          const {
+            packetNumber,
+            totalPackets: totalFromPacket,
+            eventInfo,
+          } = GetAllEventsCommand.parseEventResponse(response);
+
+          // Track packet numbers to ensure we got all expected packets
+          receivedPacketNumbers.add(packetNumber);
+
+          if (totalFromPacket > 0) {
+            totalPackets = totalFromPacket;
+          }
+
+          if (eventInfo) {
+            this.log(
+              "info",
+              `✅ Parsed event ${packetNumber}/${totalFromPacket}: "${eventInfo.eventName}" (State: ${eventInfo.currentState})`,
+            );
+            events.push(eventInfo);
+          } else {
+            this.log(
+              "warn",
+              `⚠️ Packet ${packetNumber} contained no event data`,
+            );
+          }
+        } catch (parseError) {
+          this.log("error", `❌ Failed to parse response packet ${i + 1}`, {
+            error:
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError),
+          });
+          // Continue processing other packets even if one fails
+        }
+      }
+
+      // Validate we received all expected packets
+      if (totalPackets > 0) {
+        const expectedPackets = Array.from(
+          { length: totalPackets },
+          (_, i) => i + 1,
+        );
+        const missingPackets = expectedPackets.filter(
+          (num) => !receivedPacketNumbers.has(num),
+        );
+
+        if (missingPackets.length > 0) {
+          this.log(
+            "warn",
+            `⚠️ Missing packet numbers: ${missingPackets.join(", ")}`,
+          );
+        } else {
+          this.log(
+            "info",
+            `✅ Received all expected packets (1-${totalPackets})`,
+          );
+        }
+      }
+
+      this.log(
+        "info",
+        `✅ Successfully retrieved ${events.length} events from ${responses.length} packets`,
+      );
+
+      return {
+        events,
+        totalEvents: totalPackets || events.length,
+        connectionUsed: !shouldDisconnect,
+      };
+    } catch (error) {
+      this.log("error", "❌ Get all events failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       if (shouldDisconnect) {
+        this.log("debug", "🔌 Disconnecting from device");
         await context.disconnect();
       }
     }

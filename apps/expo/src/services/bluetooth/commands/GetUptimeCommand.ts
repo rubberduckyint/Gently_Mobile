@@ -79,18 +79,11 @@ export class GetUptimeCommand extends BLECommand<UptimeResponse> {
    */
   static logPayloadDetails(payload: Uint8Array): void {
     if (payload.length >= 8) {
-      const uptimeMs = new DataView(
+      const _uptimeMs = new DataView(
         payload.buffer,
         payload.byteOffset,
       ).getBigUint64(0, true);
-      const uptimeSeconds = Number(uptimeMs / 1000n);
-      const days = Math.floor(uptimeSeconds / 86400);
-      const hours = Math.floor((uptimeSeconds % 86400) / 3600);
-      const minutes = Math.floor((uptimeSeconds % 3600) / 60);
-      const seconds = uptimeSeconds % 60;
-      console.log(
-        `🔓 PROTOCOL:     📊 Uptime: ${uptimeMs}ms (${days}d ${hours}h ${minutes}m ${seconds}s)`,
-      );
+      // Uptime logging removed for conciseness
     }
   }
 
@@ -103,11 +96,8 @@ export class GetUptimeCommand extends BLECommand<UptimeResponse> {
     let shouldDisconnect = false;
 
     if (!connection) {
-      this.log("info", "Establishing connection for uptime request...");
       connection = await context.connect();
       shouldDisconnect = true;
-    } else {
-      this.log("info", "Using existing connection");
     }
 
     try {

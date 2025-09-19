@@ -36,11 +36,8 @@ export class RemoveAllEventsCommand extends BLECommand<RemoveAllEventsResponse> 
     let shouldDisconnect = false;
 
     if (!connection) {
-      this.log("info", "Establishing connection for remove all events...");
       connection = await context.connect();
       shouldDisconnect = true;
-    } else {
-      this.log("info", "Using existing connection");
     }
 
     try {

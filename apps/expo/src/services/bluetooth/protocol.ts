@@ -245,54 +245,12 @@ export class GentlyBLEProtocol {
     encryptedResponse: Uint8Array,
     serialNumber: Uint8Array,
   ): Uint8Array {
-    console.log("🔓 PROTOCOL: parseUptimeResponse called");
-    console.log(
-      "🔓 PROTOCOL: Encrypted response length:",
-      encryptedResponse.length,
-    );
-    console.log(
-      "🔓 PROTOCOL: Encrypted response hex:",
-      Array.from(encryptedResponse)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(""),
-    );
-    console.log(
-      "🔓 PROTOCOL: Serial number:",
-      Array.from(serialNumber)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(""),
-    );
-
     try {
       const response = this.parseResponse(encryptedResponse);
 
-      console.log("🔓 PROTOCOL: Parsed response:");
-      console.log("🔓 PROTOCOL:   - API Version:", response.apiVersion);
-      console.log("🔓 PROTOCOL:   - Command:", response.command);
-      console.log("🔓 PROTOCOL:   - Status:", response.status);
-      console.log("🔓 PROTOCOL:   - Payload length:", response.payload.length);
-      console.log(
-        "🔓 PROTOCOL:   - Payload hex:",
-        Array.from(response.payload)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(""),
-      );
-
-      console.log("🔓 PROTOCOL: Expected uptime response format per BLE spec:");
-      console.log("🔓 PROTOCOL:   - Bytes 0: API Version (0x01)");
-      console.log("🔓 PROTOCOL:   - Bytes 1: Command Code (0x01)");
-      console.log("🔓 PROTOCOL:   - Bytes 2: Status (0x00 = OK)");
-      console.log(
-        "🔓 PROTOCOL:   - Bytes 3-10: Uptime Uint64 (8 bytes, little-endian)",
-      );
-      console.log("🔓 PROTOCOL:   - Bytes 11-15: Reserved (0 padded)");
-      console.log(
-        "🔓 PROTOCOL:   - Total expected: 16 bytes before encryption, variable after decryption",
-      );
-
       if (response.status !== ResponseStatus.OK) {
         console.error(
-          "🔓 PROTOCOL: Response status is not OK:",
+          "Protocol error - uptime request failed with status:",
           response.status,
         );
         throw new Error(
@@ -376,43 +334,16 @@ export class GentlyBLEProtocol {
       }
 
       // Generate dynamic key
-      console.log("🔓 PROTOCOL: Generating dynamic key...");
-      console.log(
-        "🔓 PROTOCOL: Bracelet key:",
-        Array.from(this.braceletKey)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(""),
-      );
-      console.log(
-        "🔓 PROTOCOL: Uptime:",
-        Array.from(uptime)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(""),
-      );
-      console.log(
-        "🔓 PROTOCOL: Serial number:",
-        Array.from(serialNumber)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(""),
-      );
       this.dynamicKey = generateDynamicKey(
         this.braceletKey,
         uptime,
         serialNumber,
       );
-      console.log(
-        "🔓 PROTOCOL: Generated dynamic key:",
-        Array.from(this.dynamicKey)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(""),
-      );
       this.dynamicTea = new Tea(this.dynamicKey);
-
-      console.log("🔓 PROTOCOL: Dynamic key established successfully");
 
       return uptime;
     } catch (error) {
-      console.error("🔓 PROTOCOL: Error in parseUptimeResponse:", error);
+      console.error("Protocol error in parseUptimeResponse:", error);
       throw error;
     }
   }

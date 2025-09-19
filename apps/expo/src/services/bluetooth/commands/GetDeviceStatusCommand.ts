@@ -81,41 +81,14 @@ export class GetDeviceStatusCommand extends BLECommand<DeviceStatusResponse> {
         payload.byteOffset,
       ).getUint16(0, true);
       const flags = payload[2] ?? 0;
-      const charging = !!(flags & 0x04);
+      const _charging = !!(flags & 0x04);
       const batteryLevel = (flags >> 3) & 0x07;
 
-      console.log("🔓 PROTOCOL:     📊 DEVICE STATUS:");
-      console.log(`🔓 PROTOCOL:       🔋 Battery Voltage: ${batteryVoltage}mV`);
-      console.log(
-        `🔓 PROTOCOL:       📊 Battery Level: ${batteryLevel}/7 (${Math.round((batteryLevel / 7) * 100)}%)`,
-      );
-      console.log(
-        `🔓 PROTOCOL:       ⚡ Charging Status: ${charging ? "Yes" : "No"}`,
-      );
-      console.log(
-        `🔓 PROTOCOL:       🏷️  Status Flags: 0x${flags.toString(16).padStart(2, "0")}`,
-      );
-
-      // Add battery level warnings
+      // Add battery level warnings for critical issues only
       if (batteryLevel <= 1) {
-        console.log("🔓 PROTOCOL:       ⚠️  LOW BATTERY WARNING!");
-      } else if (batteryLevel <= 2) {
-        console.log("🔓 PROTOCOL:       🟡 Battery getting low");
-      } else if (batteryLevel >= 6) {
-        console.log("🔓 PROTOCOL:       ✅ Battery level good");
-      }
-
-      // Add voltage-based health check
-      if (batteryVoltage < 3000) {
-        console.log(
-          "🔓 PROTOCOL:       🔴 Critical voltage - device may shut down soon",
-        );
-      } else if (batteryVoltage < 3200) {
-        console.log("🔓 PROTOCOL:       🟠 Low voltage detected");
-      } else if (batteryVoltage > 4200) {
-        console.log(
-          "🔓 PROTOCOL:       🔵 High voltage - likely charging or fully charged",
-        );
+        console.warn("LOW BATTERY WARNING!");
+      } else if (batteryVoltage < 3000) {
+        console.warn("Critical voltage - device may shut down soon");
       }
     } else {
       console.log(

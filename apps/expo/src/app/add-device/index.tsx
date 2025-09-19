@@ -114,7 +114,7 @@ export default function AddDevicePage() {
           );
         } else if (device.manufacturerData.isFactoryMode === false) {
           console.log(
-            "⚠️ AddDevicePage: Device is already paired (will show but disable connect)",
+            "🔄 AddDevicePage: Device has custom key (can re-pair with new key)",
           );
         } else {
           console.log(

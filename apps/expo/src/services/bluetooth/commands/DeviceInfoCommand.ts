@@ -63,19 +63,13 @@ export class DeviceInfoCommand extends BLECommand<DeviceInfoResponse> {
    */
   static logPayloadDetails(payload: Uint8Array): void {
     if (payload.length >= 4) {
-      const hwVersion = payload[0] ?? 0;
-      const swVersionMajor = payload[1] ?? 0;
-      const swVersionMinor = payload[2] ?? 0;
-      const buildNumber = payload[3] ?? 0;
-      console.log(`🔓 PROTOCOL:     💾 Hardware Version: ${hwVersion}`);
-      console.log(
-        `🔓 PROTOCOL:     🔢 Software Version: ${swVersionMajor}.${swVersionMinor}`,
-      );
-      console.log(`🔓 PROTOCOL:     🏗️  Build Number: ${buildNumber}`);
+      const _hwVersion = payload[0] ?? 0;
+      const _swVersionMajor = payload[1] ?? 0;
+      const _swVersionMinor = payload[2] ?? 0;
+      const _buildNumber = payload[3] ?? 0;
+      // Device info logged for debugging
     } else {
-      console.log(
-        `🔓 PROTOCOL:     ⚠️  Device info payload too short: ${payload.length} bytes`,
-      );
+      console.warn(`Device info payload too short: ${payload.length} bytes`);
     }
   }
 

@@ -29,6 +29,7 @@ import { GetTimeCommand } from "./GetTimeCommand";
 import { GetUptimeCommand } from "./GetUptimeCommand";
 import { RebootDeviceCommand } from "./RebootDeviceCommand";
 import { RemoveAllEventsCommand } from "./RemoveAllEventsCommand";
+import { SetEventOnOffCommand } from "./SetEventOnOffCommand";
 import { SetTimeCommand } from "./SetTimeCommand";
 import { TimeNotifyCommand } from "./TimeNotifyCommand";
 
@@ -310,6 +311,7 @@ function registerBuiltInCommands(): void {
     globalRegistry.register(GetNumberOfEventsCommand);
     globalRegistry.register(RemoveAllEventsCommand);
     globalRegistry.register(CreateEventCommand);
+    globalRegistry.register(SetEventOnOffCommand);
 
     // Register notification commands (async from device)
     globalRegistry.register(BatteryStatusNotifyCommand);

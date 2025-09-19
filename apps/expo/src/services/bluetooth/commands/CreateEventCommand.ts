@@ -1,14 +1,19 @@
 /**
  * Create Event Command
  *
- * Creates a test event 5 minutes in the future on the device.
- * Useful for testing event creation and device alarm functionality.
+ * Creates an event/alarm on the device with customizable settings including:
+ * - Scheduling (either minutesInFuture or custom cron expression)
+ * - Vibration patterns and intensity
+ * - LED patterns and colors
+ * - Severity levels affecting snooze behavior
+ * - Snooze settings
  */
 
 import type { BLECommandExecutionContext, BLECommandMetadata } from "./base";
 import { CommandCode } from "../protocol-types";
 import { BLECommand } from "./base";
 import { sendSecureCommand } from "./core";
+import { SetEventOnOffCommand } from "./SetEventOnOffCommand";
 
 export interface CreateEventResponse {
   success: boolean;
@@ -38,14 +43,13 @@ export interface EventConfig {
 export class CreateEventCommand extends BLECommand<CreateEventResponse> {
   readonly metadata: BLECommandMetadata = {
     id: "create-event",
-    name: "Create Test Event",
-    description:
-      "Create a test event 5 minutes in the future to test alarm functionality",
+    name: "Create Event",
+    description: "Create an event/alarm on the device with specified settings",
     category: "event-management",
     version: "1.0.0",
     requiresConnection: true,
     estimatedDuration: 5000, // 5 seconds
-    tags: ["event", "alarm", "test", "create"],
+    tags: ["event", "alarm", "create"],
     parameters: [
       {
         name: "eventIndex",
@@ -112,73 +116,202 @@ export class CreateEventCommand extends BLECommand<CreateEventResponse> {
           max: 7,
         },
       },
+      {
+        name: "vibrationPattern",
+        type: "number",
+        required: false,
+        description: "Vibration pattern (0-63, default: 1)",
+        defaultValue: 1,
+        validation: {
+          min: 0,
+          max: 63,
+        },
+      },
+      {
+        name: "ledPattern",
+        type: "number",
+        required: false,
+        description:
+          "LED pattern: 0=OFF, 1=blink slow, 2=blink fast, 3=solid (default: 2)",
+        defaultValue: 2,
+        validation: {
+          min: 0,
+          max: 3,
+        },
+      },
+      {
+        name: "snoozePeriod",
+        type: "number",
+        required: false,
+        description:
+          "Snooze period in minutes (0 if not snoozable, default: 5)",
+        defaultValue: 5,
+        validation: {
+          min: 0,
+          max: 255,
+        },
+      },
+      {
+        name: "snoozeTimeout",
+        type: "number",
+        required: false,
+        description:
+          "Snooze timeout in minutes (0 if not snoozable, default: 30)",
+        defaultValue: 30,
+        validation: {
+          min: 0,
+          max: 255,
+        },
+      },
+      {
+        name: "cronExpression",
+        type: "string",
+        required: false,
+        description: "Custom cron expression (if not using minutesInFuture)",
+        defaultValue: "",
+      },
     ],
   };
 
   protected async executeImpl(
     context: BLECommandExecutionContext,
   ): Promise<CreateEventResponse> {
-    console.log("🚨🚨🚨 CREATE EVENT COMMAND STARTING 🚨🚨🚨");
-    this.log("info", "Starting Create Event command");
+    this.log("info", "Creating event");
 
-    // Log received parameters for debugging
-    this.log("debug", "Received parameters", context.parameters);
+    // Extract parameters from context with defaults
+    const params = context.parameters ?? {};
+    const eventIndex =
+      typeof params.eventIndex === "number" ? params.eventIndex : 0;
+    const eventName =
+      typeof params.eventName === "string" ? params.eventName : "Test Event";
+    const minutesInFuture =
+      typeof params.minutesInFuture === "number" ? params.minutesInFuture : 5;
+    const severityLevel =
+      typeof params.severityLevel === "number" ? params.severityLevel : 2;
+    const vibrationIntensity =
+      typeof params.vibrationIntensity === "number"
+        ? params.vibrationIntensity
+        : 1;
+    const ledColor = typeof params.ledColor === "number" ? params.ledColor : 4;
+    const vibrationPattern =
+      typeof params.vibrationPattern === "number" ? params.vibrationPattern : 1;
+    const ledPattern =
+      typeof params.ledPattern === "number" ? params.ledPattern : 2;
+    const snoozePeriod =
+      typeof params.snoozePeriod === "number" ? params.snoozePeriod : 5;
+    const snoozeTimeout =
+      typeof params.snoozeTimeout === "number" ? params.snoozeTimeout : 30;
+    const customCronExpression =
+      typeof params.cronExpression === "string" ? params.cronExpression : "";
 
-    // HARDCODED VALUES FOR TESTING - ensuring valid data
-    const eventIndex = 0;
-    const eventName = "Test"; // Shorter name to reduce payload size
-    const minutesInFuture = 2; // 2 minutes in future for quick testing
-    const severityLevel = 2; // Important
-    const vibrationIntensity = 2; // High
-    const ledColor = 4; // Red
-
-    this.log("info", "🚨 USING HARDCODED VALUES FOR TESTING", {
-      eventIndex,
-      eventName,
-      minutesInFuture,
-      severityLevel,
-      vibrationIntensity,
-      ledColor,
-    });
+    // Validate parameters
+    if (eventIndex < 0 || eventIndex > 49) {
+      throw new Error(
+        `Event index must be between 0 and 49, got: ${eventIndex}`,
+      );
+    }
+    if (minutesInFuture < 1 || minutesInFuture > 60) {
+      throw new Error(
+        `Minutes in future must be between 1 and 60, got: ${minutesInFuture}`,
+      );
+    }
+    if (severityLevel < 1 || severityLevel > 3) {
+      throw new Error(
+        `Severity level must be between 1 and 3, got: ${severityLevel}`,
+      );
+    }
+    if (vibrationIntensity < 0 || vibrationIntensity > 3) {
+      throw new Error(
+        `Vibration intensity must be between 0 and 3, got: ${vibrationIntensity}`,
+      );
+    }
+    if (ledColor < 0 || ledColor > 7) {
+      throw new Error(`LED color must be between 0 and 7, got: ${ledColor}`);
+    }
+    if (vibrationPattern < 0 || vibrationPattern > 63) {
+      throw new Error(
+        `Vibration pattern must be between 0 and 63, got: ${vibrationPattern}`,
+      );
+    }
+    if (ledPattern < 0 || ledPattern > 3) {
+      throw new Error(
+        `LED pattern must be between 0 and 3, got: ${ledPattern}`,
+      );
+    }
+    if (customCronExpression && customCronExpression.length > 42) {
+      throw new Error(
+        `Cron expression too long: ${customCronExpression.length} chars (max 42)`,
+      );
+    }
+    if (eventName.length > 10) {
+      this.log(
+        "warn",
+        `Event name will be truncated from "${eventName}" to "${eventName.substring(0, 10)}"`,
+      );
+    }
 
     // Truncate event name to max 10 characters as per protocol
     const truncatedName = eventName.substring(0, 10);
 
-    this.log("info", "Final parameters", {
-      eventIndex,
-      eventName: truncatedName,
-      minutesInFuture,
-      severityLevel,
-      vibrationIntensity,
-      ledColor,
-    });
+    // Determine scheduling approach
+    let scheduledTime: Date;
+    let cronExpression: string;
+
+    if (customCronExpression) {
+      // Use provided cron expression
+      cronExpression = customCronExpression;
+      // For display purposes, estimate next execution time (simplified)
+      scheduledTime = new Date(Date.now() + minutesInFuture * 60 * 1000);
+    } else {
+      // Calculate the target time (current time + specified minutes)
+      const now = new Date();
+      scheduledTime = new Date(now.getTime() + minutesInFuture * 60 * 1000);
+
+      // Create cron expression for the exact minute
+      // Format: minute hour day month weekday
+      // Use shorter format: "M H * * *" instead of full date
+      cronExpression = `${scheduledTime.getMinutes()} ${scheduledTime.getHours()} * * *`;
+    }
 
     this.log(
       "info",
-      `Creating event: ${truncatedName} at index ${eventIndex}, ${minutesInFuture} minutes in future`,
+      `Creating event "${truncatedName}" at index ${eventIndex}${customCronExpression ? " with custom schedule" : `, scheduled for ${scheduledTime.toLocaleString()}`}`,
     );
-
-    // Calculate the target time (current time + specified minutes)
-    const now = new Date();
-    const scheduledTime = new Date(now.getTime() + minutesInFuture * 60 * 1000);
-
-    // Create cron expression for the exact minute
-    // Format: minute hour day month weekday
-    // Use shorter format: "M H * * *" instead of full date
-    const cronExpression = `${scheduledTime.getMinutes()} ${scheduledTime.getHours()} * * *`;
-
-    this.log("info", `Scheduled time: ${scheduledTime.toLocaleString()}`);
-    this.log("info", `Cron expression: ${cronExpression}`);
 
     let connection = context.connection;
     let shouldDisconnect = false;
 
     if (!connection) {
-      this.log("info", "Establishing connection for event creation...");
       connection = await context.connect();
       shouldDisconnect = true;
-    } else {
-      this.log("info", "Using existing connection");
+    }
+
+    // Check and negotiate MTU if needed
+    let finalMTU = connection.device.mtu;
+    try {
+      const currentMTU = connection.device.mtu;
+
+      // Try to request a higher MTU if the current one is low
+      if (currentMTU < 100) {
+        try {
+          const updatedDevice = await connection.device.requestMTU(512);
+          const newMTU = updatedDevice.mtu;
+          finalMTU = newMTU;
+
+          // Update the connection object with the new device reference
+          connection = {
+            ...connection,
+            device: updatedDevice,
+          };
+
+          // Small delay to let BLE stack process MTU change
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        } catch {
+          // MTU negotiation failed, continue with current MTU
+        }
+      }
+    } catch {
+      // Failed to read MTU, continue with default
     }
 
     try {
@@ -187,86 +320,113 @@ export class CreateEventCommand extends BLECommand<CreateEventResponse> {
         index: eventIndex,
         name: truncatedName,
         cronExpression,
-        vibrationPattern: 1, // Default pattern
+        vibrationPattern,
         vibrationIntensity,
-        ledPattern: 2, // Blink fast for visibility
+        ledPattern,
         ledColor,
         severityLevel,
-        snoozePeriod: 5, // 5 min snooze for Important level
-        snoozeTimeout: 30, // 30 min snooze timeout
-        retriggerDelay: 0, // No retrigger delay
-        retriggerTimeout: 0, // No retrigger timeout
+        snoozePeriod,
+        snoozeTimeout,
+        retriggerDelay: 0, // No retrigger delay by default
+        retriggerTimeout: 0, // No retrigger timeout by default
       };
 
-      const payload = this.createAddEventPayload(eventConfig);
+      // Try to create the complete payload first
+      let payload: Uint8Array;
 
-      this.log("info", "Sending CREATE EVENT command to device...", {
-        eventIndex,
-        eventName: truncatedName,
-        cronExpression,
-        scheduledTime: scheduledTime.toISOString(),
-        severityLevel,
-        vibrationIntensity,
-        ledColor,
-        payloadSize: payload.length,
-      });
+      try {
+        payload = this.createAddEventPayload(eventConfig);
 
-      console.log("🚨🚨🚨 ABOUT TO SEND CREATE EVENT COMMAND 🚨🚨🚨");
-      console.log(
-        "📤 Payload bytes:",
-        Array.from(payload)
-          .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
-          .join(" "),
-      );
+        // Check if payload might be too large for current MTU
+        const totalRequestSize = payload.length + 8; // payload + encryption header
+        const availableMTU = finalMTU - 3; // Reserve 3 bytes for BLE headers
+
+        if (finalMTU && totalRequestSize > availableMTU) {
+          payload = this.createMinimalAddEventPayload(eventConfig);
+        }
+      } catch {
+        payload = this.createMinimalAddEventPayload(eventConfig);
+      }
 
       // Send the command and wait for response
       let response: Uint8Array;
       try {
+        // Verify device is still connected before sending command
+        const isStillConnected = await connection.device.isConnected();
+        if (!isStillConnected) {
+          throw new Error("Device disconnected before sending command");
+        }
+
         response = await sendSecureCommand(
           connection,
           CommandCode.ADD_EVENT,
           payload,
         );
-
-        console.log("🚨🚨🚨 CREATE EVENT RESPONSE RECEIVED 🚨🚨🚨");
-        console.log(
-          "📥 Response bytes:",
-          Array.from(response)
-            .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
-            .join(" "),
-        );
       } catch (error) {
-        console.log("🚨🚨🚨 CREATE EVENT COMMAND ERROR 🚨🚨🚨");
-        console.log("❌ Error:", error);
+        this.log("error", "Failed to send create event command", error);
         throw error;
       }
 
-      this.log("info", "Create Event response received", {
-        response: Array.from(response)
-          .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
-          .join(" "),
-      });
+      // Handle empty response (fallback mode when response delivered via notification)
+      if (response.length === 0) {
+        this.log("warn", "Empty response - using notification fallback mode");
 
-      // Check response status (first byte in response payload after API version and command)
-      if (response.length >= 3) {
-        const responseStatus = response[2] ?? 0xff;
+        return {
+          success: true, // Assume success in fallback mode
+          eventIndex,
+          eventName: truncatedName,
+          scheduledTime,
+          cronExpression,
+          responseStatus: 0x00, // Assume success status
+          connectionUsed: !shouldDisconnect,
+        };
+      }
+
+      // Check response status (first byte in response payload)
+      if (response.length >= 2) {
+        const responseStatus = response[0] ?? 0xff; // Response status is first byte of payload
+        const responseEventIndex = response[1] ?? 0xff; // Event index is second byte of payload
         const success = responseStatus === 0x00;
 
         if (success) {
           this.log(
             "info",
-            `Create Event command successful - event "${truncatedName}" scheduled for ${scheduledTime.toLocaleString()}`,
+            `Event "${truncatedName}" created successfully at index ${responseEventIndex}`,
           );
+
+          // Automatically enable the event
+          try {
+            const setEventOnOffCommand = new SetEventOnOffCommand();
+            const enableContext: BLECommandExecutionContext = {
+              ...context,
+              connection, // Use the existing connection
+              parameters: {
+                eventIndex,
+                state: true, // Turn ON
+              },
+            };
+
+            const enableResult =
+              await setEventOnOffCommand.execute(enableContext);
+
+            if (enableResult.data?.success) {
+              this.log("info", `Event ${eventIndex} enabled successfully`);
+            } else {
+              this.log("warn", `Failed to enable event ${eventIndex}`);
+            }
+          } catch (enableError) {
+            this.log("warn", `Error enabling event ${eventIndex}`, enableError);
+          }
         } else {
           this.log(
-            "warn",
-            `Create Event command failed with status: 0x${responseStatus.toString(16).padStart(2, "0")}`,
+            "error",
+            `Create Event failed with status: 0x${responseStatus.toString(16).padStart(2, "0")}`,
           );
         }
 
         return {
           success,
-          eventIndex,
+          eventIndex: responseEventIndex,
           eventName: truncatedName,
           scheduledTime,
           cronExpression,
@@ -274,7 +434,15 @@ export class CreateEventCommand extends BLECommand<CreateEventResponse> {
           connectionUsed: !shouldDisconnect,
         };
       } else {
-        throw new Error("Invalid response length for Create Event command");
+        // Response has unexpected length (not 0 and not >= 2)
+        const errorMsg = `Invalid response length for Create Event command: ${response.length} bytes (expected 0 or >= 2)`;
+        this.log("error", errorMsg, {
+          response: Array.from(response)
+            .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+            .join(" "),
+        });
+        console.log(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
       }
     } finally {
       if (shouldDisconnect) {
@@ -285,12 +453,86 @@ export class CreateEventCommand extends BLECommand<CreateEventResponse> {
 
   /**
    * Create ADD_EVENT payload according to BLE protocol specification
-   * MINIMAL VERSION - for testing MTU limitations
+   * COMPLETE VERSION - includes all required fields per protocol
    */
   private createAddEventPayload(event: EventConfig): Uint8Array {
-    // MINIMAL PAYLOAD FOR TESTING - only essential bytes, no strings
-    // Just the first 8 bytes to test if MTU is the issue
+    // Calculate required payload size:
+    // 8 bytes (fixed fields) + event name (max 11 with null) + cron expression (max 43 with null) + padding
+    const eventNameBytes = new TextEncoder().encode(event.name);
+    const cronBytes = new TextEncoder().encode(event.cronExpression);
 
+    // Validate lengths per protocol
+    if (eventNameBytes.length > 10) {
+      throw new Error(
+        `Event name too long: ${eventNameBytes.length} bytes (max 10)`,
+      );
+    }
+    if (cronBytes.length > 42) {
+      throw new Error(
+        `Cron expression too long: ${cronBytes.length} bytes (max 42)`,
+      );
+    }
+
+    // Calculate total payload size: 8 fixed bytes + name + null + cron + null + padding to 8-byte boundary
+    const fixedSize = 8;
+    const nameSize = eventNameBytes.length + 1; // +1 for null terminator
+    const cronSize = cronBytes.length + 1; // +1 for null terminator
+    const baseSize = fixedSize + nameSize + cronSize;
+
+    // Pad to 8-byte boundary for encryption
+    const paddedSize = Math.ceil(baseSize / 8) * 8;
+    const payload = new Uint8Array(paddedSize);
+
+    let offset = 0;
+
+    // Byte 0: Event Index (0-49)
+    payload[offset++] = event.index;
+
+    // Byte 1: Vibration Pattern (bits 0-5) + Vibration Intensity (bits 6-7)
+    const vibrationByte =
+      (event.vibrationPattern & 0x3f) |
+      ((event.vibrationIntensity & 0x03) << 6);
+    payload[offset++] = vibrationByte;
+
+    // Byte 2: LED Pattern (bits 0-4) + LED Color (bits 5-7)
+    const ledByte = (event.ledPattern & 0x1f) | ((event.ledColor & 0x07) << 5);
+    payload[offset++] = ledByte;
+
+    // Byte 3: Severity Level (1=Critical, 2=Important, 3=Informational)
+    payload[offset++] = event.severityLevel;
+
+    // Byte 4: Snooze Period (minutes)
+    payload[offset++] = event.snoozePeriod;
+
+    // Byte 5: Snooze Timeout (minutes)
+    payload[offset++] = event.snoozeTimeout;
+
+    // Byte 6: Retrigger Delay (minutes)
+    payload[offset++] = event.retriggerDelay;
+
+    // Byte 7: Retrigger Timeout (minutes)
+    payload[offset++] = event.retriggerTimeout;
+
+    // Bytes 8-X: Event Name (max 10 characters + null terminator)
+    payload.set(eventNameBytes, offset);
+    offset += eventNameBytes.length;
+    payload[offset++] = 0x00; // Null terminator
+
+    // Bytes X+1-Y: Cron Expression (max 42 characters + null terminator)
+    payload.set(cronBytes, offset);
+    offset += cronBytes.length;
+    payload[offset++] = 0x00; // Null terminator
+
+    // Remaining bytes: Reserved (0 padded) - already zeroed by Uint8Array constructor
+
+    return payload;
+  }
+
+  /**
+   * Create MINIMAL ADD_EVENT payload for MTU testing
+   * Only includes the essential 8 bytes without strings
+   */
+  private createMinimalAddEventPayload(event: EventConfig): Uint8Array {
     const payload = new Uint8Array(8); // Minimum 8 bytes for TEA encryption
     let offset = 0;
 
@@ -322,32 +564,6 @@ export class CreateEventCommand extends BLECommand<CreateEventResponse> {
     // Byte 7: Retrigger Timeout (minutes)
     payload[offset++] = event.retriggerTimeout;
 
-    // NO EVENT NAME OR CRON EXPRESSION FOR MINIMAL TEST
-    // This should result in just 8 bytes payload + 8 bytes header = 16 bytes total
-
-    console.log("🔧 MINIMAL PAYLOAD CREATED FOR MTU TESTING");
-    console.log("📦 Payload size:", payload.length, "bytes");
-    console.log(
-      "📦 Total request size:",
-      payload.length + 8,
-      "bytes (payload + header)",
-    );
-
-    this.log("debug", "MINIMAL ADD_EVENT payload created", {
-      eventIndex: event.index,
-      vibrationPattern: event.vibrationPattern,
-      vibrationIntensity: event.vibrationIntensity,
-      ledPattern: event.ledPattern,
-      ledColor: event.ledColor,
-      severityLevel: event.severityLevel,
-      payloadSize: payload.length,
-      vibrationByte: `0x${vibrationByte.toString(16).padStart(2, "0")}`,
-      ledByte: `0x${ledByte.toString(16).padStart(2, "0")}`,
-      payload: Array.from(payload)
-        .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
-        .join(" "),
-    });
-
     return payload;
   }
 
@@ -358,39 +574,15 @@ export class CreateEventCommand extends BLECommand<CreateEventResponse> {
     success: boolean;
     eventIndex: number;
   } {
-    if (payload.length < 4) {
+    if (payload.length < 2) {
       throw new Error("Invalid add event response - too short");
     }
 
-    // Response format: API Version | Command Code | Response Status | Event Index | Reserved
-    const responseStatus = payload[2] ?? 0xff;
-    const eventIndex = payload[3] ?? 0;
+    // Response payload format: Response Status | Event Index | Reserved
+    const responseStatus = payload[0] ?? 0xff;
+    const eventIndex = payload[1] ?? 0;
     const success = responseStatus === 0x00;
 
     return { success, eventIndex };
-  }
-
-  /**
-   * Log human-readable details about the response payload
-   */
-  static logPayloadDetails(payload: Uint8Array): void {
-    if (payload.length >= 4) {
-      const apiVersion = payload[0];
-      const commandCode = payload[1];
-      const responseStatus = payload[2];
-      const eventIndex = payload[3];
-      const success = responseStatus === 0x00;
-
-      console.log(
-        `🔓 PROTOCOL:     📝 ADD_EVENT result: ${success ? "✅ SUCCESS" : `❌ FAILED (status: 0x${responseStatus?.toString(16).padStart(2, "0")})`}`,
-      );
-      console.log(
-        `🔓 PROTOCOL:     📝 Event Index: ${eventIndex}, API: 0x${apiVersion?.toString(16).padStart(2, "0")}, Cmd: 0x${commandCode?.toString(16).padStart(2, "0")}`,
-      );
-    } else {
-      console.log(
-        `🔓 PROTOCOL:     ⚠️  ADD_EVENT response too short: ${payload.length} bytes (expected at least 4)`,
-      );
-    }
   }
 }

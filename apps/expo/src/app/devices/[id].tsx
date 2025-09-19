@@ -427,22 +427,14 @@ export default function DeviceDetailPage() {
       );
       stopScan();
 
-      if (deviceConnection) {
-        console.log("🔌 Cleaning up connection...");
-        setConnectionTime(null);
-        deviceConnection.device.cancelConnection().catch((error) => {
-          // Ignore BleManager destroyed errors during cleanup
-          if (error instanceof Error && error.message.includes("destroyed")) {
-            console.log("🔌 BleManager was already destroyed during cleanup");
-          } else {
-            console.error("❌ Error cleaning up connection:", error);
-          }
-        });
-      }
+      // NOTE: We intentionally do NOT disconnect the device here
+      // The connection should persist across page navigations
+      // The BluetoothContext will manage the connection lifecycle globally
+      console.log("� Preserving device connection for cross-page navigation");
 
       console.log("✅ DeviceDetailPage: Cleanup completed");
     };
-  }, [deviceConnection, stopScan]);
+  }, [stopScan]); // Removed deviceConnection from dependencies since we're not cleaning it up
 
   const [connectionDurationTick, setConnectionDurationTick] = useState(0);
 

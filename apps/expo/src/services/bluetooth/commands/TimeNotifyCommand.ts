@@ -33,6 +33,14 @@ export class TimeNotifyCommand extends BLECommand<TimeData> {
 
   /**
    * Parse the notification payload for time data
+   * According to BLE protocol:
+   * Byte 0: Year (BCD format, 0x00-0x99 for 2000-2099)
+   * Byte 1: Month (BCD format, 0x01-0x12)
+   * Byte 2: Date (BCD format, 0x01-0x31)
+   * Byte 3: Week day (0-6, Sunday=0x00)
+   * Byte 4: Hour (BCD format, 0x00-0x23)
+   * Byte 5: Minute (BCD format, 0x00-0x59)
+   * Byte 6: Seconds (BCD format, 0x00-0x59)
    */
   static parseNotification(payload: Uint8Array): TimeData {
     if (payload.length < 7) {
@@ -41,13 +49,41 @@ export class TimeNotifyCommand extends BLECommand<TimeData> {
       );
     }
 
-    const hour = payload[0] ?? 0;
-    const minute = payload[1] ?? 0;
-    const second = payload[2] ?? 0;
-    const year = 2000 + (payload[3] ?? 0); // Year offset from 2000
-    const month = payload[4] ?? 0;
-    const date = payload[5] ?? 0;
-    const weekDay = payload[6] ?? 0;
+    console.log(
+      "[TimeNotifyCommand] Raw payload:",
+      Array.from(payload)
+        .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+        .join(" "),
+    );
+
+    // Helper function to decode BCD (Binary Coded Decimal)
+    const decodeBCD = (bcdValue: number): number => {
+      return ((bcdValue >> 4) & 0x0f) * 10 + (bcdValue & 0x0f);
+    };
+
+    const year = 2000 + decodeBCD(payload[0] ?? 0); // BCD year offset from 2000
+    const month = decodeBCD(payload[1] ?? 0); // BCD month (1-12)
+    const date = decodeBCD(payload[2] ?? 0); // BCD date (1-31)
+    const weekDay = payload[3] ?? 0; // Week day (0-6, not BCD)
+    const hour = decodeBCD(payload[4] ?? 0); // BCD hour (0-23)
+    const minute = decodeBCD(payload[5] ?? 0); // BCD minute (0-59)
+    const second = decodeBCD(payload[6] ?? 0); // BCD second (0-59)
+
+    console.log("[TimeNotifyCommand] Parsed time:", {
+      year,
+      month,
+      date,
+      weekDay,
+      hour,
+      minute,
+      second,
+    });
+
+    // Create a proper Date object from the parsed values
+    // Note: JavaScript Date constructor expects month to be 0-based, but protocol uses 1-based
+    const deviceDate = new Date(year, month - 1, date, hour, minute, second);
+
+    console.log("[TimeNotifyCommand] Device date:", deviceDate.toString());
 
     return {
       hour,
@@ -57,7 +93,7 @@ export class TimeNotifyCommand extends BLECommand<TimeData> {
       month,
       date,
       weekDay,
-      timestamp: new Date(),
+      timestamp: deviceDate,
     };
   }
 

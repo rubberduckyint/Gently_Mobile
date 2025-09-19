@@ -26,29 +26,8 @@ export function DeviceList({ devices, onDeviceSelect }: DeviceListProps) {
       {devices.map((device) => (
         <Pressable
           key={device.id}
-          style={[
-            cards.base,
-            cards.interactive,
-            { marginBottom: spacing[3] },
-            // Disable the pressable if device is already paired
-            device.manufacturerData?.isGentlyDevice &&
-              device.manufacturerData.isFactoryMode === false && {
-                opacity: 0.6,
-              },
-          ]}
-          onPress={() => {
-            // Only allow connection if device is not already paired
-            if (
-              !device.manufacturerData?.isGentlyDevice ||
-              device.manufacturerData.isFactoryMode !== false
-            ) {
-              onDeviceSelect(device);
-            }
-          }}
-          disabled={
-            device.manufacturerData?.isGentlyDevice &&
-            device.manufacturerData.isFactoryMode === false
-          }
+          style={[cards.base, cards.interactive, { marginBottom: spacing[3] }]}
+          onPress={() => onDeviceSelect(device)}
         >
           <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
             <View style={{ flex: 1 }}>
@@ -92,7 +71,7 @@ export function DeviceList({ devices, onDeviceSelect }: DeviceListProps) {
                         },
                       ]}
                     >
-                      📦 Ready to pair
+                      📦 Factory mode - Ready to pair
                     </Text>
                   )}
                   {device.manufacturerData.isFactoryMode === false && (
@@ -100,12 +79,12 @@ export function DeviceList({ devices, onDeviceSelect }: DeviceListProps) {
                       style={[
                         typography.caption,
                         {
-                          color: colors.error[600],
+                          color: colors.warning[600],
                           marginTop: spacing[1],
                         },
                       ]}
                     >
-                      🔒 Already paired
+                      � Has custom key - Can re-pair
                     </Text>
                   )}
                   {device.manufacturerData.batteryLevel !== undefined && (
@@ -125,15 +104,12 @@ export function DeviceList({ devices, onDeviceSelect }: DeviceListProps) {
               )}
             </View>
 
-            {/* Only show connect text for devices that can be connected to */}
-            {(!device.manufacturerData?.isGentlyDevice ||
-              device.manufacturerData.isFactoryMode !== false) && (
-              <Text
-                style={[typography.labelLarge, { color: colors.primary[600] }]}
-              >
-                Connect
-              </Text>
-            )}
+            {/* Show connect text for all Gently devices */}
+            <Text
+              style={[typography.labelLarge, { color: colors.primary[600] }]}
+            >
+              Connect
+            </Text>
           </View>
         </Pressable>
       ))}

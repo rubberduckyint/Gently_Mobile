@@ -9,6 +9,7 @@ export * from "./registry";
 
 // Individual BLE Command Classes
 export { CreateEventCommand } from "./CreateEventCommand";
+export { SetEventOnOffCommand } from "./SetEventOnOffCommand";
 export { DeviceInfoCommand } from "./DeviceInfoCommand";
 export { FindMeCommand } from "./FindMeCommand";
 export { GetUptimeCommand } from "./GetUptimeCommand";

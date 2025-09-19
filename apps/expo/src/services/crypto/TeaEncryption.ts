@@ -144,20 +144,6 @@ export class TeaEncryption {
    * Automatically removes padding (trailing 0x00 bytes)
    */
   decryptData(data: Uint8Array): Uint8Array {
-    console.log("🔓 TEA: decryptData called with:", data.length, "bytes");
-    console.log(
-      "🔓 TEA: Input data hex:",
-      Array.from(data)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(""),
-    );
-    console.log(
-      "🔓 TEA: Using key:",
-      Array.from(this.key)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(""),
-    );
-
     if (data.length % 8 !== 0) {
       throw new Error("Encrypted data length must be a multiple of 8 bytes");
     }
@@ -167,34 +153,11 @@ export class TeaEncryption {
     // Decrypt in 8-byte chunks
     for (let i = 0; i < data.length; i += 8) {
       const chunk = data.slice(i, i + 8);
-      console.log(
-        `🔓 TEA: Decrypting chunk ${i / 8 + 1}:`,
-        Array.from(chunk)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(""),
-      );
       const decrypted = this.decrypt(chunk);
-      console.log(
-        `🔓 TEA: Chunk ${i / 8 + 1} decrypted to:`,
-        Array.from(decrypted)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(""),
-      );
       result.set(decrypted, i);
     }
 
-    console.log(
-      "🔓 TEA: Raw decrypted data (all bytes):",
-      Array.from(result)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(""),
-    );
-    console.log("🔓 TEA: Raw decrypted data length:", result.length);
-
-    // TEMPORARILY DISABLE PADDING REMOVAL TO DEBUG
-    console.log(
-      "🔓 TEA: RETURNING RAW DATA (padding removal disabled for debugging)",
-    );
+    // Return raw data without padding removal to preserve uptime data
     return result;
 
     // Remove padding (trailing 0x00 bytes) as per protocol specification

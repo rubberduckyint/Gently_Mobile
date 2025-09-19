@@ -111,6 +111,11 @@ export default function BLETestPage() {
       parameters.ledColor = parameters.ledColor ?? 4; // Red
     }
 
+    if (commandMetadata.id === "set-event-on-off") {
+      parameters.eventIndex = parameters.eventIndex ?? 0;
+      parameters.state = parameters.state ?? true; // Default to ON
+    }
+
     return parameters;
   };
 
@@ -276,11 +281,15 @@ export default function BLETestPage() {
             {commands.map((command) => (
               <View key={command.id} style={styles.commandCard}>
                 <View style={styles.commandHeader}>
-                  <Text style={styles.commandName}>{command.name}</Text>
-                  <Text style={styles.commandVersion}>v{command.version}</Text>
+                  <Text style={styles.commandName}>
+                    {command.name || "Unknown Command"}
+                  </Text>
+                  <Text style={styles.commandVersion}>
+                    v{command.version || "1.0.0"}
+                  </Text>
                 </View>
                 <Text style={styles.commandDescription}>
-                  {command.description}
+                  {command.description || "No description available"}
                 </Text>
 
                 <View style={styles.commandMeta}>
@@ -351,7 +360,9 @@ export default function BLETestPage() {
                 </Text>
               )}
             </View>
-            <Text style={styles.resultText}>{lastResult.message}</Text>
+            <Text style={styles.resultText}>
+              {lastResult.message || "No message"}
+            </Text>
             {!!lastResult.data && (
               <View style={styles.resultDataContainer}>
                 <Text style={styles.resultDataTitle}>Response Data:</Text>
@@ -377,7 +388,7 @@ export default function BLETestPage() {
             >
               {logs.map((log, index) => (
                 <Text key={index} style={styles.logText}>
-                  {log}
+                  {log || ""}
                 </Text>
               ))}
             </ScrollView>

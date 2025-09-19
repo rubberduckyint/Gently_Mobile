@@ -5,11 +5,7 @@ import type { AdvertisementData } from "./protocol";
 import type { BluetoothDevice, ScanCallbacks, ScanOptions } from "./types";
 import { base64ToUint8Array } from "../../utils/base64";
 import { parseManufacturerData } from "./commands";
-import {
-  GENTLY_SERVICE_UUID,
-  GentlyBLEProtocol,
-  isGentlyDeviceFromAdvertisement,
-} from "./protocol";
+import { GentlyBLEProtocol, isGentlyDeviceFromAdvertisement } from "./protocol";
 
 /**
  * Parse manufacturer data to check if device is a Gently device
@@ -59,76 +55,19 @@ export function isGentlyDevice(device: Device): boolean {
 export function parseGentlyAdvertisement(
   device: Device,
 ): AdvertisementData | null {
-  const logPrefix = "📊 ADVERTISEMENT";
-
   if (!device.manufacturerData) {
-    console.log(
-      `${logPrefix}: No manufacturer data available for ${device.name ?? "Unknown"}`,
-    );
     return null;
   }
 
   try {
-    console.log(
-      `${logPrefix}: Parsing advertisement for device: ${device.name ?? "Unknown"}`,
-    );
-    console.log(
-      `${logPrefix}: Raw manufacturer data: ${device.manufacturerData}`,
-    );
-
     const manufacturerArray = base64ToUint8Array(device.manufacturerData);
-    console.log(
-      `${logPrefix}: Manufacturer data (${manufacturerArray.length} bytes): ${Array.from(
-        manufacturerArray,
-      )
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("")}`,
-    );
-
     const protocol = new GentlyBLEProtocol();
     const advertisementData =
       protocol.parseAdvertisementData(manufacturerArray);
 
-    if (advertisementData) {
-      console.log(`${logPrefix}: ✅ Successfully parsed advertisement data:`);
-      console.log(
-        `${logPrefix}:   - API Version: ${advertisementData.apiVersion}`,
-      );
-      console.log(
-        `${logPrefix}:   - Packet Counter: ${advertisementData.packetCounter}`,
-      );
-      console.log(
-        `${logPrefix}:   - Error Code: ${advertisementData.errorCode}`,
-      );
-      console.log(
-        `${logPrefix}:   - Serial Number: ${Array.from(
-          advertisementData.serialNumber,
-        )
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("")}`,
-      );
-      console.log(
-        `${logPrefix}:   - Battery Voltage: ${advertisementData.batteryVoltage}mV`,
-      );
-      console.log(
-        `${logPrefix}:   - Charging: ${advertisementData.flags.charging}`,
-      );
-      console.log(
-        `${logPrefix}:   - Battery Level: ${advertisementData.flags.batteryLevel}/7`,
-      );
-      console.log(
-        `${logPrefix}:   - Bracelet Key Type: ${advertisementData.flags.braceletKeyType}`,
-      );
-      console.log(
-        `${logPrefix}:   - Any Event Active: ${advertisementData.flags.anyEventActive}`,
-      );
-    } else {
-      console.log(`${logPrefix}: ❌ Failed to parse advertisement data`);
-    }
-
     return advertisementData;
   } catch (error) {
-    console.log(`${logPrefix}: ❌ Error parsing advertisement:`, error);
+    console.warn(`Failed to parse advertisement for ${device.name}:`, error);
     return null;
   }
 }
@@ -179,12 +118,7 @@ export function startDeviceScan(
   callbacks: ScanCallbacks,
   options: ScanOptions = {},
 ): () => void {
-  console.log("🔍 STARTING DEVICE SCAN...");
-  console.log(`🔍 Scan options:`, options);
-  console.log(`🔍 Looking for service UUID: ${GENTLY_SERVICE_UUID}`);
-
-  let foundDeviceCount = 0;
-  let gentlyDeviceCount = 0;
+  console.log("🔍 Scanning for Gently devices...");
 
   // Track unique Gently devices by their device ID to avoid duplicates
   const foundGentlyDevices = new Map<string, BluetoothDevice>();
@@ -192,30 +126,15 @@ export function startDeviceScan(
   // Function to display the current list of found Gently devices
   const displayGentlyDevicesList = () => {
     if (foundGentlyDevices.size === 0) {
-      console.log("📋 No Gently devices found yet");
+      console.log("📋 No Gently devices found");
       return;
     }
 
-    console.log(
-      `📋 === FOUND GENTLY DEVICES LIST (${foundGentlyDevices.size}) ===`,
-    );
+    console.log(`📋 Found ${foundGentlyDevices.size} Gently devices:`);
     let index = 1;
     foundGentlyDevices.forEach((device) => {
-      console.log(`📱 [${index}] ${device.name}`);
-      console.log(`    🆔 Device ID (for connection): ${device.id}`);
+      console.log(`📱 [${index}] ${device.name} (${device.id})`);
       console.log(`    📡 Signal: ${device.rssi} dBm`);
-
-      // Display service UUIDs
-      if (device.serviceUUIDs && device.serviceUUIDs.length > 0) {
-        console.log(`    🔗 Service UUIDs: ${device.serviceUUIDs.join(", ")}`);
-      } else {
-        console.log(`    🔗 Service UUIDs: None advertised`);
-      }
-
-      // Display local name if different from name
-      if (device.localName && device.localName !== device.name) {
-        console.log(`    📛 Local Name: ${device.localName}`);
-      }
 
       if (device.advertisementData) {
         const serialHex = Array.from(device.advertisementData.serialNumber)
@@ -225,48 +144,30 @@ export function startDeviceScan(
         console.log(
           `    🔋 Battery: ${device.advertisementData.batteryVoltage}mV (Level: ${device.advertisementData.flags.batteryLevel}/7)`,
         );
-        console.log(
-          `    ⚡ Charging: ${device.advertisementData.flags.charging ? "Yes" : "No"}`,
-        );
-        console.log(
-          `    🔔 Events Active: ${device.advertisementData.flags.anyEventActive ? "Yes" : "No"}`,
-        );
-        console.log(
-          `    🔑 Key Type: ${device.advertisementData.flags.braceletKeyType === 0 ? "Factory" : "Custom"}`,
-        );
-      } else {
-        console.log(`    ⚠️  No advertisement data available`);
+        if (device.advertisementData.flags.charging) {
+          console.log(`    ⚡ Charging`);
+        }
+        if (device.advertisementData.flags.anyEventActive) {
+          console.log(`    � Has active events`);
+        }
       }
-      console.log(""); // Empty line for spacing
       index++;
     });
-    console.log("📋 =======================================");
-    console.log(
-      "💡 TIP: Use the 'Device ID (for connection)' above to connect to specific devices",
-    );
-    console.log(
-      "📖 See: https://github.com/dotintent/react-native-ble-plx/wiki/Device-Connecting",
-    );
   };
 
   // Set up timeout if specified
   let timeoutId: NodeJS.Timeout | null = null;
   if (options.timeout) {
-    console.log(`🔍 Scan timeout set to: ${options.timeout}ms`);
     timeoutId = setTimeout(() => {
-      console.log(`⏰ SCAN TIMEOUT REACHED (${options.timeout}ms)`);
+      console.log(`⏰ Scan timeout reached (${options.timeout}ms)`);
       displayGentlyDevicesList();
-      console.log(
-        `📊 SCAN SUMMARY: Found ${foundGentlyDevices.size} unique Gently devices`,
-      );
       void manager.stopDeviceScan();
       callbacks.onComplete?.();
     }, options.timeout);
   }
 
-  // Start scanning with specific service UUID for production
+  // Start scanning
   void manager.startDeviceScan(
-    //[GENTLY_SERVICE_UUID],
     null,
     {
       scanMode: 2, // Low latency scan mode
@@ -276,9 +177,6 @@ export function startDeviceScan(
       if (error) {
         console.error("❌ BLE scan error:", error);
         displayGentlyDevicesList();
-        console.log(
-          `📊 SCAN ERROR SUMMARY: Found ${foundGentlyDevices.size} unique Gently devices before error`,
-        );
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
@@ -287,42 +185,21 @@ export function startDeviceScan(
       }
 
       if (device) {
-        foundDeviceCount++;
-        console.log(
-          `🔍 DEVICE FOUND [${foundDeviceCount}]: "${device.name ?? "Unnamed"}" (${device.id})`,
-        );
-        console.log(`📡   Signal: ${device.rssi ?? "Unknown"} dBm`);
-        console.log(
-          `📊   Service UUIDs: ${device.serviceUUIDs?.join(", ") ?? "None"}`,
-        );
-        console.log(
-          `📊   Manufacturer Data: ${device.manufacturerData ? "Present" : "None"}`,
-        );
-        console.log(`📊   Local Name: ${device.localName ?? "None"}`);
-
         // Check if this is a Gently device
         const isGently = isGentlyDevice(device);
 
         if (isGently) {
           // Check if we've already found this device (avoid duplicates)
           if (foundGentlyDevices.has(device.id)) {
-            console.log(
-              `🔄 DUPLICATE GENTLY DEVICE: "${device.name ?? "Unknown"}" (${device.id}) - updating signal strength`,
-            );
-
             // Update the existing device with new RSSI if it's stronger
             const existingDevice = foundGentlyDevices.get(device.id);
             if (existingDevice && (device.rssi ?? -100) > existingDevice.rssi) {
               const deviceWithAdvData = mapBleDevice(device);
               foundGentlyDevices.set(device.id, deviceWithAdvData);
-              console.log(
-                `📡 Updated signal strength: ${device.rssi} dBm (was ${existingDevice.rssi} dBm)`,
-              );
             }
           } else {
-            gentlyDeviceCount++;
             console.log(
-              `✅ NEW GENTLY DEVICE [${gentlyDeviceCount}]: "${device.name ?? "Unknown"}"`,
+              `📱 Found Gently device: "${device.name ?? "Unknown"}" (${device.rssi}dBm)`,
             );
 
             // Parse advertisement data for better device info
@@ -331,84 +208,35 @@ export function startDeviceScan(
             // Add to our unique devices map
             foundGentlyDevices.set(device.id, deviceWithAdvData);
 
-            // Log comprehensive device information
-            console.log("📱 GENTLY DEVICE DETAILS:");
-            console.log(
-              `📱   - Device ID (for connection): ${deviceWithAdvData.id}`,
-            );
-            console.log(`📱   - Device Name: ${deviceWithAdvData.name}`);
-            console.log(
-              `📱   - Signal Strength: ${deviceWithAdvData.rssi} dBm`,
-            );
-
-            // Log service UUIDs
-            if (
-              deviceWithAdvData.serviceUUIDs &&
-              deviceWithAdvData.serviceUUIDs.length > 0
-            ) {
-              console.log(
-                `📱   - Service UUIDs: ${deviceWithAdvData.serviceUUIDs.join(", ")}`,
-              );
-            } else {
-              console.log(`📱   - Service UUIDs: None advertised`);
-            }
-
-            // Log local name if available and different
-            if (
-              deviceWithAdvData.localName &&
-              deviceWithAdvData.localName !== deviceWithAdvData.name
-            ) {
-              console.log(`📱   - Local Name: ${deviceWithAdvData.localName}`);
-            }
-
             if (deviceWithAdvData.advertisementData) {
-              console.log("📱   - Advertisement Data: AVAILABLE");
+              const serialHex = Array.from(
+                deviceWithAdvData.advertisementData.serialNumber,
+              )
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("");
+              console.log(`    Serial: ${serialHex}`);
               console.log(
-                `📱     * Serial Number: ${Array.from(
-                  deviceWithAdvData.advertisementData.serialNumber,
-                )
-                  .map((b) => b.toString(16).padStart(2, "0"))
-                  .join("")}`,
+                `    Battery: ${deviceWithAdvData.advertisementData.batteryVoltage}mV (Level: ${deviceWithAdvData.advertisementData.flags.batteryLevel}/7)`,
               );
-              console.log(
-                `📱     * Battery: ${deviceWithAdvData.advertisementData.batteryVoltage}mV`,
-              );
-              console.log(
-                `📱     * Charging: ${deviceWithAdvData.advertisementData.flags.charging}`,
-              );
-              console.log(
-                `📱     * Battery Level: ${deviceWithAdvData.advertisementData.flags.batteryLevel}/7`,
-              );
-              console.log(
-                `📱     * Events Active: ${deviceWithAdvData.advertisementData.flags.anyEventActive}`,
-              );
-            } else {
-              console.log("📱   - Advertisement Data: NOT AVAILABLE");
+              if (deviceWithAdvData.advertisementData.flags.charging) {
+                console.log(`    Charging: Yes`);
+              }
+              if (deviceWithAdvData.advertisementData.flags.anyEventActive) {
+                console.log(`    Has active events`);
+              }
             }
 
             callbacks.onDeviceFound(deviceWithAdvData);
           }
-        } else {
-          console.log(
-            `⏭️  Skipping non-Gently device: "${device.name ?? "Unnamed"}"`,
-          );
         }
-
-        console.log(
-          `📊 Current scan progress: ${foundGentlyDevices.size} unique Gently devices found`,
-        );
-        console.log("---");
       }
     },
   );
 
   // Return stop function
   return () => {
-    console.log("🛑 STOPPING DEVICE SCAN");
+    console.log("🛑 Stopping device scan");
     displayGentlyDevicesList();
-    console.log(
-      `📊 FINAL SCAN SUMMARY: Found ${foundGentlyDevices.size} unique Gently devices`,
-    );
     void manager.stopDeviceScan();
     if (timeoutId) {
       clearTimeout(timeoutId);

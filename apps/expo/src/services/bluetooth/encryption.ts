@@ -162,13 +162,6 @@ export function decryptData(
   let decrypted = new Uint8Array(0);
   const tea = new Tea(key);
 
-  console.log(`🔓 TEA: decryptData called with: ${data.length} bytes`);
-  console.log(
-    `🔓 TEA: Input data hex: ${Array.from(data)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")}`,
-  );
-
   for (let i = 0; i < data.length; i += blockSize) {
     const chunk = data.slice(i, i + blockSize);
     if (chunk.length === blockSize) {
@@ -180,44 +173,14 @@ export function decryptData(
     }
   }
 
-  console.log(
-    `🔓 TEA: Raw decrypted data (all bytes): ${Array.from(decrypted)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")}`,
-  );
-  console.log(`🔓 TEA: Raw decrypted data length: ${decrypted.length}`);
-
   // Remove trailing zeros (padding) unless they might be valid data
   if (originalLength !== undefined && originalLength <= decrypted.length) {
-    console.log(`🔓 TEA: Using specified originalLength: ${originalLength}`);
     return decrypted.slice(0, originalLength);
   }
 
-  // Find the end of the actual data (remove trailing zeros)
-  let endIndex = decrypted.length;
-  while (endIndex > 0 && decrypted[endIndex - 1] === 0) {
-    endIndex--;
-  }
-
-  console.log(
-    `🔓 TEA: Found end index (after removing trailing zeros): ${endIndex}`,
-  );
-  console.log(`🔓 TEA: CRITICAL: Zero-trimming may remove valid uptime data!`);
-  console.log(
-    `🔓 TEA: Bytes being removed as 'padding': ${Array.from(
-      decrypted.slice(endIndex),
-    )
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")}`,
-  );
-
   // For uptime responses, we should NOT remove trailing zeros as they might be valid data
-  // Let's return the full decrypted data for now to debug
-  console.log(`🔓 TEA: RETURNING FULL DECRYPTED DATA TO PRESERVE UPTIME`);
+  // Return the full decrypted data to preserve uptime
   return decrypted;
-
-  // Original logic (commented out for debugging):
-  // return decrypted.slice(0, endIndex);
 }
 
 /**
