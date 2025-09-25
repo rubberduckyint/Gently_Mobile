@@ -4,6 +4,17 @@
 
 import { addDays, format, isAfter, isBefore } from "date-fns";
 
+/**
+ * Helper function to validate and log invalid dates
+ */
+function validateDate(date: Date, context: string): boolean {
+  if (isNaN(date.getTime())) {
+    console.warn(`Invalid date in ${context}:`, date);
+    return false;
+  }
+  return true;
+}
+
 export interface AlarmScheduleInfo {
   nextOccurrence: Date | null;
   isOverdue: boolean;
@@ -24,6 +35,19 @@ export function calculateNextAlarmOccurrence(alarm: {
 }): AlarmScheduleInfo {
   const now = new Date();
 
+  // Validate start date
+  if (
+    !validateDate(alarm.startDate, "calculateNextAlarmOccurrence startDate")
+  ) {
+    return {
+      nextOccurrence: null,
+      isOverdue: false,
+      timeUntilNext: "Invalid date",
+      formattedNextTime: "Invalid date",
+      status: "inactive",
+    };
+  }
+
   if (!alarm.isActive) {
     return {
       nextOccurrence: null,
@@ -38,50 +62,76 @@ export function calculateNextAlarmOccurrence(alarm: {
   if (!alarm.repeat) {
     const alarmTime = alarm.startDate;
 
-    if (isAfter(now, alarmTime)) {
+    try {
+      if (isAfter(now, alarmTime)) {
+        return {
+          nextOccurrence: null,
+          isOverdue: true,
+          timeUntilNext: "Overdue",
+          formattedNextTime: formatAlarmTime(alarmTime, true),
+          status: "overdue",
+        };
+      }
+
+      return {
+        nextOccurrence: alarmTime,
+        isOverdue: false,
+        timeUntilNext: formatTimeUntil(alarmTime),
+        formattedNextTime: formatAlarmTime(alarmTime, true),
+        status: "active",
+      };
+    } catch (error) {
+      console.warn("Error processing non-repeating alarm:", error, alarmTime);
       return {
         nextOccurrence: null,
-        isOverdue: true,
-        timeUntilNext: "Overdue",
-        formattedNextTime: format(alarmTime, "MMM dd, yyyy h:mm a"),
-        status: "overdue",
+        isOverdue: false,
+        timeUntilNext: "Invalid date",
+        formattedNextTime: "Invalid date",
+        status: "inactive",
       };
     }
-
-    return {
-      nextOccurrence: alarmTime,
-      isOverdue: false,
-      timeUntilNext: formatTimeUntil(alarmTime),
-      formattedNextTime: format(alarmTime, "MMM dd, yyyy h:mm a"),
-      status: "active",
-    };
   }
 
   // For repeating alarms, we need to parse the cron expression
   // This is a simplified implementation - in a real app you'd use a cron parser library
-  const nextOccurrence = calculateNextCronOccurrence(
-    alarm.cronExpression,
-    alarm.startDate,
-    alarm.endDate,
-  );
+  try {
+    const nextOccurrence = calculateNextCronOccurrence(
+      alarm.cronExpression,
+      alarm.startDate,
+      alarm.endDate,
+    );
 
-  if (!nextOccurrence) {
+    if (!nextOccurrence || isNaN(nextOccurrence.getTime())) {
+      return {
+        nextOccurrence: null,
+        isOverdue: false,
+        timeUntilNext: "Completed",
+        formattedNextTime: "No future occurrences",
+        status: "completed",
+      };
+    }
+
+    return {
+      nextOccurrence,
+      isOverdue: false,
+      timeUntilNext: formatTimeUntil(nextOccurrence),
+      formattedNextTime: formatAlarmTime(nextOccurrence, true),
+      status: "active",
+    };
+  } catch (error) {
+    console.warn(
+      "Error processing repeating alarm:",
+      error,
+      alarm.cronExpression,
+    );
     return {
       nextOccurrence: null,
       isOverdue: false,
-      timeUntilNext: "Completed",
-      formattedNextTime: "No future occurrences",
-      status: "completed",
+      timeUntilNext: "Invalid schedule",
+      formattedNextTime: "Invalid schedule",
+      status: "inactive",
     };
   }
-
-  return {
-    nextOccurrence,
-    isOverdue: false,
-    timeUntilNext: formatTimeUntil(nextOccurrence),
-    formattedNextTime: format(nextOccurrence, "MMM dd, yyyy h:mm a"),
-    status: "active",
-  };
 }
 
 /**
@@ -93,6 +143,20 @@ function calculateNextCronOccurrence(
   startDate: Date,
   endDate: Date | null,
 ): Date | null {
+  // Validate input dates
+  if (isNaN(startDate.getTime())) {
+    console.warn(
+      "Invalid start date in calculateNextCronOccurrence:",
+      startDate,
+    );
+    return null;
+  }
+
+  if (endDate && isNaN(endDate.getTime())) {
+    console.warn("Invalid end date in calculateNextCronOccurrence:", endDate);
+    endDate = null; // Treat as no end date
+  }
+
   const now = new Date();
 
   // Parse the cron expression (simplified)
@@ -109,32 +173,70 @@ function calculateNextCronOccurrence(
   if (day === "*" && month === "*" && dayOfWeek === "*") {
     const todayAlarm = new Date();
 
-    // Safely parse hour and minute with defaults
-    const hourNum = hour ? parseInt(hour, 10) : 0;
-    const minuteNum = minute ? parseInt(minute, 10) : 0;
+    // Safely parse hour and minute with validation
+    const hourNum = hour && hour !== "*" ? parseInt(hour, 10) : 0;
+    const minuteNum = minute && minute !== "*" ? parseInt(minute, 10) : 0;
+
+    // Validate parsed hour and minute
+    if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
+      console.warn("Invalid hour in cron expression:", hour, cronExpression);
+      return null;
+    }
+    if (isNaN(minuteNum) || minuteNum < 0 || minuteNum > 59) {
+      console.warn(
+        "Invalid minute in cron expression:",
+        minute,
+        cronExpression,
+      );
+      return null;
+    }
 
     todayAlarm.setHours(hourNum, minuteNum, 0, 0);
 
-    if (isAfter(todayAlarm, now) && isAfter(todayAlarm, startDate)) {
-      if (!endDate || isBefore(todayAlarm, endDate)) {
-        return todayAlarm;
-      }
+    // Validate the constructed date
+    if (isNaN(todayAlarm.getTime())) {
+      console.warn("Invalid constructed date:", todayAlarm, hourNum, minuteNum);
+      return null;
     }
 
-    // Try tomorrow
-    const tomorrowAlarm = addDays(todayAlarm, 1);
-    if (!endDate || isBefore(tomorrowAlarm, endDate)) {
-      return tomorrowAlarm;
+    try {
+      if (isAfter(todayAlarm, now) && isAfter(todayAlarm, startDate)) {
+        if (!endDate || isBefore(todayAlarm, endDate)) {
+          return todayAlarm;
+        }
+      }
+
+      // Try tomorrow
+      const tomorrowAlarm = addDays(todayAlarm, 1);
+      if (isNaN(tomorrowAlarm.getTime())) {
+        console.warn("Invalid tomorrow date:", tomorrowAlarm);
+        return null;
+      }
+      if (!endDate || isBefore(tomorrowAlarm, endDate)) {
+        return tomorrowAlarm;
+      }
+    } catch (error) {
+      console.warn("Error calculating daily alarm occurrence:", error);
+      return null;
     }
   }
 
   // For weekly alarms
   if (day === "*" && month === "*" && dayOfWeek !== "*") {
-    // Implementation for weekly recurrence would go here
-    // For now, return a simple next day calculation
-    const nextWeek = addDays(startDate, 7);
-    if (!endDate || isBefore(nextWeek, endDate)) {
-      return nextWeek;
+    try {
+      // Implementation for weekly recurrence would go here
+      // For now, return a simple next day calculation
+      const nextWeek = addDays(startDate, 7);
+      if (isNaN(nextWeek.getTime())) {
+        console.warn("Invalid next week date:", nextWeek);
+        return null;
+      }
+      if (!endDate || isBefore(nextWeek, endDate)) {
+        return nextWeek;
+      }
+    } catch (error) {
+      console.warn("Error calculating weekly alarm occurrence:", error);
+      return null;
     }
   }
 
@@ -145,8 +247,21 @@ function calculateNextCronOccurrence(
  * Format time until next occurrence in a human-readable way
  */
 function formatTimeUntil(targetDate: Date): string {
+  // Validate the target date
+  if (isNaN(targetDate.getTime())) {
+    console.warn("Invalid target date in formatTimeUntil:", targetDate);
+    return "Invalid time";
+  }
+
   const now = new Date();
-  const diffMs = targetDate.getTime() - now.getTime();
+  let diffMs: number;
+
+  try {
+    diffMs = targetDate.getTime() - now.getTime();
+  } catch (error) {
+    console.warn("Error calculating time difference:", error);
+    return "Invalid time";
+  }
 
   if (diffMs <= 0) {
     return "Now";
@@ -187,8 +302,19 @@ export function getAlarmStatusColor(scheduleInfo: AlarmScheduleInfo): string {
  * Format alarm time for display
  */
 export function formatAlarmTime(date: Date, includeDate = true): string {
-  if (includeDate) {
-    return format(date, "MMM dd, h:mm a");
+  // Validate the date before formatting
+  if (isNaN(date.getTime())) {
+    console.warn("Invalid date in formatAlarmTime:", date);
+    return "Invalid date";
   }
-  return format(date, "h:mm a");
+
+  try {
+    if (includeDate) {
+      return format(date, "MMM dd, h:mm a");
+    }
+    return format(date, "h:mm a");
+  } catch (error) {
+    console.warn("Error formatting alarm time:", error, date);
+    return "Invalid date";
+  }
 }

@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
@@ -111,16 +112,17 @@ function DeviceCard({
     <View style={{ marginBottom: spacing[4] }}>
       <Link
         href={{
-          pathname: "/devices/[id]",
-          params: { id: device.id },
+          pathname: "/devices/[deviceId]",
+          params: { deviceId: device.id },
         }}
         asChild
       >
         <Pressable
-          style={[
+          style={({ pressed }) => [
             cards.base,
             cards.interactive,
             showDeleteButton && cards.pressed,
+            pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
           ]}
           onLongPress={handleLongPress}
         >
@@ -162,6 +164,15 @@ function DeviceCard({
                   Serial: {device.serialNumber}
                 </Text>
               )}
+            </View>
+
+            {/* Clickable indicator */}
+            <View style={{ marginLeft: spacing[2] }}>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.text.secondary}
+              />
             </View>
           </View>
 

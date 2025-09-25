@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
-import type { AlarmFormData } from "../../app/alarms/add/[deviceId]";
+import type { AlarmFormData } from "../../app/devices/[deviceId]/alarms/add";
 import {
   buttons,
   buttonText,
@@ -49,11 +50,38 @@ export function ScheduleStep({
   onNext,
   onPrevious,
 }: ScheduleStepProps) {
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
   const toggleDayOfWeek = (day: string) => {
     const newDaysOfWeek = formData.daysOfWeek.includes(day)
       ? formData.daysOfWeek.filter((d) => d !== day)
       : [...formData.daysOfWeek, day];
     onUpdate({ daysOfWeek: newDaysOfWeek });
+  };
+
+  const handleDateChange = (_event: unknown, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      // Preserve the time from the current startDate, only update the date
+      const currentTime = formData.startDate;
+      const newDate = new Date(selectedDate);
+      newDate.setHours(currentTime.getHours());
+      newDate.setMinutes(currentTime.getMinutes());
+      onUpdate({ startDate: newDate });
+    }
+  };
+
+  const handleTimeChange = (_event: unknown, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      // Preserve the date from the current startDate, only update the time
+      const currentDate = formData.startDate;
+      const newDate = new Date(currentDate);
+      newDate.setHours(selectedTime.getHours());
+      newDate.setMinutes(selectedTime.getMinutes());
+      onUpdate({ startDate: newDate });
+    }
   };
 
   return (
@@ -79,10 +107,32 @@ export function ScheduleStep({
       }
     >
       <View style={[cards.base, { marginBottom: spacing[6] }]}>
-        {/* Start Date/Time - simplified for now */}
+        {/* Start Date/Time */}
         <View style={inputs.container}>
-          <Text style={inputs.label}>Start Time</Text>
-          <View
+          <Text style={inputs.label}>Start Date & Time</Text>
+
+          {/* Date Selector */}
+          <Pressable
+            style={[
+              {
+                borderWidth: 1,
+                borderColor: colors.border.medium,
+                backgroundColor: colors.background.secondary,
+                paddingHorizontal: spacing[4],
+                paddingVertical: spacing[4],
+                borderRadius: 8,
+                marginBottom: spacing[3],
+              },
+            ]}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={{ color: colors.text.primary, fontSize: 16 }}>
+              📅 {formData.startDate.toLocaleDateString()}
+            </Text>
+          </Pressable>
+
+          {/* Time Selector */}
+          <Pressable
             style={[
               {
                 borderWidth: 1,
@@ -93,20 +143,37 @@ export function ScheduleStep({
                 borderRadius: 8,
               },
             ]}
+            onPress={() => setShowTimePicker(true)}
           >
             <Text style={{ color: colors.text.primary, fontSize: 16 }}>
-              {formData.startDate.toLocaleString()}
+              🕐{" "}
+              {formData.startDate.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </Text>
-          </View>
-          <Text
-            style={{
-              color: colors.text.tertiary,
-              fontSize: 12,
-              marginTop: spacing[1],
-            }}
-          >
-            Time selection will be improved in a future update
-          </Text>
+          </Pressable>
+
+          {/* Date Picker Modal */}
+          {showDatePicker && (
+            <DateTimePicker
+              value={formData.startDate}
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+              minimumDate={new Date()}
+            />
+          )}
+
+          {/* Time Picker Modal */}
+          {showTimePicker && (
+            <DateTimePicker
+              value={formData.startDate}
+              mode="time"
+              display="default"
+              onChange={handleTimeChange}
+            />
+          )}
         </View>
 
         {/* Repeat Toggle */}

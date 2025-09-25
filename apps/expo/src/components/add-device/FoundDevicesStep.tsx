@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 
-import type { BluetoothDevice } from "~/services/bluetooth";
+import type { DiscoveredGentlyDevice } from "~/services/ble";
 import {
   buttons,
   buttonText,
@@ -14,8 +14,8 @@ import { DeviceList } from "./DeviceList";
 import { StepLayout } from "./StepLayout";
 
 interface FoundDevicesStepProps {
-  devices: BluetoothDevice[];
-  onDeviceSelect: (device: BluetoothDevice) => void;
+  devices: DiscoveredGentlyDevice[];
+  onDeviceSelect: (device: DiscoveredGentlyDevice) => void;
   onRetry: () => void;
   onCancel: () => void;
 }

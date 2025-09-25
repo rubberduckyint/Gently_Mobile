@@ -3,7 +3,7 @@
  * and syncing alarms between the database and physical device.
  */
 
-import type { AlarmFormData } from "~/app/alarms/add/[deviceId]";
+import type { AlarmFormData } from "~/app/devices/[deviceId]/alarms/add";
 
 /**
  * Map alarm form priority to BLE severity level

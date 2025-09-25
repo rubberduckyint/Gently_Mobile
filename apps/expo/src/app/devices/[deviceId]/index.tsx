@@ -26,22 +26,22 @@ import {
 import { trpc } from "~/utils/api";
 
 export default function DeviceDetailPage() {
-  const { id } = useGlobalSearchParams<{ id: string }>();
+  const { deviceId } = useGlobalSearchParams<{ deviceId: string }>();
   const queryClient = useQueryClient();
 
   // Store the initial device ID to prevent it from changing during navigation
-  const [deviceId] = React.useState(id);
+  const [initialDeviceId] = React.useState(deviceId);
 
   const {
     data: device,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["device", "getById", { id: deviceId }],
+    queryKey: ["device", "getById", { id: initialDeviceId }],
     queryFn: async () => {
-      return await trpc.device.getById.query({ id: deviceId });
+      return await trpc.device.getById.query({ id: initialDeviceId });
     },
-    enabled: !!deviceId,
+    enabled: !!initialDeviceId,
     retry: (failureCount, error) => {
       // Don't retry if the device is not found (likely deleted)
       if (
@@ -58,7 +58,8 @@ export default function DeviceDetailPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      return await trpc.device.delete.mutate({ id: deviceId });
+      if (!initialDeviceId) throw new Error("Device ID is required");
+      return await trpc.device.delete.mutate({ id: initialDeviceId });
     },
     onSuccess: () => {
       // Remove the specific device query from cache to prevent refetch of deleted device

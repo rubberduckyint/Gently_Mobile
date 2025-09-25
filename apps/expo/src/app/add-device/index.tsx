@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { BleManager } from "react-native-ble-plx";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { BleManager } from "@b1naryth1ef/react-native-ble-plx";
 import { useMutation } from "@tanstack/react-query";
 
-import type { BluetoothDevice, DeviceInfo } from "~/services/bluetooth";
+import type { DiscoveredGentlyDevice } from "~/services/ble";
 import {
   ConnectingStep,
   ErrorStep,
@@ -14,11 +14,11 @@ import {
   SuccessStep,
 } from "~/components/add-device";
 import {
-  connectToGentlyDevice,
-  getStoredDeviceKey,
-  initializeBluetooth,
-  startDeviceScan,
-} from "~/services/bluetooth";
+  connectBySerialNumber,
+  requestBlePermissions,
+  scanForGentlyDevices,
+  stopScan as stopBLEScan,
+} from "~/services/ble";
 import {
   buttons,
   buttonText,
@@ -36,10 +36,11 @@ export default function AddDevicePage() {
   console.log("🚀 AddDevicePage: Component initializing...");
 
   const [step, setStep] = useState<ConnectionStep>("scanning");
-  const [foundDevices, setFoundDevices] = useState<BluetoothDevice[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<BluetoothDevice | null>(
-    null,
+  const [foundDevices, setFoundDevices] = useState<DiscoveredGentlyDevice[]>(
+    [],
   );
+  const [selectedDevice, setSelectedDevice] =
+    useState<DiscoveredGentlyDevice | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [deviceInfo, setDeviceInfo] = useState<{
     serialNumber: string;
@@ -66,7 +67,7 @@ export default function AddDevicePage() {
         const manager = new BleManager();
         setBleManager(manager);
 
-        await initializeBluetooth(manager);
+        await requestBlePermissions();
         setIsInitialized(true);
         console.log("✅ AddDevicePage: Bluetooth initialized successfully");
       } catch (error) {
@@ -122,60 +123,42 @@ export default function AddDevicePage() {
     },
   });
 
-  const handleDeviceFound = useCallback((device: BluetoothDevice) => {
+  const handleDeviceFound = useCallback((device: DiscoveredGentlyDevice) => {
     console.log(
-      "📱 AddDevicePage: Device found:",
-      device.name,
-      device.id,
-      "RSSI:",
-      device.rssi,
+      "📱 AddDevicePage: Device selected:",
+      device.device.name,
+      device.device.id,
     );
 
-    // Check if this is a Gently device
-    if (device.manufacturerData) {
+    // All devices from scanForGentlyDevices are already confirmed Gently devices
+    console.log(
+      "📊 AddDevicePage: Gently device data:",
+      device.advertisementData,
+    );
+
+    console.log("✅ AddDevicePage: Confirmed Gently device - adding to list");
+
+    // Check if device is in factory mode (has factory key)
+    if (device.advertisementData.braceletKeyType === "factory") {
       console.log(
-        "📊 AddDevicePage: Manufacturer data available:",
-        device.manufacturerData,
+        "✅ AddDevicePage: Device is in factory mode (ready to pair)",
       );
-
-      if (device.manufacturerData.isGentlyDevice) {
-        console.log(
-          "✅ AddDevicePage: Confirmed Gently device - adding to list",
-        );
-
-        if (device.manufacturerData.isFactoryMode === true) {
-          console.log(
-            "✅ AddDevicePage: Device is in factory mode (ready to pair)",
-          );
-        } else if (device.manufacturerData.isFactoryMode === false) {
-          console.log(
-            "🔄 AddDevicePage: Device has custom key (can re-pair with new key)",
-          );
-        } else {
-          console.log(
-            "❓ AddDevicePage: Could not determine factory mode status",
-          );
-        }
-      } else {
-        console.log("❌ AddDevicePage: Not a Gently device - skipping");
-        return;
-      }
     } else {
       console.log(
-        "⚠️ AddDevicePage: No manufacturer data available - adding anyway (legacy support)",
+        "🔄 AddDevicePage: Device has custom key (can re-pair with new key)",
       );
     }
 
-    if (!foundDeviceIds.current.has(device.id)) {
+    if (!foundDeviceIds.current.has(device.device.id)) {
       console.log("✅ AddDevicePage: Adding new device to list");
-      foundDeviceIds.current.add(device.id);
+      foundDeviceIds.current.add(device.device.id);
       setFoundDevices((prev) => [...prev, device]);
     } else {
       console.log("🔄 AddDevicePage: Device already in list, skipping");
     }
   }, []);
 
-  const startScan = useCallback(() => {
+  const startScan = useCallback(async () => {
     console.log("🔍 AddDevicePage: startScan called");
 
     if (!bleManager) {
@@ -205,33 +188,28 @@ export default function AddDevicePage() {
       foundDeviceIds.current.clear();
       setErrorMessage("");
 
-      console.log("🔍 AddDevicePage: Calling startDeviceScan...");
-      const stopFunction = startDeviceScan(
-        bleManager,
-        {
-          onDeviceFound: handleDeviceFound,
-          onError: (error: string) => {
-            console.error("❌ AddDevicePage: Scan error:", error);
-            setErrorMessage(error);
-            setStep("error");
-          },
-          onComplete: () => {
-            console.log("✅ AddDevicePage: Scan completed");
-            console.log(
-              "📊 AddDevicePage: Found device IDs:",
-              Array.from(foundDeviceIds.current),
-            );
-            console.log(
-              "📊 AddDevicePage: Found devices count:",
-              foundDeviceIds.current.size,
-            );
-            setStep("found");
-          },
-        },
-        { timeout: 10000 },
-      );
+      console.log("🔍 AddDevicePage: Calling scanForGentlyDevices...");
 
-      scanStopFunctionRef.current = stopFunction;
+      try {
+        const devices = await scanForGentlyDevices({
+          timeoutMs: 10000,
+          allowDuplicates: false,
+        });
+
+        console.log("✅ AddDevicePage: Scan completed");
+        console.log("📊 AddDevicePage: Found devices:", devices.length);
+
+        // Process found devices
+        devices.forEach((device) => {
+          handleDeviceFound(device);
+        });
+
+        setStep("found");
+      } catch (error) {
+        console.error("❌ AddDevicePage: Scan error:", error);
+        setErrorMessage(error instanceof Error ? error.message : "Scan failed");
+        setStep("error");
+      }
       console.log("✅ AddDevicePage: Scan started");
     } catch (error) {
       console.error("❌ AddDevicePage: Scan failed:", error);
@@ -244,16 +222,17 @@ export default function AddDevicePage() {
 
   const stopScan = useCallback(() => {
     console.log("🛑 AddDevicePage: Stopping scan...");
+    stopBLEScan(); // Use the imported stopScan function
     if (scanStopFunctionRef.current) {
       scanStopFunctionRef.current();
       scanStopFunctionRef.current = null;
     }
   }, []);
 
-  const handleDeviceSelect = async (device: BluetoothDevice) => {
+  const handleDeviceSelect = async (device: DiscoveredGentlyDevice) => {
     console.log(
       "🔗 AddDevicePage: Starting connection process for device:",
-      device.name,
+      device.device.name,
     );
 
     if (!bleManager) {
@@ -273,27 +252,31 @@ export default function AddDevicePage() {
     try {
       console.log("🔗 AddDevicePage: Initiating GENTLY PAIRING process...");
 
-      // Try to get a stored device key first
-      const storedKey = await getStoredDeviceKey(device.id);
-
-      const connectionResult = await connectToGentlyDevice(
-        bleManager,
-        device.id,
-        device.advertisementData,
-        storedKey ?? undefined,
+      const deviceInfo = await connectBySerialNumber(
+        device.advertisementData.serialNumber,
       );
 
       console.log("✅ AddDevicePage: GENTLY PAIRING completed successfully");
 
-      // The connection was established successfully
+      // Extract device info and continue with existing flow
+      if (!deviceInfo.device || !deviceInfo.isConnected) {
+        throw new Error("Connection failed - device not available");
+      }
+
       console.log("🔑 AddDevicePage: Connection established with device key");
 
-      // Convert protocol device info to our DeviceInfo format using the REAL serial number
-      const info: DeviceInfo = {
-        serialNumber: connectionResult.serialNumber, // Use the actual serial number from advertisement data
-        firmwareVersion: `${connectionResult.deviceInfo.firmwareVersionMajor}.${connectionResult.deviceInfo.firmwareVersionMinor}.${connectionResult.deviceInfo.firmwareBuildNumber}`,
-        batteryLevel: 85, // Mock battery level - would need separate battery status command
+      // Create device info for registration using the REAL data
+      const info = {
+        serialNumber: deviceInfo.serialNumber,
+        firmwareVersion:
+          deviceInfo.firmwareVersionMajor &&
+          deviceInfo.firmwareVersionMinor &&
+          deviceInfo.firmwareBuildNumber
+            ? `${deviceInfo.firmwareVersionMajor}.${deviceInfo.firmwareVersionMinor}.${deviceInfo.firmwareBuildNumber}`
+            : "Unknown",
+        batteryLevel: device.advertisementData.batteryLevel, // Use from advertisement data
       };
+
       setDeviceInfo(info);
 
       // Automatically save the device after successful connection
@@ -301,10 +284,11 @@ export default function AddDevicePage() {
         "💾 AddDevicePage: Automatically saving device after successful connection",
       );
       console.log(
-        `💾 AddDevicePage: Using REAL serial number from advertisement data: ${connectionResult.serialNumber}`,
+        `💾 AddDevicePage: Using REAL serial number from advertisement data: ${deviceInfo.serialNumber}`,
       );
-      const deviceTitle = device.name || "Unknown Device";
-      const deviceDescription = `Bluetooth device (${device.id.slice(-6)})`;
+
+      const deviceTitle = device.device.name ?? "Unknown Device";
+      const deviceDescription = `Bluetooth device (${device.device.id.slice(-6)})`;
 
       addDeviceMutation.mutate({
         title: deviceTitle,
@@ -340,7 +324,7 @@ export default function AddDevicePage() {
         "✅ AddDevicePage: Bluetooth is ready, starting scan directly",
       );
       setStep("scanning");
-      startScan();
+      void startScan();
     } else {
       console.log(
         "⏳ AddDevicePage: Bluetooth not ready, setting to scanning and waiting",
@@ -370,7 +354,7 @@ export default function AddDevicePage() {
         "✅ AddDevicePage: Bluetooth is initialized and step is scanning, starting scan...",
       );
       hasStartedInitialScan.current = true;
-      startScan();
+      void startScan();
     } else {
       console.log(
         "⏳ AddDevicePage: Waiting for conditions or not in scanning step",
@@ -404,14 +388,14 @@ export default function AddDevicePage() {
       case "connecting":
         return (
           <ConnectingStep
-            deviceName={selectedDevice?.name}
+            deviceName={selectedDevice?.device.name ?? undefined}
             isSaving={addDeviceMutation.isPending}
           />
         );
       case "success":
         return (
           <SuccessStep
-            deviceName={selectedDevice?.name}
+            deviceName={selectedDevice?.device.name ?? undefined}
             deviceInfo={deviceInfo ?? undefined}
             onViewDevice={() => {
               if (createdDeviceId) {
