@@ -7,8 +7,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "gently",
   version: "0.1.0",
   orientation: "portrait",
-  icon: "./assets/icon-light.png",
+  icon: "./assets/gently-ios-blue.png",
   userInterfaceStyle: "automatic",
+  splash: {
+    image: "./assets/gently-splash-logo.png",
+    resizeMode: "contain",
+    backgroundColor: "#51b0d6",
+  },
   updates: {
     fallbackToCacheTimeout: 0,
   },
@@ -18,8 +23,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: "com.gentlyus.gently",
     supportsTablet: true,
     icon: {
-      light: "./assets/icon-light.png",
-      dark: "./assets/icon-dark.png",
+      light: "./assets/gently-ios-blue.png",
+      dark: "./assets/gently-ios-dark.png",
     },
     infoPlist: {
       NSBluetoothAlwaysUsageDescription:
@@ -33,8 +38,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "com.gentlyus.gently",
     adaptiveIcon: {
-      foregroundImage: "./assets/icon-light.png",
-      backgroundColor: "#1F104A",
+      foregroundImage: "./assets/gently-white-no-background.png",
+      backgroundColor: "#51b0d6",
     },
     edgeToEdgeEnabled: true,
     permissions: [
@@ -64,17 +69,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "@react-native-google-signin/google-signin",
       {
         iosUrlScheme: "com.googleusercontent.apps._some_id_here_",
-      },
-    ],
-    [
-      "expo-splash-screen",
-      {
-        backgroundColor: "#E4E4E7",
-        image: "./assets/icon-light.png",
-        dark: {
-          backgroundColor: "#18181B",
-          image: "./assets/icon-dark.png",
-        },
       },
     ],
   ],
