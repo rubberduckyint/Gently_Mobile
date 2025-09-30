@@ -133,7 +133,9 @@ export default function BleTestPage() {
       // First, check if device is already connected
       addTestResult("📱 Checking for existing connections...");
       const connectedPeripherals = await BleManager.getConnectedPeripherals([]);
-      addTestResult(`Found ${connectedPeripherals.length} connected peripherals`);
+      addTestResult(
+        `Found ${connectedPeripherals.length} connected peripherals`,
+      );
 
       // Check if any connected peripheral has a stored key for our device
       for (const peripheral of connectedPeripherals) {
@@ -146,11 +148,13 @@ export default function BleTestPage() {
             `ble_device_${sanitizedDeviceId}`,
           );
           if (storedKey) {
-            addTestResult(`🔑 Found stored key for peripheral: ${peripheral.id}`);
-            
+            addTestResult(
+              `🔑 Found stored key for peripheral: ${peripheral.id}`,
+            );
+
             // Test the connection with the stored key
             addTestResult("🔐 Testing existing connection...");
-            
+
             try {
               // Request MTU if not already set
               try {
@@ -184,7 +188,9 @@ export default function BleTestPage() {
                 addTestResult("🎉 Device ready for testing!");
                 return; // Exit early, no need to scan
               } else {
-                addTestResult("⚠️ Existing connection validation failed, will scan for device");
+                addTestResult(
+                  "⚠️ Existing connection validation failed, will scan for device",
+                );
                 // Continue to scanning if validation fails
               }
             } catch (testError) {
@@ -200,7 +206,9 @@ export default function BleTestPage() {
       }
 
       // If no valid existing connection found, proceed with scanning
-      addTestResult("🔍 No valid existing connection found, starting device scan...");
+      addTestResult(
+        "🔍 No valid existing connection found, starting device scan...",
+      );
 
       let foundEncryptionKey: string | null = null;
 
