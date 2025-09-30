@@ -41,10 +41,7 @@ import {
   startNotifications,
   stopNotifications,
 } from "~/services/ble/manager";
-import {
-  FACTORY_BRACELET_KEY,
-  ResponseStatus,
-} from "~/services/ble/types";
+import { FACTORY_BRACELET_KEY, ResponseStatus } from "~/services/ble/types";
 import { requestBluetoothPermissions } from "~/services/ble/utils";
 import {
   buttons,

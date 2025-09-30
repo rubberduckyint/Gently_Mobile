@@ -236,18 +236,22 @@ export async function sendCommand({
               }
 
               const response = parseResponsePacket(decryptedData);
-              
+
               // Validate command code matches what we sent
               if (response.commandCode !== command.command) {
                 console.warn(
-                  `⚠️ Command code mismatch! Sent: 0x${command.command.toString(16).padStart(2, '0')}, Received: 0x${response.commandCode.toString(16).padStart(2, '0')}`
+                  `⚠️ Command code mismatch! Sent: 0x${command.command.toString(16).padStart(2, "0")}, Received: 0x${response.commandCode.toString(16).padStart(2, "0")}`,
                 );
-                console.warn(`  - This may indicate a device firmware issue or protocol mismatch`);
-                console.warn(`  - Device may not support this command or there's a timing issue`);
+                console.warn(
+                  `  - This may indicate a device firmware issue or protocol mismatch`,
+                );
+                console.warn(
+                  `  - Device may not support this command or there's a timing issue`,
+                );
               }
-              
+
               console.log(
-                `✅ Command ${command.command} completed with status: ${Number(response.status) === 0 ? 'SUCCESS' : 'ERROR'}`,
+                `✅ Command ${command.command} completed with status: ${Number(response.status) === 0 ? "SUCCESS" : "ERROR"}`,
               );
 
               cleanup();
