@@ -24,7 +24,7 @@ import {
   spacing,
   typography,
 } from "~/styles";
-import { authClient } from "~/utils/auth";
+import { authClient, GoogleSignin } from "~/utils/auth";
 
 export default function LoginPage() {
   const { data: session, isPending } = authClient.useSession();
@@ -76,15 +76,53 @@ export default function LoginPage() {
     console.log("Google auth button pressed");
     setIsLoading(true);
     try {
-      console.log("Starting Google social sign-in...");
-      const result = await authClient.signIn.social({
-        provider: "google",
-        callbackURL: "/dashboard",
-      });
-      console.log("Google sign-in result:", result);
-      router.replace("/dashboard");
+      // Check if Google Play Services are available
+      console.log("Checking Google Play Services...");
+      const hasPlayServices = await GoogleSignin.hasPlayServices();
+      console.log("Play Services available:", hasPlayServices);
+
+      // Sign in with Google (regular Google Sign-In, not Universal)
+      console.log("Starting Google sign-in...");
+      const userInfo = await GoogleSignin.signIn();
+      console.log("Google sign-in result:", userInfo);
+
+      // For regular Google Sign-In, idToken is directly on userInfo
+      if (userInfo.data?.idToken) {
+        // Use the idToken with better-auth's social signin method
+        await authClient.signIn.social({
+          provider: "google",
+          idToken: {
+            token: userInfo.data.idToken,
+            // Note: serverAuthCode is for server-side token exchange, not nonce
+            // If better-auth needs a nonce, it should be generated cryptographically
+          },
+          callbackURL: "/dashboard",
+        });
+
+        console.log("Better-auth Google signin successful");
+        router.replace("/dashboard");
+      } else {
+        throw new Error("No ID token received from Google");
+      }
     } catch (error: unknown) {
       console.error("Google auth error:", error);
+
+      // Handle specific Google Sign-In errors
+      const googleError = error as { code?: string };
+      if (googleError.code === "SIGN_IN_CANCELLED") {
+        console.log("User cancelled Google sign-in");
+        return; // Don't show error for user cancellation
+      } else if (googleError.code === "IN_PROGRESS") {
+        console.log("Google sign-in already in progress");
+        return;
+      } else if (googleError.code === "PLAY_SERVICES_NOT_AVAILABLE") {
+        Alert.alert(
+          "Google Play Services Required",
+          "Please update Google Play Services to continue.",
+        );
+        return;
+      }
+
       Alert.alert(
         "Authentication Failed",
         (error as Error).message || "Failed to sign in with Google",

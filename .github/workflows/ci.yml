@@ -17,6 +17,8 @@ env:
   FORCE_COLOR: 3
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  # GitHub token for private package registry access
+  NPM_TOKEN_GOOGLE_SIGN_IN: ${{ secrets.NPM_TOKEN_GOOGLE_SIGN_IN }}
 
 jobs:
   lint:

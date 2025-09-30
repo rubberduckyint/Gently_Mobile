@@ -53,7 +53,8 @@
     "AUTH_SECRET",
     "PORT",
     "EXPO_PUBLIC_BASE_URL",
-    "NEXT_PUBLIC_BASE_URL"
+    "NEXT_PUBLIC_BASE_URL",
+    "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID"
   ],
   "globalPassThroughEnv": [
     "NODE_ENV",
