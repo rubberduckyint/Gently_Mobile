@@ -299,6 +299,16 @@ const AddDeviceScreen = () => {
         uptimeData.uptimeBytes,
         advertisementData.serialNumber,
       );
+      console.log(
+        `\n🔐 ==================== PAIRING ENCRYPTION KEY ====================`,
+      );
+      console.log(`🔑 Generated custom encryption key: ${customKey}`);
+      console.log(`📱 Device ID: ${peripheral.id}`);
+      console.log(`🏷️  Serial Number: ${advertisementData.serialNumber}`);
+      console.log(`⏰ Uptime: ${uptimeData.uptime}ms`);
+      console.log(
+        `🔐 ===============================================================\n`,
+      );
       console.log(`✅ Custom key generated`);
 
       // Step 6: Send GetDeviceInfo command using custom key
@@ -344,6 +354,15 @@ const AddDeviceScreen = () => {
           createdAt: Date.now(),
           apiVersion: 1,
         }),
+      );
+      console.log(
+        `\n💾 ==================== STORING ENCRYPTION KEY ====================`,
+      );
+      console.log(`🔑 Stored encryption key: ${customKey}`);
+      console.log(`🗂️  Storage key: ${storageKey}`);
+      console.log(`📱 Device ID: ${peripheral.id}`);
+      console.log(
+        `💾 ===============================================================\n`,
       );
       console.log(`✅ Custom key stored securely`);
 

@@ -26,6 +26,10 @@ import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 
+import {
+  createAddEventRequest,
+  parseAddEventResponse,
+} from "~/services/ble/commands/addEvent";
 // Custom header - not using expo navigation
 import {
   createFindMeRequest,
@@ -35,6 +39,10 @@ import {
   createGetAllEventsRequest,
   parseGetAllEventsResponse,
 } from "~/services/ble/commands/getAllEvents";
+import {
+  createGetDeviceInfoRequest,
+  parseGetDeviceInfoResponse,
+} from "~/services/ble/commands/getDeviceInfo";
 import {
   createGetDeviceStatusRequest,
   parseGetDeviceStatusResponse,
@@ -51,6 +59,10 @@ import {
   createGetUptimeRequest,
   parseGetUptimeResponse,
 } from "~/services/ble/commands/getUptime";
+import {
+  createSetEventOnOffRequest,
+  parseSetEventOnOffResponse,
+} from "~/services/ble/commands/setEventOnOff";
 import {
   createSetTimeRequest,
   parseSetTimeResponse,
@@ -112,16 +124,90 @@ export default function BleTestPage() {
 
     setConnectionState("scanning");
     setTestResults([]);
-    addTestResult("🔍 Starting device scan...");
+    addTestResult("🔍 Starting connection process...");
 
     try {
       // Start BLE manager
       await BleManager.start({ showAlert: false });
 
+      // First, check if device is already connected
+      addTestResult("📱 Checking for existing connections...");
+      const connectedPeripherals = await BleManager.getConnectedPeripherals([]);
+      addTestResult(`Found ${connectedPeripherals.length} connected peripherals`);
+
+      // Check if any connected peripheral has a stored key for our device
+      for (const peripheral of connectedPeripherals) {
+        const sanitizedDeviceId = peripheral.id.replace(
+          /[^a-zA-Z0-9._-]/g,
+          "_",
+        );
+        try {
+          const storedKey = await SecureStore.getItemAsync(
+            `ble_device_${sanitizedDeviceId}`,
+          );
+          if (storedKey) {
+            addTestResult(`🔑 Found stored key for peripheral: ${peripheral.id}`);
+            
+            // Test the connection with the stored key
+            addTestResult("🔐 Testing existing connection...");
+            
+            try {
+              // Request MTU if not already set
+              try {
+                await BleManager.requestMTU(peripheral.id, 512);
+                addTestResult("📶 MTU 512 requested for existing connection");
+              } catch (mtuError) {
+                addTestResult(
+                  `⚠️ MTU request failed: ${mtuError instanceof Error ? mtuError.message : String(mtuError)}`,
+                );
+              }
+
+              // Start notifications if not already started
+              await startNotifications(peripheral.id);
+              addTestResult("✅ Notifications started for existing connection");
+
+              // Validate the connection with a test command
+              const uptimeResponse = await sendCommand({
+                peripheralId: peripheral.id,
+                command: createGetUptimeRequest(),
+                encryptionKey: storedKey,
+              });
+
+              const uptimeData = parseGetUptimeResponse(uptimeResponse.payload);
+              addTestResult(`📊 Device uptime: ${uptimeData.uptime} seconds`);
+
+              if (uptimeResponse.status === ResponseStatus.OK) {
+                addTestResult("✅ Existing connection validated successfully!");
+                setConnectedPeripheral(peripheral);
+                setEncryptionKey(storedKey);
+                setConnectionState("connected");
+                addTestResult("🎉 Device ready for testing!");
+                return; // Exit early, no need to scan
+              } else {
+                addTestResult("⚠️ Existing connection validation failed, will scan for device");
+                // Continue to scanning if validation fails
+              }
+            } catch (testError) {
+              addTestResult(
+                `⚠️ Connection test failed: ${testError instanceof Error ? testError.message : String(testError)}`,
+              );
+              // Continue to scanning if test fails
+            }
+          }
+        } catch {
+          // No stored key for this peripheral, continue checking others
+        }
+      }
+
+      // If no valid existing connection found, proceed with scanning
+      addTestResult("🔍 No valid existing connection found, starting device scan...");
+
       let foundEncryptionKey: string | null = null;
 
       // Set up scan listener
       const handleDiscoverPeripheral = async (peripheral: Peripheral) => {
+        if (peripheral.name !== "Gently") return; // Ignore non-Gently devices
+
         if (peripheral.advertising.manufacturerRawData) {
           try {
             const adData = extractAndDecryptAdvertisementData(
@@ -148,6 +234,16 @@ export default function BleTestPage() {
                 // Connect to device
                 await BleManager.connect(peripheral.id);
                 addTestResult("✅ Connected to device");
+
+                // Request MTU of 512 for better performance
+                try {
+                  await BleManager.requestMTU(peripheral.id, 512);
+                  addTestResult("📶 MTU 512 requested");
+                } catch (mtuError) {
+                  addTestResult(
+                    `⚠️ MTU request failed: ${mtuError instanceof Error ? mtuError.message : String(mtuError)}`,
+                  );
+                }
 
                 await BleManager.retrieveServices(peripheral.id);
                 addTestResult("✅ Services discovered");
@@ -176,7 +272,39 @@ export default function BleTestPage() {
                   device.serialNumber,
                 );
 
-                // Store the key
+                addTestResult("🔐 Dynamic encryption key generated");
+
+                // Send getDeviceInfo to validate the new key and complete pairing
+                addTestResult("📋 Validating connection with getDeviceInfo...");
+
+                const deviceInfoResponse = await sendCommand({
+                  peripheralId: peripheral.id,
+                  command: createGetDeviceInfoRequest(),
+                  encryptionKey: foundEncryptionKey,
+                });
+
+                const deviceInfo = parseGetDeviceInfoResponse(
+                  deviceInfoResponse.payload,
+                );
+                const deviceInfoStatusText =
+                  deviceInfoResponse.status === ResponseStatus.OK
+                    ? "OK"
+                    : "ERROR";
+
+                addTestResult(
+                  `📋 Device Info: HW v${deviceInfo.hardwareVersion}, FW v${deviceInfo.firmwareVersionMajor}.${deviceInfo.firmwareVersionMinor}.${deviceInfo.firmwareBuildNumber}`,
+                );
+                addTestResult(
+                  `📊 Device Info Response: Status=${deviceInfoStatusText} (0x${deviceInfoResponse.status.toString(16)}), Command=0x${deviceInfoResponse.commandCode.toString(16)}`,
+                );
+
+                if (deviceInfoResponse.status !== ResponseStatus.OK) {
+                  throw new Error(
+                    `Device info validation failed: Status=0x${deviceInfoResponse.status.toString(16)}`,
+                  );
+                }
+
+                // Only store the key after successful device info validation
                 const sanitizedDeviceId = peripheral.id.replace(
                   /[^a-zA-Z0-9._-]/g,
                   "_",
@@ -186,7 +314,9 @@ export default function BleTestPage() {
                   foundEncryptionKey,
                 );
 
-                addTestResult("🔐 Encryption key generated and stored");
+                addTestResult(
+                  "✅ Pairing completed - encryption key validated and stored",
+                );
 
                 setConnectedPeripheral(peripheral);
                 setEncryptionKey(foundEncryptionKey);
@@ -416,6 +546,137 @@ export default function BleTestPage() {
         .map((b) => "0x" + b.toString(16).padStart(2, "0"))
         .join(", ")}]`,
     );
+  };
+
+  const testAddEvent = async () => {
+    if (!connectedPeripheral || !encryptionKey) return;
+
+    const now = new Date();
+    const future = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutes in the future
+
+    const response = await sendCommand({
+      peripheralId: connectedPeripheral.id,
+      command: createAddEventRequest({
+        eventIndex: 0,
+        eventName: "Test",
+        cronExpression: `${future.getMinutes()} ${future.getHours()} * * *`,
+        vibrationPattern: 1,
+        vibrationIntensity: 2,
+        ledPattern: 1,
+        ledColor: 1,
+        severityLevel: 2,
+        snoozePeriod: 5,
+        snoozeTimeout: 15,
+        retriggerDelay: 0,
+        retriggerTimeout: 0,
+      }),
+      encryptionKey,
+    });
+
+    const result = parseAddEventResponse(
+      response.payload,
+      response.status,
+      response.commandCode,
+    );
+    const statusText = result.status === "OK" ? "OK" : "ERROR";
+    addTestResult(`✅ Add Event: Event added at index ${result.eventIndex}`);
+    addTestResult(
+      `📊 Add Event Response: Status=${statusText}, EventIndex=${result.eventIndex}`,
+    );
+  };
+
+  const testSetEventOnOff = async () => {
+    if (!connectedPeripheral || !encryptionKey) return;
+
+    const response = await sendCommand({
+      peripheralId: connectedPeripheral.id,
+      command: createSetEventOnOffRequest(0, true), // Enable event at index 0
+      encryptionKey,
+    });
+
+    const result = parseSetEventOnOffResponse(
+      response.payload,
+      response.status,
+    );
+    const statusText = response.status === ResponseStatus.OK ? "OK" : "ERROR";
+    addTestResult(`✅ Set Event ON/OFF: Event ${result.eventIndex} enabled`);
+    addTestResult(
+      `📊 Set Event Response: Status=${statusText}, EventIndex=${result.eventIndex}`,
+    );
+  };
+
+  const testSyncAlarm = async () => {
+    if (!connectedPeripheral || !encryptionKey) return;
+
+    try {
+      addTestResult("🔄 Starting alarm sync process...");
+
+      const now = new Date();
+      const future = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutes in the future
+      const eventIndex = 0;
+
+      // Step 1: Add the event
+      addTestResult("📝 Step 1: Adding event to device...");
+      const addResponse = await sendCommand({
+        peripheralId: connectedPeripheral.id,
+        command: createAddEventRequest({
+          eventIndex,
+          eventName: "Sync Test",
+          cronExpression: `${future.getMinutes()} ${future.getHours()} * * *`,
+          vibrationPattern: 1,
+          vibrationIntensity: 2,
+          ledPattern: 1,
+          ledColor: 1,
+          severityLevel: 2,
+          snoozePeriod: 5,
+          snoozeTimeout: 15,
+          retriggerDelay: 0,
+          retriggerTimeout: 0,
+        }),
+        encryptionKey,
+      });
+
+      const addResult = parseAddEventResponse(
+        addResponse.payload,
+        addResponse.status,
+        addResponse.commandCode,
+      );
+
+      if (addResult.status !== "OK") {
+        addTestResult(`❌ Failed to add event: ${addResult.status}`);
+        return;
+      }
+
+      addTestResult(`✅ Event added at index ${addResult.eventIndex}`);
+
+      // Step 2: Enable the event
+      addTestResult("🔛 Step 2: Enabling event...");
+      const enableResponse = await sendCommand({
+        peripheralId: connectedPeripheral.id,
+        command: createSetEventOnOffRequest(addResult.eventIndex, true),
+        encryptionKey,
+      });
+
+      const enableResult = parseSetEventOnOffResponse(
+        enableResponse.payload,
+        enableResponse.status,
+      );
+
+      if (enableResponse.status === ResponseStatus.OK) {
+        addTestResult(
+          `✅ Event ${enableResult.eventIndex} enabled successfully`,
+        );
+        addTestResult(
+          `🎉 Alarm sync completed! Event will trigger at ${future.getHours()}:${future.getMinutes().toString().padStart(2, "0")}`,
+        );
+      } else {
+        addTestResult(`❌ Failed to enable event ${enableResult.eventIndex}`);
+      }
+    } catch (error) {
+      addTestResult(
+        `❌ Sync failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   };
 
   if (isLoading) {
@@ -684,6 +945,21 @@ export default function BleTestPage() {
                   icon: "hardware-chip",
                 },
                 { name: "Find Me", test: testFindMe, icon: "flashlight" },
+                {
+                  name: "Add Test Event",
+                  test: testAddEvent,
+                  icon: "add-circle-outline",
+                },
+                {
+                  name: "Enable Event (ON/OFF)",
+                  test: testSetEventOnOff,
+                  icon: "toggle",
+                },
+                {
+                  name: "Sync Alarm (Add + Enable)",
+                  test: testSyncAlarm,
+                  icon: "sync",
+                },
               ].map((command) => (
                 <Pressable
                   key={command.name}

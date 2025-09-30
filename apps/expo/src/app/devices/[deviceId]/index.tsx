@@ -38,6 +38,10 @@ import {
 } from "~/services/ble/commands/getUptime";
 import { createRemoveAllEventsRequest } from "~/services/ble/commands/removeAllEvents";
 import {
+  createSetEventOnOffRequest,
+  parseSetEventOnOffResponse,
+} from "~/services/ble/commands/setEventOnOff";
+import {
   extractAndDecryptAdvertisementData,
   generateDynamicKey,
 } from "~/services/ble/encryption";
@@ -169,7 +173,17 @@ export default function DeviceDetailPage() {
             `ble_device_${sanitizedDeviceId}`,
           );
           if (storedKey) {
-            console.log(`🔑 Found stored key for peripheral ${peripheral.id}`);
+            console.log(
+              `\n� ==================== FOUND EXISTING KEY ====================`,
+            );
+            console.log(
+              `�🔑 Found stored key for peripheral: ${peripheral.id}`,
+            );
+            console.log(`🔑 Stored encryption key: ${storedKey}`);
+            console.log(`📱 Device ID: ${peripheral.id}`);
+            console.log(
+              `🔍 ===========================================================\n`,
+            );
             // We would need to verify this device has the right serial number
             // For now, assume this is our target
             targetPeripheral = peripheral;
@@ -229,10 +243,23 @@ export default function DeviceDetailPage() {
             device.serialNumber,
           );
           console.log(
-            "🔐 Generated dynamic encryption key for existing connection",
+            `\n🔐 ==================== EXISTING CONNECTION KEY ====================`,
+          );
+          console.log(
+            `🔐 Generated dynamic encryption key for existing connection`,
           );
           console.log(`🔑 Generated key: ${encryptionKey}`);
           console.log(`🔑 Key length: ${encryptionKey.length} characters`);
+          console.log(`📱 Device ID: ${targetPeripheral.id}`);
+          console.log(`🏷️  Serial Number: ${device.serialNumber}`);
+          console.log(
+            `⏰ Uptime bytes: ${Array.from(uptimeData.uptimeBytes)
+              .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+              .join(", ")}`,
+          );
+          console.log(
+            `🔐 ================================================================\n`,
+          );
 
           // Store the key for future use
           const sanitizedDeviceId = targetPeripheral.id.replace(
@@ -243,7 +270,15 @@ export default function DeviceDetailPage() {
             `ble_device_${sanitizedDeviceId}`,
             encryptionKey,
           );
-          console.log("💾 Stored encryption key for future connections");
+          console.log(
+            `\n💾 ==================== STORING CONNECTION KEY ====================`,
+          );
+          console.log(`💾 Stored encryption key for future connections`);
+          console.log(`🔑 Stored key: ${encryptionKey}`);
+          console.log(`🗂️  Storage key: ble_device_${sanitizedDeviceId}`);
+          console.log(
+            `💾 ================================================================\n`,
+          );
         } catch (keyGenError) {
           console.error("❌ Failed to generate encryption key:", keyGenError);
           throw new Error(
@@ -340,10 +375,24 @@ export default function DeviceDetailPage() {
                     uptimeData.uptimeBytes,
                     device.serialNumber,
                   );
-                  console.log("🔐 Generated dynamic encryption key");
-                  console.log(`🔑 Generated key: ${encryptionKey}`);
+                  console.log(
+                    `\n🔐 ==================== SYNC ENCRYPTION KEY ====================`,
+                  );
+                  console.log(
+                    `🔑 Generated dynamic encryption key: ${encryptionKey}`,
+                  );
                   console.log(
                     `🔑 Key length: ${encryptionKey.length} characters`,
+                  );
+                  console.log(`📱 Device ID: ${peripheral.id}`);
+                  console.log(`🏷️  Serial Number: ${device.serialNumber}`);
+                  console.log(
+                    `⏰ Uptime bytes: ${Array.from(uptimeData.uptimeBytes)
+                      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+                      .join(", ")}`,
+                  );
+                  console.log(
+                    `🔐 =======================================================\n`,
                   );
 
                   // Store the key
@@ -354,6 +403,18 @@ export default function DeviceDetailPage() {
                   await SecureStore.setItemAsync(
                     `ble_device_${sanitizedDeviceId}`,
                     encryptionKey,
+                  );
+                  console.log(
+                    `\n💾 ==================== STORING SYNC KEY ====================`,
+                  );
+                  console.log(
+                    `🔑 Stored sync encryption key: ${encryptionKey}`,
+                  );
+                  console.log(
+                    `🗂️  Storage key: ble_device_${sanitizedDeviceId}`,
+                  );
+                  console.log(
+                    `💾 =======================================================\n`,
                   );
 
                   // Step 3: Clear existing alarms on device
@@ -368,12 +429,12 @@ export default function DeviceDetailPage() {
 
                   console.log("✅ All existing events removed");
 
-                  // Step 4: Add each alarm from the database
+                  // Step 4: Add and enable each alarm from the database
                   setSyncProgress(
                     `Syncing ${device.alarms.length} alarms to device...`,
                   );
                   console.log(
-                    `📝 Adding ${device.alarms.length} alarms to device`,
+                    `📝 Adding and enabling ${device.alarms.length} alarms on device`,
                   );
 
                   for (let i = 0; i < device.alarms.length; i++) {
@@ -381,7 +442,12 @@ export default function DeviceDetailPage() {
                     if (!alarm) continue;
 
                     console.log(
-                      `➕ Adding alarm ${i + 1}/${device.alarms.length}: ${alarm.title}`,
+                      `\n➥ ==================== SYNCING ALARM ${i + 1}/${device.alarms.length} ====================`,
+                    );
+                    console.log(`➥ Adding alarm: ${alarm.title}`);
+                    console.log(`🔑 Using encryption key: ${encryptionKey}`);
+                    console.log(
+                      `➥ ===============================================================`,
                     );
 
                     // Convert alarm to device event format
@@ -428,9 +494,39 @@ export default function DeviceDetailPage() {
                     );
                     if (result.status === "ERROR") {
                       console.warn(`⚠️ Failed to add alarm ${alarm.title}`);
-                    } else {
+                      continue; // Skip enabling if add failed
+                    }
+
+                    console.log(
+                      `✅ Added alarm ${alarm.title} at index ${result.eventIndex}`,
+                    );
+
+                    // Enable the alarm after successfully adding it
+                    console.log(
+                      `🔛 Enabling alarm at index ${result.eventIndex}`,
+                    );
+
+                    const enableResponse = await sendCommand({
+                      peripheralId: peripheral.id,
+                      command: createSetEventOnOffRequest(
+                        result.eventIndex,
+                        true,
+                      ),
+                      encryptionKey,
+                    });
+
+                    const enableResult = parseSetEventOnOffResponse(
+                      enableResponse.payload,
+                      enableResponse.status,
+                    );
+
+                    if (enableResponse.status === ResponseStatus.OK) {
                       console.log(
-                        `✅ Added alarm ${alarm.title} at index ${result.eventIndex}`,
+                        `✅ Enabled alarm ${alarm.title} at index ${enableResult.eventIndex}`,
+                      );
+                    } else {
+                      console.warn(
+                        `⚠️ Failed to enable alarm ${alarm.title} at index ${result.eventIndex}`,
                       );
                     }
 
@@ -576,8 +672,16 @@ export default function DeviceDetailPage() {
             retriggerTimeout: 10, // 10 minutes
           });
 
-          console.log(`🔑 About to send ADD_EVENT with key: ${encryptionKey}`);
+          console.log(
+            `\n� ==================== SENDING ADD_EVENT ====================`,
+          );
+          console.log(`🔑 Using encryption key: ${encryptionKey}`);
           console.log(`🔑 Target peripheral ID: ${targetPeripheral.id}`);
+          console.log(`📋 Alarm: ${alarm.title}`);
+          console.log(`🔢 Event index: ${i}`);
+          console.log(
+            `📤 =========================================================`,
+          );
 
           const response = await sendCommand({
             peripheralId: targetPeripheral.id,
@@ -589,11 +693,18 @@ export default function DeviceDetailPage() {
           const bleStatusText =
             response.status === ResponseStatus.OK ? "OK" : "ERROR";
           console.log(
+            `\n📥 ==================== ADD_EVENT RESPONSE ====================`,
+          );
+          console.log(
             `📊 BLE Command Response: Status=${bleStatusText} (0x${response.status.toString(16)}), Command=0x${response.commandCode.toString(16)}, Payload=[${Array.from(
               response.payload,
             )
               .map((b) => "0x" + b.toString(16).padStart(2, "0"))
               .join(", ")}]`,
+          );
+          console.log(`🔑 Decrypted with key: ${encryptionKey}`);
+          console.log(
+            `📥 ==========================================================`,
           );
 
           const result = parseAddEventResponse(
@@ -608,14 +719,40 @@ export default function DeviceDetailPage() {
             setSyncProgress(
               `⚠️ Error adding alarm ${alarm.title} (BLE Status: 0x${response.status.toString(16)})`,
             );
+            continue; // Skip enabling if add failed
           } else if (result.status === "ERROR") {
             console.warn(
               `⚠️ Device rejected alarm ${alarm.title}: ParsedStatus=${result.status}, EventIndex=${result.eventIndex}`,
             );
             setSyncProgress(`⚠️ Device rejected alarm ${alarm.title}`);
-          } else {
+            continue; // Skip enabling if add failed
+          }
+
+          console.log(
+            `✅ Added alarm ${alarm.title} at index ${result.eventIndex}`,
+          );
+
+          // Enable the alarm after successfully adding it
+          console.log(`🔛 Enabling alarm at index ${result.eventIndex}`);
+
+          const enableResponse = await sendCommand({
+            peripheralId: targetPeripheral.id,
+            command: createSetEventOnOffRequest(result.eventIndex, true),
+            encryptionKey,
+          });
+
+          const enableResult = parseSetEventOnOffResponse(
+            enableResponse.payload,
+            enableResponse.status,
+          );
+
+          if (enableResponse.status === ResponseStatus.OK) {
             console.log(
-              `✅ Added alarm ${alarm.title} at index ${result.eventIndex}`,
+              `✅ Enabled alarm ${alarm.title} at index ${enableResult.eventIndex}`,
+            );
+          } else {
+            console.warn(
+              `⚠️ Failed to enable alarm ${alarm.title} at index ${result.eventIndex}`,
             );
           }
 

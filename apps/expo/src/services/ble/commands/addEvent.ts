@@ -1,6 +1,6 @@
 /**
- * Add Event Command
- * Adds a new event/alarm to the device
+ * Add Event Command (0x04)
+ * Adds a new event/alarm to the device based on BLE Protocol Rev 0.5
  */
 
 import type { BLECommandRequest } from "../types";
@@ -24,9 +24,13 @@ export interface AddEventParams {
 export function createAddEventRequest(
   params: AddEventParams,
 ): BLECommandRequest {
-  // Validate inputs
-  if (params.eventIndex < 0 || params.eventIndex > 49) {
-    throw new Error("Event index must be between 0-49");
+  // Validate inputs according to protocol
+  if (
+    !Number.isInteger(params.eventIndex) ||
+    params.eventIndex < 0 ||
+    params.eventIndex > 49
+  ) {
+    throw new Error("Event index must be an integer between 0-49");
   }
   if (params.eventName.length > 10) {
     throw new Error("Event name must be 10 characters or less");
@@ -35,79 +39,67 @@ export function createAddEventRequest(
     throw new Error("Cron expression must be 42 characters or less");
   }
 
-  // Create payload according to protocol
-  const payload = new Uint8Array(72); // Max size to accommodate all fields
+  console.log(
+    `🔧 Creating ADD_EVENT: "${params.eventName}" at ${params.cronExpression} (index ${params.eventIndex})`,
+  );
+
+  const eventNameBytes = new TextEncoder().encode(params.eventName);
+  const cronExpressionBytes = new TextEncoder().encode(params.cronExpression);
+
+  // Calculate payload size
+  const unpaddedSize =
+    8 + (eventNameBytes.length + 1) + (cronExpressionBytes.length + 1);
+  const paddedSize = Math.ceil(unpaddedSize / 8) * 8;
+
+  const payload = new Uint8Array(paddedSize).fill(0); // 0-padded
   let offset = 0;
 
-  // Byte #2: Event Index
-  payload[offset++] = params.eventIndex;
+  // Byte #0: Event Index (0-49)
+  payload[offset++] = params.eventIndex & 0xff;
 
-  // Byte #3: Vibration Pattern (bits 0-5) + Vibration Intensity (bits 6-7)
-  payload[offset++] =
+  // Byte #1: Vibration Pattern (bits 0-5) + Vibration Intensity (bits 6-7)
+  const vibrationByte =
     (params.vibrationPattern & 0x3f) |
     ((params.vibrationIntensity & 0x03) << 6);
+  payload[offset++] = vibrationByte;
 
-  // Byte #4: LED Pattern (bits 0-4) + LED Color (bits 5-7)
-  payload[offset++] =
-    (params.ledPattern & 0x1f) | ((params.ledColor & 0x07) << 5);
+  // Byte #2: LED Pattern (bits 0-4) + LED Color (bits 5-7)
+  const ledByte = (params.ledPattern & 0x1f) | ((params.ledColor & 0x07) << 5);
+  payload[offset++] = ledByte;
 
-  // Byte #5: Severity Level
-  payload[offset++] = params.severityLevel;
+  // Byte #3: Severity Level
+  payload[offset++] = params.severityLevel & 0xff;
 
-  // Byte #6: Snooze period
-  payload[offset++] = params.snoozePeriod;
+  // Byte #4: Snooze period (minutes)
+  payload[offset++] = params.snoozePeriod & 0xff;
 
-  // Byte #7: Snooze timeout
-  payload[offset++] = params.snoozeTimeout;
+  // Byte #5: Snooze timeout (minutes)
+  payload[offset++] = params.snoozeTimeout & 0xff;
 
-  // Byte #8: Retrigger delay
-  payload[offset++] = params.retriggerDelay;
+  // Byte #6: Retrigger delay (minutes)
+  payload[offset++] = params.retriggerDelay & 0xff;
 
-  // Byte #9: Retrigger timeout
-  payload[offset++] = params.retriggerTimeout;
+  // Byte #7: Retrigger timeout (minutes)
+  payload[offset++] = params.retriggerTimeout & 0xff;
 
-  // Bytes #10-20: Event Name (max 10 chars + null terminator)
-  const nameBytes = new TextEncoder().encode(params.eventName.substring(0, 10));
-  payload.set(nameBytes, offset);
-  payload[offset + nameBytes.length] = 0; // null terminator
-  offset += 11; // 10 chars + null terminator
+  // Event Name (null-terminated string)
+  payload.set(eventNameBytes, offset);
+  offset += eventNameBytes.length;
+  payload[offset++] = 0x00; // Null terminator
 
-  // Bytes #21-63: Cron expression (max 42 chars + null terminator)
-  const cronBytes = new TextEncoder().encode(
-    params.cronExpression.substring(0, 42),
-  );
-  payload.set(cronBytes, offset);
-  payload[offset + cronBytes.length] = 0; // null terminator
-  offset += 43; // 42 chars + null terminator
+  // Cron Expression (null-terminated string)
+  payload.set(cronExpressionBytes, offset);
+  offset += cronExpressionBytes.length;
+  payload[offset++] = 0x00; // Null terminator
 
-  // Remaining bytes are reserved (0 padded - already done by Uint8Array constructor)
-
-  const finalPayload = payload.slice(0, offset);
-  console.log(`📤 ADD_EVENT Request Created:`);
   console.log(
-    `  - Command: 0x${CommandCode.ADD_EVENT.toString(16).padStart(2, "0")}`,
-  );
-  console.log(`  - Event Index: ${params.eventIndex}`);
-  console.log(`  - Event Name: "${params.eventName}"`);
-  console.log(`  - Cron Expression: "${params.cronExpression}"`);
-  console.log(
-    `  - Vibration: Pattern=${params.vibrationPattern}, Intensity=${params.vibrationIntensity}`,
-  );
-  console.log(
-    `  - LED: Pattern=${params.ledPattern}, Color=${params.ledColor}`,
-  );
-  console.log(`  - Severity: ${params.severityLevel}`);
-  console.log(`  - Payload Size: ${finalPayload.length} bytes`);
-  console.log(
-    `  - Payload Hex: [${Array.from(finalPayload)
-      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
-      .join(", ")}]`,
+    `  - Payload: ${payload.length} bytes (vibration ${params.vibrationPattern}/${params.vibrationIntensity}, LED ${params.ledPattern}/${params.ledColor}, severity ${params.severityLevel})`,
   );
 
   return {
     command: CommandCode.ADD_EVENT,
     apiVersion: 1,
-    payload: finalPayload,
+    payload: payload,
   };
 }
 
@@ -121,53 +113,43 @@ export function parseAddEventResponse(
   bleStatus: number,
   commandCode: number,
 ): AddEventResponse {
-  console.log(`📥 ADD_EVENT Response Received:`);
   console.log(
-    `  - BLE Status: 0x${bleStatus.toString(16).padStart(2, "0")} (${bleStatus === 0 ? "OK" : "ERROR"})`,
-  );
-  console.log(
-    `  - Command Code: 0x${commandCode.toString(16).padStart(2, "0")} (Expected: 0x04)`,
-  );
-  console.log(`  - Payload Length: ${payload.length} bytes`);
-  console.log(
-    `  - Payload Hex: [${Array.from(payload)
-      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
-      .join(", ")}]`,
+    `📥 Parsing ADD_EVENT response: ${bleStatus === 0 ? "OK" : "ERROR"}`,
   );
 
-  // Check if command code matches expected ADD_EVENT
+  // Validate command code matches ADD_EVENT (0x04)
   if (commandCode !== 0x04) {
     console.warn(
-      `⚠️ ADD_EVENT Response: Unexpected command code 0x${commandCode.toString(16)} (expected 0x04)`,
-    );
-    console.warn(
-      `  - This may indicate a protocol mismatch or device firmware issue`,
+      `⚠️ Command mismatch: got 0x${commandCode.toString(16)}, expected 0x04 - firmware may not support ADD_EVENT`,
     );
   }
 
-  // Use BLE manager status instead of parsing from payload
-  const status = bleStatus === 0x00 ? "OK" : "ERROR";
+  // Parse response according to BLE Protocol Rev 0.5:
+  // Byte #0: API Version (handled by BLE manager)
+  // Byte #1: Command Code (handled by BLE manager)
+  // Byte #2: Response Status (0x00=OK, 0x01=ERROR)
+  // Byte #3: Event Index (0-49)
+  // Byte #4-7: RESERVED (0 Padded)
 
-  // For ADD_EVENT response according to BLE protocol:
-  // payload[0]: Event Index (0-49)
-  // payload[1-4]: RESERVED (0 padded)
-  let eventIndex = 0;
-  if (payload.length >= 1) {
-    eventIndex = payload[0] ?? 0;
+  const responseStatus: "OK" | "ERROR" = bleStatus === 0x00 ? "OK" : "ERROR";
+  let responseEventIndex = 0;
+
+  if (payload.length >= 2) {
+    // Parse event index from payload byte 1
+    const indexByte = payload[1];
+    if (indexByte !== undefined) {
+      responseEventIndex = indexByte;
+    }
   }
 
-  console.log(`  - Parsed Status: ${status}`);
-  console.log(`  - Event Index: ${eventIndex}`);
-  if (payload.length > 1) {
-    console.log(
-      `  - Reserved Bytes: [${Array.from(payload.slice(1))
-        .map((b) => "0x" + b.toString(16).padStart(2, "0"))
-        .join(", ")}]`,
-    );
-  }
-
-  return {
-    status,
-    eventIndex,
+  const result: AddEventResponse = {
+    status: responseStatus,
+    eventIndex: responseEventIndex,
   };
+
+  console.log(
+    `  - Event ${responseStatus === "OK" ? "added" : "failed"} at index ${responseEventIndex}`,
+  );
+
+  return result;
 }
