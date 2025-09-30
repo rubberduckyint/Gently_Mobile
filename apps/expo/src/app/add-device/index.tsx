@@ -1,460 +1,844 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import type {
+  BleDisconnectPeripheralEvent,
+  BleManagerDidUpdateValueForCharacteristicEvent,
+  Peripheral,
+} from "react-native-ble-manager";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import BleManager, {
+  BleScanCallbackType,
+  BleScanMatchMode,
+  BleScanMode,
+} from "react-native-ble-manager";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { BleManager } from "@b1naryth1ef/react-native-ble-plx";
-import { useMutation } from "@tanstack/react-query";
+import * as SecureStore from "expo-secure-store";
+import { Ionicons } from "@expo/vector-icons";
 
-import type { DiscoveredGentlyDevice } from "~/services/ble";
+import type { AdvertisementData } from "~/services/ble/types";
+import { Header } from "~/components/ui/Header";
 import {
-  ConnectingStep,
-  ErrorStep,
-  FoundDevicesStep,
-  ScanningStep,
-  SuccessStep,
-} from "~/components/add-device";
+  createGetDeviceInfoRequest,
+  parseGetDeviceInfoResponse,
+} from "~/services/ble/commands/getDeviceInfo";
 import {
-  connectBySerialNumber,
-  requestBlePermissions,
-  scanForGentlyDevices,
-  stopScan as stopBLEScan,
-} from "~/services/ble";
+  createGetUptimeRequest,
+  parseGetUptimeResponse,
+} from "~/services/ble/commands/getUptime";
+import {
+  extractAndDecryptAdvertisementData,
+  generateDynamicKey,
+} from "~/services/ble/encryption";
+import {
+  sendCommand,
+  startNotifications,
+  stopNotifications,
+} from "~/services/ble/manager";
+import {
+  CommandCode,
+  FACTORY_BRACELET_KEY,
+  ResponseStatus,
+} from "~/services/ble/types";
+import { requestBluetoothPermissions } from "~/services/ble/utils";
 import {
   buttons,
   buttonText,
+  cards,
   colors,
   containers,
-  flex,
+  emptyStates,
   spacing,
   typography,
 } from "~/styles";
 import { trpc } from "~/utils/api";
 
-type ConnectionStep = "scanning" | "found" | "connecting" | "success" | "error";
+interface DiscoveredGentlyDevice {
+  peripheral: Peripheral;
+  advertisementData: AdvertisementData;
+  isAlreadyPaired: boolean;
+}
 
-export default function AddDevicePage() {
-  console.log("🚀 AddDevicePage: Component initializing...");
+interface PairingStatus {
+  step: string;
+  progress: number; // 0-100
+  isComplete: boolean;
+  error?: string;
+}
 
-  const [step, setStep] = useState<ConnectionStep>("scanning");
-  const [foundDevices, setFoundDevices] = useState<DiscoveredGentlyDevice[]>(
-    [],
+const AddDeviceScreen = () => {
+  const [isScanning, setIsScanning] = useState(false);
+  const [isConnecting, setIsConnecting] = useState<string | null>(null);
+  const [pairingStatus, setPairingStatus] = useState<PairingStatus | null>(
+    null,
   );
-  const [selectedDevice, setSelectedDevice] =
-    useState<DiscoveredGentlyDevice | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [deviceInfo, setDeviceInfo] = useState<{
-    serialNumber: string;
-    firmwareVersion: string;
-    batteryLevel: number;
-  } | null>(null);
-  const [createdDeviceId, setCreatedDeviceId] = useState<string | null>(null);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [discoveredDevices, setDiscoveredDevices] = useState(
+    new Map<Peripheral["id"], DiscoveredGentlyDevice>(),
+  );
 
-  // BLE state management
-  const [bleManager, setBleManager] = useState<BleManager | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const scanStopFunctionRef = useRef<(() => void) | null>(null);
-
-  // Keep track of found device IDs to prevent duplicates
-  const foundDeviceIds = useRef(new Set<string>());
-  const hasStartedInitialScan = useRef(false);
-
-  // Initialize Bluetooth
-  useEffect(() => {
-    console.log("🔧 AddDevicePage: Initializing Bluetooth...");
-
-    const initBluetooth = async () => {
-      try {
-        const manager = new BleManager();
-        setBleManager(manager);
-
-        await requestBlePermissions();
-        setIsInitialized(true);
-        console.log("✅ AddDevicePage: Bluetooth initialized successfully");
-      } catch (error) {
-        console.error(
-          "❌ AddDevicePage: Failed to initialize Bluetooth:",
-          error,
-        );
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to initialize Bluetooth",
-        );
-        setStep("error");
-      }
-    };
-
-    void initBluetooth();
-
-    return () => {
-      if (scanStopFunctionRef.current) {
-        scanStopFunctionRef.current();
-      }
-    };
-  }, []);
-
-  const addDeviceMutation = useMutation({
-    mutationFn: async (params: {
-      title: string;
-      description: string;
-      serialNumber: string;
-      firmwareVersion: string;
-      batteryLevel: number;
-    }) => {
-      return await trpc.device.create.mutate(params);
-    },
-    onSuccess: (data) => {
-      if (data?.id) {
-        console.log(
-          "✅ AddDevicePage: Device saved successfully with ID:",
-          data.id,
-        );
-        setCreatedDeviceId(data.id);
-        setStep("success");
-      } else {
-        console.error("❌ AddDevicePage: Device saved but no ID returned");
-        setErrorMessage("Device saved but could not get device ID");
-        setStep("error");
-      }
-    },
-    onError: (error) => {
-      setErrorMessage(`Failed to save device: ${error.message}`);
-      setStep("error");
-    },
-  });
-
-  const handleDeviceFound = useCallback((device: DiscoveredGentlyDevice) => {
-    console.log(
-      "📱 AddDevicePage: Device selected:",
-      device.device.name,
-      device.device.id,
-    );
-
-    // All devices from scanForGentlyDevices are already confirmed Gently devices
-    console.log(
-      "📊 AddDevicePage: Gently device data:",
-      device.advertisementData,
-    );
-
-    console.log("✅ AddDevicePage: Confirmed Gently device - adding to list");
-
-    // Check if device is in factory mode (has factory key)
-    if (device.advertisementData.braceletKeyType === "factory") {
-      console.log(
-        "✅ AddDevicePage: Device is in factory mode (ready to pair)",
-      );
-    } else {
-      console.log(
-        "🔄 AddDevicePage: Device has custom key (can re-pair with new key)",
-      );
-    }
-
-    if (!foundDeviceIds.current.has(device.device.id)) {
-      console.log("✅ AddDevicePage: Adding new device to list");
-      foundDeviceIds.current.add(device.device.id);
-      setFoundDevices((prev) => [...prev, device]);
-    } else {
-      console.log("🔄 AddDevicePage: Device already in list, skipping");
-    }
-  }, []);
-
-  const startScan = useCallback(async () => {
-    console.log("🔍 AddDevicePage: startScan called");
-
-    if (!bleManager) {
-      console.log("❌ AddDevicePage: BLE manager not initialized");
-      setErrorMessage("Bluetooth not initialized");
-      setStep("error");
-      return;
-    }
-
-    try {
-      console.log(
-        "🔍 AddDevicePage: Checking initialization status:",
-        isInitialized,
-      );
-      if (!isInitialized) {
-        const errorMsg =
-          "Bluetooth is still initializing. Please wait a moment and try again.";
-        console.log("❌ AddDevicePage: Bluetooth not ready:", errorMsg);
-        setErrorMessage(errorMsg);
-        setStep("error");
+  const handleDiscoverPeripheral = useCallback(
+    async (peripheral: Peripheral) => {
+      // Only log and process Gently devices
+      if (!peripheral.name?.includes("Gently")) {
         return;
       }
 
-      console.log("🔍 AddDevicePage: Setting up scan...");
-      setStep("scanning");
-      setFoundDevices([]);
-      foundDeviceIds.current.clear();
-      setErrorMessage("");
-
-      console.log("🔍 AddDevicePage: Calling scanForGentlyDevices...");
+      console.log(`📱 Discovered Gently device: ${peripheral.id}`);
 
       try {
-        const devices = await scanForGentlyDevices({
-          timeoutMs: 10000,
-          allowDuplicates: false,
+        const manufacturerData = peripheral.advertising.manufacturerRawData;
+
+        const advertisementData =
+          extractAndDecryptAdvertisementData(manufacturerData);
+
+        if (!advertisementData) {
+          console.warn(
+            `⚠️ Could not decrypt advertisement data for device: ${peripheral.id}`,
+          );
+          return;
+        }
+
+        // Check if device is already paired by looking up serial number in database
+        const existingDevice = await trpc.device.findBySerialNumber.query({
+          serialNumber: advertisementData.serialNumber,
         });
 
-        console.log("✅ AddDevicePage: Scan completed");
-        console.log("📊 AddDevicePage: Found devices:", devices.length);
+        const discoveredDevice: DiscoveredGentlyDevice = {
+          peripheral,
+          advertisementData,
+          isAlreadyPaired: !!existingDevice,
+        };
 
-        // Process found devices
-        devices.forEach((device) => {
-          handleDeviceFound(device);
-        });
+        setDiscoveredDevices((prev) =>
+          new Map(prev).set(peripheral.id, discoveredDevice),
+        );
 
-        setStep("found");
+        const pairingStatus = existingDevice
+          ? "already paired"
+          : "available to pair";
+        console.log(
+          `✅ Gently device ${advertisementData.serialNumber} (${pairingStatus})`,
+        );
       } catch (error) {
-        console.error("❌ AddDevicePage: Scan error:", error);
-        setErrorMessage(error instanceof Error ? error.message : "Scan failed");
-        setStep("error");
+        console.error("❌ Error processing Gently device:", error);
       }
-      console.log("✅ AddDevicePage: Scan started");
-    } catch (error) {
-      console.error("❌ AddDevicePage: Scan failed:", error);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to scan for devices",
-      );
-      setStep("error");
-    }
-  }, [bleManager, handleDeviceFound, isInitialized]);
+    },
+    [],
+  );
 
-  const stopScan = useCallback(() => {
-    console.log("🛑 AddDevicePage: Stopping scan...");
-    stopBLEScan(); // Use the imported stopScan function
-    if (scanStopFunctionRef.current) {
-      scanStopFunctionRef.current();
-      scanStopFunctionRef.current = null;
-    }
-  }, []);
+  const handleStopScan = () => {
+    setIsScanning(false);
+    console.log("[handleStopScan] scan is stopped.");
+  };
 
-  const handleDeviceSelect = async (device: DiscoveredGentlyDevice) => {
+  const handleDisconnectedPeripheral = (
+    event: BleDisconnectPeripheralEvent,
+  ) => {
     console.log(
-      "🔗 AddDevicePage: Starting connection process for device:",
-      device.device.name,
+      `[handleDisconnectedPeripheral][${event.peripheral}] disconnected.`,
     );
+  };
 
-    if (!bleManager) {
-      console.log("❌ AddDevicePage: BLE manager not initialized");
-      setErrorMessage("Bluetooth not initialized");
-      setStep("error");
-      return;
+  const handleUpdateValueForCharacteristic = (
+    data: BleManagerDidUpdateValueForCharacteristicEvent,
+  ) => {
+    console.log(
+      `[handleUpdateValueForCharacteristic] received data from '${data.peripheral}' with characteristic='${data.characteristic}'`,
+      data.value,
+    );
+  };
+
+  useEffect(() => {
+    void requestBluetoothPermissions();
+
+    BleManager.start({ showAlert: false })
+      .then(() => {
+        console.log("BleManager started.");
+      })
+      .catch((error) => {
+        console.error("BleManager could not be started.", error);
+      });
+
+    const listeners = [
+      BleManager.onDiscoverPeripheral(handleDiscoverPeripheral),
+      BleManager.onStopScan(handleStopScan),
+      BleManager.onDisconnectPeripheral(handleDisconnectedPeripheral),
+      BleManager.onDidUpdateValueForCharacteristic(
+        handleUpdateValueForCharacteristic,
+      ),
+    ];
+
+    return () => {
+      console.debug("[app] main component unmounting. Removing listeners...");
+      for (const listener of listeners) {
+        listener.remove();
+      }
+    };
+  }, [handleDiscoverPeripheral]);
+
+  const startScan = () => {
+    if (!isScanning) {
+      // Reset found devices before scan
+      setDiscoveredDevices(new Map<Peripheral["id"], DiscoveredGentlyDevice>());
+      setHasScanned(true);
+
+      try {
+        console.debug("[startScan] starting scan...");
+        setIsScanning(true);
+        BleManager.scan([], 5, false, {
+          matchMode: BleScanMatchMode.Sticky,
+          scanMode: BleScanMode.LowLatency,
+          callbackType: BleScanCallbackType.AllMatches,
+          legacy: false,
+        })
+          .then(() => {
+            console.debug("[startScan] scan promise returned successfully.");
+          })
+          .catch((err) => {
+            console.error("[startScan] ble scan returned in error", err);
+            setIsScanning(false);
+            Alert.alert(
+              "Scan Error",
+              "Failed to scan for devices. Please try again.",
+            );
+          });
+      } catch (error) {
+        console.error("[startScan] ble scan error thrown", error);
+        setIsScanning(false);
+        Alert.alert(
+          "Scan Error",
+          "Failed to start scanning. Please try again.",
+        );
+      }
     }
+  };
 
-    // Stop scanning immediately to prevent interference with pairing
-    console.log("🛑 AddDevicePage: Stopping scan before pairing...");
-    stopScan();
+  const connectToDevice = async (device: DiscoveredGentlyDevice) => {
+    if (isConnecting || device.isAlreadyPaired) return;
 
-    setSelectedDevice(device);
-    setStep("connecting");
+    const { peripheral, advertisementData } = device;
+    setIsConnecting(peripheral.id);
 
     try {
-      console.log("🔗 AddDevicePage: Initiating GENTLY PAIRING process...");
+      console.log(`🔗 Starting pairing process for device: ${peripheral.id}`);
 
-      const deviceInfo = await connectBySerialNumber(
-        device.advertisementData.serialNumber,
-      );
+      // Step 1: Connect to device
+      setPairingStatus({
+        step: "Connecting to device...",
+        progress: 10,
+        isComplete: false,
+      });
+      console.log(`🔗 Connecting to device: ${peripheral.id}`);
+      await BleManager.connect(peripheral.id);
+      console.log(`✅ Connected to device: ${peripheral.id}`);
 
-      console.log("✅ AddDevicePage: GENTLY PAIRING completed successfully");
+      // Step 2: Discover services and characteristics
+      setPairingStatus({
+        step: "Discovering services...",
+        progress: 20,
+        isComplete: false,
+      });
+      console.log(`🔍 Discovering services...`);
+      await BleManager.retrieveServices(peripheral.id);
+      console.log(`✅ Services discovered for ${peripheral.id}`);
 
-      // Extract device info and continue with existing flow
-      if (!deviceInfo.device || !deviceInfo.isConnected) {
-        throw new Error("Connection failed - device not available");
+      // Step 3: Start notifications
+      setPairingStatus({
+        step: "Setting up communication...",
+        progress: 30,
+        isComplete: false,
+      });
+      console.log(`🔔 Starting notifications...`);
+      await startNotifications(peripheral.id);
+
+      // Step 4: Send GetUptime command using factory key
+      setPairingStatus({
+        step: "Authenticating with device...",
+        progress: 40,
+        isComplete: false,
+      });
+      console.log(`⏱️ Getting device uptime...`);
+      const uptimeCommand = createGetUptimeRequest();
+      const uptimeResponse = await sendCommand({
+        peripheralId: peripheral.id,
+        command: uptimeCommand,
+        encryptionKey: FACTORY_BRACELET_KEY,
+        timeoutMs: 5000,
+      });
+
+      if (uptimeResponse.status !== ResponseStatus.OK) {
+        throw new Error(
+          `GetUptime command failed with status: ${uptimeResponse.status}`,
+        );
       }
 
-      console.log("🔑 AddDevicePage: Connection established with device key");
+      const uptimeData = parseGetUptimeResponse(uptimeResponse.payload);
+      console.log(`✅ Device uptime received: ${uptimeData.uptime}ms`);
 
-      // Create device info for registration using the REAL data
-      const info = {
-        serialNumber: deviceInfo.serialNumber,
-        firmwareVersion:
-          deviceInfo.firmwareVersionMajor &&
-          deviceInfo.firmwareVersionMinor &&
-          deviceInfo.firmwareBuildNumber
-            ? `${deviceInfo.firmwareVersionMajor}.${deviceInfo.firmwareVersionMinor}.${deviceInfo.firmwareBuildNumber}`
-            : "Unknown",
-        batteryLevel: device.advertisementData.batteryLevel, // Use from advertisement data
-      };
-
-      setDeviceInfo(info);
-
-      // Automatically save the device after successful connection
-      console.log(
-        "💾 AddDevicePage: Automatically saving device after successful connection",
-      );
-      console.log(
-        `💾 AddDevicePage: Using REAL serial number from advertisement data: ${deviceInfo.serialNumber}`,
-      );
-
-      const deviceTitle = device.device.name ?? "Unknown Device";
-      const deviceDescription = `Bluetooth device (${device.device.id.slice(-6)})`;
-
-      addDeviceMutation.mutate({
-        title: deviceTitle,
-        description: deviceDescription,
-        serialNumber: info.serialNumber, // This will now be the real serial number from advertisement data
-        firmwareVersion: info.firmwareVersion,
-        batteryLevel: info.batteryLevel,
+      // Step 5: Generate custom dynamic key
+      setPairingStatus({
+        step: "Generating secure key...",
+        progress: 60,
+        isComplete: false,
       });
+      console.log(`🔑 Generating custom dynamic key...`);
+      const customKey = generateDynamicKey(
+        FACTORY_BRACELET_KEY,
+        uptimeData.uptimeBytes,
+        advertisementData.serialNumber,
+      );
+      console.log(`✅ Custom key generated`);
+
+      // Step 6: Send GetDeviceInfo command using custom key
+      setPairingStatus({
+        step: "Verifying secure connection...",
+        progress: 70,
+        isComplete: false,
+      });
+      console.log(`📱 Getting device info with custom key...`);
+      const deviceInfoCommand = createGetDeviceInfoRequest();
+      const deviceInfoResponse = await sendCommand({
+        peripheralId: peripheral.id,
+        command: deviceInfoCommand,
+        encryptionKey: customKey,
+        timeoutMs: 5000,
+      });
+
+      if (deviceInfoResponse.status !== ResponseStatus.OK) {
+        throw new Error(
+          `GetDeviceInfo command failed with status: ${deviceInfoResponse.status}`,
+        );
+      }
+
+      const deviceInfo = parseGetDeviceInfoResponse(deviceInfoResponse.payload);
+      console.log(`✅ Device info received:`, deviceInfo);
+
+      // Step 7: Store custom key in secure storage
+      setPairingStatus({
+        step: "Storing device credentials...",
+        progress: 80,
+        isComplete: false,
+      });
+      console.log(`💾 Storing custom key in secure storage...`);
+      // Sanitize device ID for SecureStore (remove colons and other invalid chars)
+      const sanitizedDeviceId = peripheral.id.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storageKey = `ble_device_key_${sanitizedDeviceId}`;
+      await SecureStore.setItemAsync(
+        storageKey,
+        JSON.stringify({
+          deviceId: peripheral.id,
+          serialNumber: advertisementData.serialNumber,
+          customEncryptionKey: customKey,
+          createdAt: Date.now(),
+          apiVersion: 1,
+        }),
+      );
+      console.log(`✅ Custom key stored securely`);
+
+      // Step 8: Create device in database
+      setPairingStatus({
+        step: "Registering device...",
+        progress: 90,
+        isComplete: false,
+      });
+      console.log(`💾 Creating device in database...`);
+      const newDevice = await trpc.device.create.mutate({
+        title: `Gently ${advertisementData.serialNumber.slice(-4)}`,
+        description: `Gently Bracelet (${advertisementData.serialNumber})`,
+        serialNumber: advertisementData.serialNumber,
+        batteryLevel: advertisementData.batteryLevel,
+        firmwareVersion: `${deviceInfo.firmwareVersionMajor}.${deviceInfo.firmwareVersionMinor}.${deviceInfo.firmwareBuildNumber}`,
+      });
+      console.log(`✅ Device created in database:`, newDevice);
+
+      // Step 9: Stop notifications and disconnect (optional, device will stay connected)
+      setPairingStatus({
+        step: "Finalizing pairing...",
+        progress: 100,
+        isComplete: true,
+      });
+      await stopNotifications(peripheral.id);
+
+      // Step 10: Navigate to the paired device
+      console.log(`✅ Device paired successfully: ${newDevice?.title}`);
+      if (newDevice?.id) {
+        router.push({
+          pathname: "/devices/[id]",
+          params: { id: newDevice.id },
+        });
+      }
     } catch (error) {
-      console.error("❌ AddDevicePage: GENTLY PAIRING failed:", error);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to connect to device",
+      console.error(`❌ Pairing failed for device ${peripheral.id}:`, error);
+
+      // Cleanup on error
+      try {
+        await stopNotifications(peripheral.id);
+        await BleManager.disconnect(peripheral.id);
+      } catch (cleanupError) {
+        console.error("Cleanup error:", cleanupError);
+      }
+
+      Alert.alert(
+        "Pairing Failed",
+        `Could not pair with ${peripheral.name}. ${error instanceof Error ? error.message : "Please try again."}`,
+        [{ text: "OK" }],
       );
-      setStep("error");
+    } finally {
+      setIsConnecting(null);
+      setPairingStatus(null);
     }
   };
 
-  const handleRetry = () => {
-    console.log("🔄 AddDevicePage: handleRetry called");
-    console.log("🔄 AddDevicePage: Current isInitialized:", isInitialized);
+  const renderDeviceCard = (device: DiscoveredGentlyDevice) => {
+    const { peripheral, advertisementData, isAlreadyPaired } = device;
+    const isCurrentlyConnecting = isConnecting === peripheral.id;
 
-    setErrorMessage("");
-
-    // Reset scan flag to allow new scan
-    hasStartedInitialScan.current = false;
-
-    // Clear found devices for fresh scan
-    foundDeviceIds.current.clear();
-    setFoundDevices([]);
-
-    if (isInitialized) {
-      console.log(
-        "✅ AddDevicePage: Bluetooth is ready, starting scan directly",
-      );
-      setStep("scanning");
-      void startScan();
-    } else {
-      console.log(
-        "⏳ AddDevicePage: Bluetooth not ready, setting to scanning and waiting",
-      );
-      // Set to scanning state and let the useEffect handle initialization
-      setStep("scanning");
-    }
-  };
-
-  const handleBack = () => {
-    router.back();
-  };
-
-  // Initialize scanning when component mounts and Bluetooth is ready
-  useEffect(() => {
-    console.log("📱 AddDevicePage: Initialization useEffect triggered");
-    console.log("📱 AddDevicePage: isInitialized:", isInitialized);
-    console.log("📱 AddDevicePage: current step:", step);
-
-    // Only start scan if we're in scanning step and bluetooth is ready
-    if (
-      isInitialized &&
-      step === "scanning" &&
-      !hasStartedInitialScan.current
-    ) {
-      console.log(
-        "✅ AddDevicePage: Bluetooth is initialized and step is scanning, starting scan...",
-      );
-      hasStartedInitialScan.current = true;
-      void startScan();
-    } else {
-      console.log(
-        "⏳ AddDevicePage: Waiting for conditions or not in scanning step",
-      );
-    }
-  }, [isInitialized, step, startScan]);
-
-  // Cleanup effect that runs on unmount
-  useEffect(() => {
-    return () => {
-      console.log("🧹 AddDevicePage: Cleaning up and stopping scan...");
-      stopScan();
-    };
-  }, [stopScan]);
-
-  const renderStep = () => {
-    switch (step) {
-      case "scanning":
-        return (
-          <ScanningStep isInitialized={isInitialized} onCancel={handleBack} />
-        );
-      case "found":
-        return (
-          <FoundDevicesStep
-            devices={foundDevices}
-            onDeviceSelect={handleDeviceSelect}
-            onRetry={handleRetry}
-            onCancel={handleBack}
-          />
-        );
-      case "connecting":
-        return (
-          <ConnectingStep
-            deviceName={selectedDevice?.device.name ?? undefined}
-            isSaving={addDeviceMutation.isPending}
-          />
-        );
-      case "success":
-        return (
-          <SuccessStep
-            deviceName={selectedDevice?.device.name ?? undefined}
-            deviceInfo={deviceInfo ?? undefined}
-            onViewDevice={() => {
-              if (createdDeviceId) {
-                router.replace(`/devices/${createdDeviceId}`);
-              } else {
-                router.replace("/dashboard");
-              }
+    return (
+      <Pressable
+        key={peripheral.id}
+        style={[
+          cards.base,
+          {
+            marginBottom: spacing[3],
+            opacity: isCurrentlyConnecting ? 0.7 : 1,
+            borderLeftWidth: isAlreadyPaired ? 4 : 0,
+            borderLeftColor: isAlreadyPaired
+              ? colors.success[500]
+              : "transparent",
+          },
+        ]}
+        onPress={() => connectToDevice(device)}
+        disabled={isConnecting !== null || isAlreadyPaired}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: isAlreadyPaired
+                ? colors.success[100]
+                : colors.primary[100],
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: spacing[3],
             }}
-          />
-        );
-      case "error":
-        return (
-          <ErrorStep
-            errorMessage={errorMessage}
-            onRetry={handleRetry}
-            onCancel={handleBack}
-          />
-        );
-      default:
-        return (
-          <ScanningStep isInitialized={isInitialized} onCancel={handleBack} />
-        );
+          >
+            <Ionicons
+              name={isAlreadyPaired ? "checkmark-circle" : "watch"}
+              size={24}
+              color={
+                isAlreadyPaired ? colors.success[600] : colors.primary[600]
+              }
+            />
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: spacing[1],
+              }}
+            >
+              <Text
+                style={[typography.subtitle, { color: colors.text.primary }]}
+              >
+                {peripheral.name ?? "Unknown Device"}
+              </Text>
+              {isAlreadyPaired && (
+                <View
+                  style={{
+                    backgroundColor: colors.success[100],
+                    paddingHorizontal: spacing[2],
+                    paddingVertical: spacing[1],
+                    borderRadius: 12,
+                    marginLeft: spacing[2],
+                  }}
+                >
+                  <Text
+                    style={[
+                      typography.caption,
+                      { color: colors.success[700], fontWeight: "600" },
+                    ]}
+                  >
+                    Paired
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Text
+              style={[typography.caption, { color: colors.text.secondary }]}
+            >
+              Serial: {advertisementData.serialNumber}
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginTop: spacing[1],
+              }}
+            >
+              <Text
+                style={[typography.caption, { color: colors.text.secondary }]}
+              >
+                Battery:{" "}
+                {["Critical", "Low", "Medium", "Good", "Full"][
+                  advertisementData.batteryLevel
+                ] ?? "Unknown"}
+              </Text>
+              <Text
+                style={[
+                  typography.caption,
+                  { color: colors.text.tertiary, marginLeft: spacing[2] },
+                ]}
+              >
+                • {advertisementData.batteryVoltage}mV
+              </Text>
+              {advertisementData.chargingStatus && (
+                <Ionicons
+                  name="flash"
+                  size={12}
+                  color={colors.warning[500]}
+                  style={{ marginLeft: spacing[1] }}
+                />
+              )}
+            </View>
+          </View>
+
+          {isCurrentlyConnecting ? (
+            <ActivityIndicator size="small" color={colors.primary[500]} />
+          ) : isAlreadyPaired ? (
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={colors.success[500]}
+            />
+          ) : (
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.text.tertiary}
+            />
+          )}
+        </View>
+
+        {/* Pairing Progress Overlay */}
+        {isCurrentlyConnecting && pairingStatus && (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(255, 255, 255, 0.95)",
+              borderRadius: 12,
+              padding: spacing[4],
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <View style={{ alignItems: "center", width: "100%" }}>
+              <ActivityIndicator
+                size="large"
+                color={colors.primary[500]}
+                style={{ marginBottom: spacing[3] }}
+              />
+
+              <Text
+                style={[
+                  typography.subtitle,
+                  {
+                    color: colors.text.primary,
+                    textAlign: "center",
+                    marginBottom: spacing[2],
+                  },
+                ]}
+              >
+                {pairingStatus.step}
+              </Text>
+
+              {/* Progress Bar */}
+              <View
+                style={{
+                  width: "100%",
+                  height: 4,
+                  backgroundColor: colors.gray[200],
+                  borderRadius: 2,
+                  marginBottom: spacing[2],
+                }}
+              >
+                <View
+                  style={{
+                    width: `${pairingStatus.progress}%`,
+                    height: "100%",
+                    backgroundColor: colors.primary[500],
+                    borderRadius: 2,
+                  }}
+                />
+              </View>
+
+              <Text
+                style={[
+                  typography.caption,
+                  {
+                    color: colors.text.secondary,
+                    textAlign: "center",
+                  },
+                ]}
+              >
+                {pairingStatus.progress}% complete
+              </Text>
+
+              {pairingStatus.isComplete && (
+                <View style={{ marginTop: spacing[2], alignItems: "center" }}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={colors.success[500]}
+                  />
+                  <Text
+                    style={[
+                      typography.caption,
+                      {
+                        color: colors.success[600],
+                        marginTop: spacing[1],
+                        fontWeight: "600",
+                      },
+                    ]}
+                  >
+                    Pairing Complete!
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
+  const renderEmptyState = () => {
+    if (isScanning) {
+      return (
+        <View
+          style={[
+            emptyStates.container,
+            {
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: spacing[8],
+            },
+          ]}
+        >
+          <View
+            style={{
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: spacing[4],
+            }}
+          >
+            <Ionicons name="search" size={48} color={colors.text.tertiary} />
+          </View>
+          <Text
+            style={[
+              typography.h3,
+              {
+                color: colors.text.primary,
+                textAlign: "center",
+                marginBottom: spacing[2],
+              },
+            ]}
+          >
+            Searching for Gently devices...
+          </Text>
+          <Text
+            style={[
+              typography.body,
+              { color: colors.text.secondary, textAlign: "center" },
+            ]}
+          >
+            Make sure your Gently device is in pairing mode
+          </Text>
+        </View>
+      );
     }
+
+    if (hasScanned) {
+      return (
+        <View
+          style={[
+            emptyStates.container,
+            {
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: spacing[8],
+            },
+          ]}
+        >
+          <View
+            style={{
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: spacing[4],
+            }}
+          >
+            <Ionicons name="search" size={48} color={colors.text.tertiary} />
+          </View>
+          <Text
+            style={[
+              typography.h3,
+              {
+                color: colors.text.primary,
+                textAlign: "center",
+                marginBottom: spacing[2],
+              },
+            ]}
+          >
+            No devices found
+          </Text>
+          <Text
+            style={[
+              typography.body,
+              { color: colors.text.secondary, textAlign: "center" },
+            ]}
+          >
+            Make sure your Gently device is in pairing mode and try scanning
+            again
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
   };
 
   return (
     <SafeAreaView style={containers.safeArea}>
-      {/* Header */}
-      <View
-        style={[
-          flex.row,
-          flex.itemsCenter,
-          flex.justifyBetween,
-          {
-            paddingHorizontal: spacing[6],
-            paddingVertical: spacing[4],
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border.light,
-          },
-        ]}
+      <Header title="Add Device" />
+
+      <ScrollView
+        style={containers.content}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[flex.row, flex.itemsCenter]}>
-          <Pressable
-            style={[buttons.base, buttons.small, { marginRight: spacing[3] }]}
-            onPress={handleBack}
+        {/* Header Section */}
+        <View
+          style={{
+            alignItems: "center",
+            marginTop: spacing[6],
+            marginBottom: spacing[8],
+          }}
+        >
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: colors.primary[100],
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: spacing[4],
+            }}
           >
-            <Text style={[buttonText.primary, buttonText.small]}>← Back</Text>
-          </Pressable>
-          <View>
-            <Text style={typography.h3}>Add New Device</Text>
-            <Text
-              style={[typography.bodySmall, { color: colors.text.secondary }]}
-            >
-              Scan and connect to your Gently device
+            <Ionicons name="bluetooth" size={40} color={colors.primary[600]} />
+          </View>
+
+          <Text
+            style={[
+              typography.h2,
+              {
+                color: colors.text.primary,
+                textAlign: "center",
+                marginBottom: spacing[2],
+              },
+            ]}
+          >
+            Pair Your Gently Device
+          </Text>
+
+          <Text
+            style={[
+              typography.body,
+              {
+                color: colors.text.secondary,
+                textAlign: "center",
+                lineHeight: 20,
+              },
+            ]}
+          >
+            Make sure your Gently device is ready to pair and within range
+          </Text>
+        </View>
+
+        {/* Scan Button */}
+        <Pressable
+          style={[
+            buttons.primary,
+            buttons.large,
+            {
+              marginBottom: spacing[6],
+              opacity: isScanning ? 0.7 : 1,
+            },
+          ]}
+          onPress={startScan}
+          disabled={isScanning}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {isScanning ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.text.inverse}
+                style={{ marginRight: spacing[2] }}
+              />
+            ) : (
+              <Ionicons
+                name="search"
+                size={20}
+                color={colors.text.inverse}
+                style={{ marginRight: spacing[2] }}
+              />
+            )}
+            <Text style={[buttonText.primary, buttonText.large]}>
+              {isScanning ? "Scanning..." : "Scan for Devices"}
             </Text>
           </View>
-        </View>
-      </View>
-      {renderStep()}
+        </Pressable>
+
+        {/* Device List */}
+        {Array.from(discoveredDevices.values()).length > 0 ? (
+          <View>
+            <Text
+              style={[
+                typography.subtitle,
+                { color: colors.text.primary, marginBottom: spacing[3] },
+              ]}
+            >
+              Found Devices
+            </Text>
+            {Array.from(discoveredDevices.values()).map(renderDeviceCard)}
+          </View>
+        ) : (
+          renderEmptyState()
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
-}
+};
+
+export default AddDeviceScreen;

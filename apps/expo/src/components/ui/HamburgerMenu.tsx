@@ -39,11 +39,7 @@ export function HamburgerMenu({ options }: HamburgerMenuProps) {
         })}
         accessibilityLabel="More options"
       >
-        <Ionicons
-          name="ellipsis-vertical"
-          size={24}
-          color={colors.text.primary}
-        />
+        <Ionicons name="menu" size={24} color={colors.text.primary} />
       </Pressable>
 
       <Modal

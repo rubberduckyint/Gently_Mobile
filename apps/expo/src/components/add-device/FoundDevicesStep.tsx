@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 
-import type { DiscoveredGentlyDevice } from "~/services/ble";
+import type { DeviceListItem } from "./DeviceList";
 import {
   buttons,
   buttonText,
@@ -14,15 +14,15 @@ import { DeviceList } from "./DeviceList";
 import { StepLayout } from "./StepLayout";
 
 interface FoundDevicesStepProps {
-  devices: DiscoveredGentlyDevice[];
-  onDeviceSelect: (device: DiscoveredGentlyDevice) => void;
+  devices: DeviceListItem[];
+  onConnect: (device: DeviceListItem) => void;
   onRetry: () => void;
   onCancel: () => void;
 }
 
 export function FoundDevicesStep({
   devices,
-  onDeviceSelect,
+  onConnect,
   onRetry,
   onCancel,
 }: FoundDevicesStepProps) {
@@ -36,9 +36,7 @@ export function FoundDevicesStep({
             style={[buttons.base, buttons.large, buttons.primary, flex.flex1]}
             onPress={onRetry}
           >
-            <Text style={[buttonText.primary, buttonText.large]}>
-              Scan Again
-            </Text>
+            <Text style={[buttonText.primary, buttonText.large]}>Rescan</Text>
           </Pressable>
           <Pressable
             style={[buttons.base, buttons.large, buttons.secondary, flex.flex1]}
@@ -73,7 +71,7 @@ export function FoundDevicesStep({
         </Text>
 
         {hasDevices ? (
-          <DeviceList devices={devices} onDeviceSelect={onDeviceSelect} />
+          <DeviceList devices={devices} onConnect={onConnect} />
         ) : (
           <View style={{ alignItems: "center", marginBottom: spacing[8] }}>
             <Text

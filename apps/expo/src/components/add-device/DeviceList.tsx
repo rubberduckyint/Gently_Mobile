@@ -1,15 +1,32 @@
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
-import type { DiscoveredGentlyDevice } from "~/services/ble";
-import { cards, colors, spacing, typography } from "~/styles";
+import {
+  buttons,
+  buttonText,
+  cards,
+  colors,
+  spacing,
+  typography,
+} from "~/styles";
 
-interface DeviceListProps {
-  devices: DiscoveredGentlyDevice[];
-  onDeviceSelect: (device: DiscoveredGentlyDevice) => void;
+export interface DeviceListItem {
+  peripheralId: string;
+  name: string | null;
+  serialNumber: string | null;
+  rssi: number;
+  batteryLevel?: number;
+  keyType?: string | null;
+  isPaired: boolean;
+  isConnecting: boolean;
 }
 
-export function DeviceList({ devices, onDeviceSelect }: DeviceListProps) {
+interface DeviceListProps {
+  devices: DeviceListItem[];
+  onConnect: (device: DeviceListItem) => void;
+}
+
+export function DeviceList({ devices, onConnect }: DeviceListProps) {
   if (devices.length === 0) {
     return null;
   }
@@ -23,86 +40,122 @@ export function DeviceList({ devices, onDeviceSelect }: DeviceListProps) {
       }}
       showsVerticalScrollIndicator={false}
     >
-      {devices.map((device) => (
-        <Pressable
-          key={device.device.id}
-          style={[cards.base, cards.interactive, { marginBottom: spacing[3] }]}
-          onPress={() => onDeviceSelect(device)}
-        >
-          <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-            <View style={{ flex: 1 }}>
-              <Text style={[typography.h6, { marginBottom: spacing[1] }]}>
-                {device.device.name ?? "Unknown Device"}
-              </Text>
-              <Text
-                style={[
-                  typography.caption,
-                  { color: colors.text.secondary, marginBottom: spacing[1] },
-                ]}
-              >
-                {device.device.id}
-              </Text>
-              <Text
-                style={[typography.caption, { color: colors.text.secondary }]}
-              >
-                Signal: {device.rssi} dBm
-              </Text>
+      {devices.map((device) => {
+        const isDisabled = device.isPaired || device.isConnecting;
 
-              <View style={{ marginTop: spacing[2] }}>
-                <Text
-                  style={[typography.caption, { color: colors.primary[600] }]}
-                >
-                  Serial: {device.advertisementData.serialNumber}
+        return (
+          <View
+            key={device.peripheralId}
+            style={[
+              cards.base,
+              cards.interactive,
+              { marginBottom: spacing[3] },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: spacing[3],
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[typography.h6, { marginBottom: spacing[1] }]}>
+                  {device.name ?? "Unknown Device"}
                 </Text>
-                {device.advertisementData.braceletKeyType === "factory" ? (
-                  <Text
-                    style={[
-                      typography.caption,
-                      {
-                        color: colors.success[600],
-                        fontWeight: "600",
-                        marginTop: spacing[1],
-                      },
-                    ]}
-                  >
-                    📦 Factory mode - Ready to pair
-                  </Text>
-                ) : (
-                  <Text
-                    style={[
-                      typography.caption,
-                      {
-                        color: colors.warning[600],
-                        marginTop: spacing[1],
-                      },
-                    ]}
-                  >
-                    🔑 Has custom key - Can re-pair
-                  </Text>
-                )}
                 <Text
                   style={[
                     typography.caption,
-                    {
-                      color: colors.text.secondary,
-                      marginTop: spacing[1],
-                    },
+                    { color: colors.text.secondary, marginBottom: spacing[1] },
                   ]}
                 >
-                  🔋 Battery: Level {device.advertisementData.batteryLevel}
+                  ID: {device.peripheralId}
                 </Text>
-              </View>
-            </View>
+                <Text
+                  style={[typography.caption, { color: colors.text.secondary }]}
+                >
+                  Signal: {device.rssi} dBm
+                </Text>
 
-            {/* Show connect text for all Gently devices */}
-            <Text
-              style={[typography.labelLarge, { color: colors.primary[600] }]}
-            >
-              Connect
-            </Text>
+                <View style={{ marginTop: spacing[2] }}>
+                  <Text
+                    style={[typography.caption, { color: colors.primary[600] }]}
+                  >
+                    Serial: {device.serialNumber ?? "Unknown"}
+                  </Text>
+
+                  <Text
+                    style={[
+                      typography.caption,
+                      {
+                        color:
+                          device.keyType === "factory"
+                            ? colors.success[600]
+                            : colors.warning[600],
+                        marginTop: spacing[1],
+                        fontWeight: "600",
+                      },
+                    ]}
+                  >
+                    {device.keyType === "factory"
+                      ? "📦 Factory mode — ready to pair"
+                      : "🔑 Custom key — can re-pair"}
+                  </Text>
+
+                  {device.batteryLevel !== undefined && (
+                    <Text
+                      style={[
+                        typography.caption,
+                        {
+                          color: colors.text.secondary,
+                          marginTop: spacing[1],
+                        },
+                      ]}
+                    >
+                      {`🔋 Battery: Level ${device.batteryLevel}`}
+                    </Text>
+                  )}
+
+                  {device.isPaired && (
+                    <Text
+                      style={[
+                        typography.caption,
+                        {
+                          color: colors.text.secondary,
+                          marginTop: spacing[1],
+                          fontWeight: "600",
+                        },
+                      ]}
+                    >
+                      {"✅ Already paired with your account"}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={isDisabled}
+                onPress={() => onConnect(device)}
+                style={[
+                  buttons.base,
+                  buttons.small,
+                  isDisabled ? buttons.disabled : buttons.primary,
+                  { alignSelf: "center" },
+                ]}
+              >
+                <Text style={[buttonText.primary]}>
+                  {device.isPaired
+                    ? "Paired"
+                    : device.isConnecting
+                      ? "Connecting..."
+                      : "Connect"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-        </Pressable>
-      ))}
+        );
+      })}
     </ScrollView>
   );
 }

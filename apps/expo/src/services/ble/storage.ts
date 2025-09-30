@@ -9,6 +9,15 @@ import type { StoredDeviceKey } from "./types";
 
 const STORAGE_KEY_PREFIX = "ble_device_key_";
 const STORAGE_KEYS_LIST = "ble_device_keys_list";
+const SESSION_KEY_PREFIX = "ble_session_";
+
+export interface BraceletSessionRecord {
+  serialNumber: string;
+  peripheralId: string;
+  customKey: string;
+  braceletKey: string;
+  createdAt: number;
+}
 
 /**
  * Sanitize device ID to create a valid SecureStore key
@@ -27,6 +36,10 @@ function sanitizeDeviceId(deviceId: string): string {
 function createDeviceStorageKey(deviceId: string): string {
   const sanitizedId = sanitizeDeviceId(deviceId);
   return `${STORAGE_KEY_PREFIX}${sanitizedId}`;
+}
+
+function createSessionStorageKey(serialNumber: string): string {
+  return `${SESSION_KEY_PREFIX}${serialNumber.toUpperCase()}`;
 }
 
 /**
@@ -270,4 +283,40 @@ export async function getStorageStats(): Promise<{
       totalStorageSize: 0,
     };
   }
+}
+
+export async function saveSessionRecord(
+  record: BraceletSessionRecord,
+): Promise<void> {
+  await SecureStore.setItemAsync(
+    createSessionStorageKey(record.serialNumber),
+    JSON.stringify(record),
+  );
+}
+
+export async function getSessionRecord(
+  serialNumber: string,
+): Promise<BraceletSessionRecord | null> {
+  const value = await SecureStore.getItemAsync(
+    createSessionStorageKey(serialNumber),
+  );
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as BraceletSessionRecord;
+  } catch (error) {
+    console.warn("Failed to parse stored BLE session", {
+      serialNumber,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    await SecureStore.deleteItemAsync(createSessionStorageKey(serialNumber));
+    return null;
+  }
+}
+
+export async function clearSessionRecord(serialNumber: string): Promise<void> {
+  await SecureStore.deleteItemAsync(createSessionStorageKey(serialNumber));
 }

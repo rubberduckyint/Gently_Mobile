@@ -8,6 +8,7 @@ import React, { useState } from "react";
 import { Alert, Modal, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 
 import { colors, spacing, typography } from "~/styles";
 import { authClient } from "~/utils/auth";
@@ -83,9 +84,11 @@ export function NavigationBar({
                 justifyContent: "center",
               }}
             >
-              <Text style={{ fontSize: 18, color: colors.text.primary }}>
-                ←
-              </Text>
+              <Feather
+                name="arrow-left"
+                size={22}
+                color={colors.text.primary}
+              />
             </Pressable>
           )}
         </View>
@@ -118,29 +121,7 @@ export function NavigationBar({
                 justifyContent: "center",
               }}
             >
-              <View style={{ flexDirection: "column", gap: 3 }}>
-                <View
-                  style={{
-                    width: 20,
-                    height: 2,
-                    backgroundColor: colors.text.primary,
-                  }}
-                />
-                <View
-                  style={{
-                    width: 20,
-                    height: 2,
-                    backgroundColor: colors.text.primary,
-                  }}
-                />
-                <View
-                  style={{
-                    width: 20,
-                    height: 2,
-                    backgroundColor: colors.text.primary,
-                  }}
-                />
-              </View>
+              <Feather name="menu" size={22} color={colors.text.primary} />
             </Pressable>
           )}
         </View>
@@ -186,9 +167,24 @@ export function NavigationBar({
                   borderRadius: 4,
                 }}
               >
-                <Text style={[typography.body, { color: colors.text.primary }]}>
-                  ⚙️ Settings
-                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing[2],
+                  }}
+                >
+                  <Feather
+                    name="settings"
+                    size={20}
+                    color={colors.text.primary}
+                  />
+                  <Text
+                    style={[typography.body, { color: colors.text.primary }]}
+                  >
+                    Settings
+                  </Text>
+                </View>
               </Pressable>
 
               {/* Divider */}
@@ -209,9 +205,18 @@ export function NavigationBar({
                   borderRadius: 4,
                 }}
               >
-                <Text style={[typography.body, { color: colors.error[600] }]}>
-                  🚪 Sign Out
-                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing[2],
+                  }}
+                >
+                  <Feather name="log-out" size={20} color={colors.error[600]} />
+                  <Text style={[typography.body, { color: colors.error[600] }]}>
+                    Sign Out
+                  </Text>
+                </View>
               </Pressable>
             </View>
           </SafeAreaView>

@@ -3,29 +3,6 @@
  * Exports all BLE functionality for Gently Bracelets
  */
 
-// Core functionality
-export {
-  connectBySerialNumber,
-  disconnectDevice,
-  getConnectionState,
-  executeBLECommand,
-  getConnectedGentlyDevices,
-} from "./connection";
-
-// Scanning
-export {
-  scanForGentlyDevices,
-  findGentlyDeviceBySerial,
-  stopScan,
-  requestBlePermissions,
-  getBleState,
-  cleanupBleManager,
-  monitorBleState,
-} from "./scanner";
-
-// Commands - re-export from commands module
-export * from "./commands";
-
 // Storage
 export {
   storeDeviceKey,
@@ -37,14 +14,24 @@ export {
   clearAllDeviceKeys,
   hasDeviceKey,
   getStorageStats,
+  saveSessionRecord,
+  getSessionRecord,
+  clearSessionRecord,
 } from "./storage";
+
+export type { BraceletSessionRecord } from "./storage";
 
 // Encryption utilities
 export {
   TEAEncryption,
   generateDynamicKey,
   parseAdvertisementData,
+  extractAdvertisementPayload,
+  bytesToHexString,
 } from "./encryption";
+
+// Utilities
+export { requestBluetoothPermissions } from "./utils";
 
 // Types
 export type {
@@ -66,5 +53,3 @@ export {
   CommandCode,
   ResponseStatus,
 } from "./types";
-
-export type { DiscoveredGentlyDevice } from "./scanner";

@@ -39,13 +39,13 @@ export function Header({
       <View style={{ width: 40 }}>
         {showBackButton && (
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => router.push("/dashboard")}
             style={({ pressed }) => ({
               opacity: pressed ? 0.7 : 1,
               padding: spacing[2],
               marginLeft: -spacing[2],
             })}
-            accessibilityLabel="Go back"
+            accessibilityLabel="Go to dashboard"
           >
             <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
           </Pressable>

@@ -1,4 +1,4 @@
-import type { Device } from "@b1naryth1ef/react-native-ble-plx";
+import type { Peripheral } from "react-native-ble-manager";
 
 /**
  * BLE Types for Gently Bracelet Communication
@@ -25,7 +25,7 @@ export interface AdvertisementData {
 }
 
 export interface DeviceInfo {
-  device?: Device;
+  device?: Peripheral;
   serialNumber: string;
   braceletKey: string;
   dynamicKey?: string;
