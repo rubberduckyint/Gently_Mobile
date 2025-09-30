@@ -33,6 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "This app uses Bluetooth to connect to your Gently devices for monitoring and control.",
       NSLocationWhenInUseUsageDescription:
         "This app needs location access to scan for Bluetooth devices.",
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
@@ -68,7 +69,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "@react-native-google-signin/google-signin",
       {
-        iosUrlScheme: "com.googleusercontent.apps._some_id_here_",
+        iosUrlScheme:
+          "com.googleusercontent.apps.947334995233-6li09ju14r42u6fkgm4btib13pilk34n",
       },
     ],
   ],

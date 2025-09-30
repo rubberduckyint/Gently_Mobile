@@ -24,10 +24,17 @@
       }
     },
     "production": {
-      "extends": "base"
+      "extends": "base",
+      "ios": {
+        "autoIncrement": "buildNumber"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6752447097"
+      }
+    }
   }
 }
