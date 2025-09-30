@@ -27,18 +27,16 @@ import {
   createAddEventRequest,
   parseAddEventResponse,
 } from "~/services/ble/commands/addEvent";
-import {
-  createGetDeviceInfoRequest,
-  parseGetDeviceInfoResponse,
-} from "~/services/ble/commands/getDeviceInfo";
+// Device info commands - available if needed
+// import {
+//   createGetDeviceInfoRequest,
+//   parseGetDeviceInfoResponse,
+// } from "~/services/ble/commands/getDeviceInfo";
 import {
   createGetUptimeRequest,
   parseGetUptimeResponse,
 } from "~/services/ble/commands/getUptime";
-import {
-  createRemoveAllEventsRequest,
-  parseRemoveAllEventsResponse,
-} from "~/services/ble/commands/removeAllEvents";
+import { createRemoveAllEventsRequest } from "~/services/ble/commands/removeAllEvents";
 import {
   extractAndDecryptAdvertisementData,
   generateDynamicKey,
@@ -48,11 +46,7 @@ import {
   startNotifications,
   stopNotifications,
 } from "~/services/ble/manager";
-import {
-  CommandCode,
-  FACTORY_BRACELET_KEY,
-  ResponseStatus,
-} from "~/services/ble/types";
+import { FACTORY_BRACELET_KEY, ResponseStatus } from "~/services/ble/types";
 import {
   buttons,
   cards,
@@ -182,7 +176,7 @@ export default function DeviceDetailPage() {
             encryptionKey = storedKey;
             break;
           }
-        } catch (error) {
+        } catch {
           console.log(`No stored key found for ${peripheral.id}`);
         }
       }
@@ -204,9 +198,57 @@ export default function DeviceDetailPage() {
               `ble_device_${sanitizedDeviceId}`,
             );
             console.log(`🗑️ Removed expired key for ${peripheral.id}`);
-          } catch (error) {
+          } catch {
             // Key might not exist, ignore
           }
+        }
+      }
+
+      // Step 3.5: If we have a target peripheral but no encryption key, generate one
+      if (targetPeripheral && !encryptionKey) {
+        console.log(
+          "🔐 Target peripheral found but no encryption key, generating new key",
+        );
+        setSyncProgress("Generating encryption key for existing connection...");
+
+        try {
+          // Get uptime to establish connection
+          const uptimeResponse = await sendCommand({
+            peripheralId: targetPeripheral.id,
+            command: createGetUptimeRequest(),
+            encryptionKey: FACTORY_BRACELET_KEY,
+          });
+
+          const uptimeData = parseGetUptimeResponse(uptimeResponse.payload);
+          console.log(`📊 Device uptime: ${uptimeData.uptime} seconds`);
+
+          // Generate dynamic key
+          encryptionKey = generateDynamicKey(
+            FACTORY_BRACELET_KEY,
+            uptimeData.uptimeBytes,
+            device.serialNumber,
+          );
+          console.log(
+            "🔐 Generated dynamic encryption key for existing connection",
+          );
+          console.log(`🔑 Generated key: ${encryptionKey}`);
+          console.log(`🔑 Key length: ${encryptionKey.length} characters`);
+
+          // Store the key for future use
+          const sanitizedDeviceId = targetPeripheral.id.replace(
+            /[^a-zA-Z0-9._-]/g,
+            "_",
+          );
+          await SecureStore.setItemAsync(
+            `ble_device_${sanitizedDeviceId}`,
+            encryptionKey,
+          );
+          console.log("💾 Stored encryption key for future connections");
+        } catch (keyGenError) {
+          console.error("❌ Failed to generate encryption key:", keyGenError);
+          throw new Error(
+            `Failed to generate encryption key: ${keyGenError instanceof Error ? keyGenError.message : "Unknown error"}`,
+          );
         }
       }
 
@@ -258,6 +300,18 @@ export default function DeviceDetailPage() {
                   await BleManager.connect(peripheral.id);
                   console.log(`✅ Connected to device: ${peripheral.id}`);
 
+                  // Request MTU of 512 for better sync performance
+                  try {
+                    await BleManager.requestMTU(peripheral.id, 512);
+                    console.log(`📶 MTU 512 requested for ${peripheral.id}`);
+                  } catch (mtuError) {
+                    console.warn(
+                      `⚠️ MTU request failed for ${peripheral.id}:`,
+                      mtuError,
+                    );
+                    // Continue without MTU - this is not critical for basic functionality
+                  }
+
                   await BleManager.retrieveServices(peripheral.id);
                   console.log(`✅ Services discovered for ${peripheral.id}`);
 
@@ -287,6 +341,10 @@ export default function DeviceDetailPage() {
                     device.serialNumber,
                   );
                   console.log("🔐 Generated dynamic encryption key");
+                  console.log(`🔑 Generated key: ${encryptionKey}`);
+                  console.log(
+                    `🔑 Key length: ${encryptionKey.length} characters`,
+                  );
 
                   // Store the key
                   const sanitizedDeviceId = peripheral.id.replace(
@@ -352,13 +410,22 @@ export default function DeviceDetailPage() {
                       retriggerTimeout: 10, // 10 minutes
                     });
 
+                    console.log(
+                      `🔑 About to send ADD_EVENT with key: ${encryptionKey}`,
+                    );
+                    console.log(`🔑 Target peripheral ID: ${peripheral.id}`);
+
                     const response = await sendCommand({
                       peripheralId: peripheral.id,
                       command: addEventCommand,
                       encryptionKey,
                     });
 
-                    const result = parseAddEventResponse(response.payload);
+                    const result = parseAddEventResponse(
+                      response.payload,
+                      response.status,
+                      response.commandCode,
+                    );
                     if (result.status === "ERROR") {
                       console.warn(`⚠️ Failed to add alarm ${alarm.title}`);
                     } else {
@@ -417,34 +484,59 @@ export default function DeviceDetailPage() {
 
         discoverListener.remove();
 
-        // If we reach here and no target peripheral, the device wasn't found during scan
-        // Note: targetPeripheral might be set during the scan callback
-        console.log("🔍 Scan completed, checking if device was found...");
-        if (!targetPeripheral) {
-          throw new Error(
-            "Could not find Gently device with matching serial number",
-          );
-        }
+        // If we reach here, device connection happens in the discover callback
+        console.log("🔍 Scan completed, device connection handled in callback");
       } else {
         // Using existing connection - still need to sync alarms
         setSyncProgress("Using existing connection...");
-        console.log("🔐 Using stored encryption key for existing connection");
+        console.log("🔐 Using encryption key for existing connection");
 
         if (!encryptionKey) {
-          throw new Error("Encryption key is required for existing connection");
+          console.error(
+            "❌ No encryption key available for existing connection",
+          );
+          throw new Error(
+            "Encryption key is required for existing connection. Please try scanning for the device again.",
+          );
         }
+
+        console.log("✅ Encryption key validated for existing connection");
+        console.log(`🔑 Using encryption key: ${encryptionKey}`);
+        console.log(`🔑 Key length: ${encryptionKey.length} characters`);
+        console.log(
+          `🔑 Key format valid: ${encryptionKey.length === 32 && /^[0-9A-Fa-f]+$/.test(encryptionKey) ? "YES" : "NO - Should be 32 hex characters"}`,
+        );
 
         // Step: Remove all existing events
         setSyncProgress("Clearing existing alarms on device...");
         console.log("🧹 Removing all existing events from device");
 
-        await sendCommand({
+        const removeResponse = await sendCommand({
           peripheralId: targetPeripheral.id,
           command: createRemoveAllEventsRequest(),
           encryptionKey,
         });
 
-        console.log("✅ All existing events removed");
+        const removeStatusText =
+          removeResponse.status === ResponseStatus.OK ? "OK" : "ERROR";
+        console.log(
+          `📊 Remove All Events Response: Status=${removeStatusText} (0x${removeResponse.status.toString(16)}), Command=0x${removeResponse.commandCode.toString(16)}, Payload=[${Array.from(
+            removeResponse.payload,
+          )
+            .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+            .join(", ")}]`,
+        );
+
+        if (removeResponse.status !== ResponseStatus.OK) {
+          console.warn(
+            `❌ Failed to remove existing events: Status=0x${removeResponse.status.toString(16)}`,
+          );
+          setSyncProgress(
+            `⚠️ Failed to clear existing alarms (Status: 0x${removeResponse.status.toString(16)})`,
+          );
+        } else {
+          console.log("✅ All existing events removed");
+        }
 
         // Step: Add each alarm from the database
         setSyncProgress(`Syncing ${device.alarms.length} alarms to device...`);
@@ -484,15 +576,43 @@ export default function DeviceDetailPage() {
             retriggerTimeout: 10, // 10 minutes
           });
 
+          console.log(`🔑 About to send ADD_EVENT with key: ${encryptionKey}`);
+          console.log(`🔑 Target peripheral ID: ${targetPeripheral.id}`);
+
           const response = await sendCommand({
             peripheralId: targetPeripheral.id,
             command: addEventCommand,
             encryptionKey,
           });
 
-          const result = parseAddEventResponse(response.payload);
-          if (result.status === "ERROR") {
-            console.warn(`⚠️ Failed to add alarm ${alarm.title}`);
+          // Check response status at the BLE command level first
+          const bleStatusText =
+            response.status === ResponseStatus.OK ? "OK" : "ERROR";
+          console.log(
+            `📊 BLE Command Response: Status=${bleStatusText} (0x${response.status.toString(16)}), Command=0x${response.commandCode.toString(16)}, Payload=[${Array.from(
+              response.payload,
+            )
+              .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+              .join(", ")}]`,
+          );
+
+          const result = parseAddEventResponse(
+            response.payload,
+            response.status,
+            response.commandCode,
+          );
+          if (response.status !== ResponseStatus.OK) {
+            console.warn(
+              `❌ BLE Command failed for alarm ${alarm.title}: Status=0x${response.status.toString(16)}`,
+            );
+            setSyncProgress(
+              `⚠️ Error adding alarm ${alarm.title} (BLE Status: 0x${response.status.toString(16)})`,
+            );
+          } else if (result.status === "ERROR") {
+            console.warn(
+              `⚠️ Device rejected alarm ${alarm.title}: ParsedStatus=${result.status}, EventIndex=${result.eventIndex}`,
+            );
+            setSyncProgress(`⚠️ Device rejected alarm ${alarm.title}`);
           } else {
             console.log(
               `✅ Added alarm ${alarm.title} at index ${result.eventIndex}`,

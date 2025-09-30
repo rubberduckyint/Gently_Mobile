@@ -42,7 +42,6 @@ import {
   stopNotifications,
 } from "~/services/ble/manager";
 import {
-  CommandCode,
   FACTORY_BRACELET_KEY,
   ResponseStatus,
 } from "~/services/ble/types";
@@ -238,6 +237,15 @@ const AddDeviceScreen = () => {
       console.log(`🔗 Connecting to device: ${peripheral.id}`);
       await BleManager.connect(peripheral.id);
       console.log(`✅ Connected to device: ${peripheral.id}`);
+
+      // Request MTU of 512 for better communication performance
+      try {
+        await BleManager.requestMTU(peripheral.id, 512);
+        console.log(`📶 MTU 512 requested for ${peripheral.id}`);
+      } catch (mtuError) {
+        console.warn(`⚠️ MTU request failed for ${peripheral.id}:`, mtuError);
+        // Continue without MTU - this is not critical for basic functionality
+      }
 
       // Step 2: Discover services and characteristics
       setPairingStatus({

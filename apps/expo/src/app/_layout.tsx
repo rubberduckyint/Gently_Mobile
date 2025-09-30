@@ -82,7 +82,7 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
-          name="devices/[deviceId]/ble-test/index"
+          name="devices/[deviceId]/ble-test"
           options={{
             title: "BLE Test",
             headerShown: false,

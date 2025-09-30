@@ -82,10 +82,32 @@ export function createAddEventRequest(
 
   // Remaining bytes are reserved (0 padded - already done by Uint8Array constructor)
 
+  const finalPayload = payload.slice(0, offset);
+  console.log(`📤 ADD_EVENT Request Created:`);
+  console.log(
+    `  - Command: 0x${CommandCode.ADD_EVENT.toString(16).padStart(2, "0")}`,
+  );
+  console.log(`  - Event Index: ${params.eventIndex}`);
+  console.log(`  - Event Name: "${params.eventName}"`);
+  console.log(`  - Cron Expression: "${params.cronExpression}"`);
+  console.log(
+    `  - Vibration: Pattern=${params.vibrationPattern}, Intensity=${params.vibrationIntensity}`,
+  );
+  console.log(
+    `  - LED: Pattern=${params.ledPattern}, Color=${params.ledColor}`,
+  );
+  console.log(`  - Severity: ${params.severityLevel}`);
+  console.log(`  - Payload Size: ${finalPayload.length} bytes`);
+  console.log(
+    `  - Payload Hex: [${Array.from(finalPayload)
+      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+      .join(", ")}]`,
+  );
+
   return {
     command: CommandCode.ADD_EVENT,
     apiVersion: 1,
-    payload: payload.slice(0, offset), // Trim to actual size
+    payload: finalPayload,
   };
 }
 
@@ -94,13 +116,55 @@ export interface AddEventResponse {
   eventIndex: number;
 }
 
-export function parseAddEventResponse(payload: Uint8Array): AddEventResponse {
-  if (payload.length < 4) {
-    throw new Error("Invalid Add Event response payload length");
+export function parseAddEventResponse(
+  payload: Uint8Array,
+  bleStatus: number,
+  commandCode: number,
+): AddEventResponse {
+  console.log(`📥 ADD_EVENT Response Received:`);
+  console.log(
+    `  - BLE Status: 0x${bleStatus.toString(16).padStart(2, "0")} (${bleStatus === 0 ? "OK" : "ERROR"})`,
+  );
+  console.log(
+    `  - Command Code: 0x${commandCode.toString(16).padStart(2, "0")} (Expected: 0x04)`,
+  );
+  console.log(`  - Payload Length: ${payload.length} bytes`);
+  console.log(
+    `  - Payload Hex: [${Array.from(payload)
+      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+      .join(", ")}]`,
+  );
+
+  // Check if command code matches expected ADD_EVENT
+  if (commandCode !== 0x04) {
+    console.warn(
+      `⚠️ ADD_EVENT Response: Unexpected command code 0x${commandCode.toString(16)} (expected 0x04)`,
+    );
+    console.warn(
+      `  - This may indicate a protocol mismatch or device firmware issue`,
+    );
   }
 
-  const status = payload[2] === 0x00 ? "OK" : "ERROR";
-  const eventIndex = payload[3] ?? 0;
+  // Use BLE manager status instead of parsing from payload
+  const status = bleStatus === 0x00 ? "OK" : "ERROR";
+
+  // For ADD_EVENT response according to BLE protocol:
+  // payload[0]: Event Index (0-49)
+  // payload[1-4]: RESERVED (0 padded)
+  let eventIndex = 0;
+  if (payload.length >= 1) {
+    eventIndex = payload[0] ?? 0;
+  }
+
+  console.log(`  - Parsed Status: ${status}`);
+  console.log(`  - Event Index: ${eventIndex}`);
+  if (payload.length > 1) {
+    console.log(
+      `  - Reserved Bytes: [${Array.from(payload.slice(1))
+        .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+        .join(", ")}]`,
+    );
+  }
 
   return {
     status,
