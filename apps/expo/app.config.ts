@@ -5,7 +5,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "Gently",
   slug: "gently",
   scheme: "gently",
-  version: "0.1.1",
+  version: "0.1.2",
   orientation: "portrait",
   icon: "./assets/gently-ios-blue.png",
   userInterfaceStyle: "automatic",
