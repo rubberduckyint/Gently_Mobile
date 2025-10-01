@@ -4,118 +4,124 @@
  */
 
 import type { AlarmFormData } from "~/components/alarms";
+import type { AddEventParams } from "~/services/ble/commands/addEvent";
 
 /**
- * Map alarm form priority to BLE severity level
+ * Map alarm form severityLevel to BLE severity level number
  */
-export function mapPriorityToSeverityLevel(
-  priority: AlarmFormData["priority"],
+export function mapSeverityLevelToNumber(
+  severityLevel: AlarmFormData["severityLevel"],
 ): number {
-  switch (priority) {
-    case "HIGH":
+  switch (severityLevel) {
+    case "CRITICAL":
       return 1; // Critical
-    case "MEDIUM":
-      return 2; // Important
-    case "LOW":
+    case "WARNING":
+      return 2; // Warning
+    case "INFORMATIONAL":
       return 3; // Informational
     default:
-      return 2; // Default to Important
+      return 2; // Default to Warning
   }
 }
 
 /**
- * Map alarm form haptic choice to BLE vibration intensity
+ * Map alarm form vibrationIntensity to BLE vibration intensity number
  */
-export function mapHapticToVibrationIntensity(
-  haptic: AlarmFormData["hapticChoice"],
+export function mapVibrationIntensityToNumber(
+  intensity: AlarmFormData["vibrationIntensity"],
 ): number {
-  switch (haptic) {
-    case "SOFT":
+  switch (intensity) {
+    case "LOW":
       return 0; // LOW
-    case "STANDARD":
+    case "MEDIUM":
       return 1; // MEDIUM
-    case "STRONG":
-    case "DOUBLE":
+    case "HIGH":
       return 2; // HIGH
-    case "PULSE":
-    case "WAVE":
-      return 3; // MAXIMUM
     default:
       return 1; // Default to MEDIUM
   }
 }
 
 /**
- * Map alarm form haptic choice to BLE vibration pattern
+ * Map alarm form vibrationPattern to BLE vibration pattern number
  */
-export function mapHapticToVibrationPattern(
-  haptic: AlarmFormData["hapticChoice"],
+export function mapVibrationPatternToNumber(
+  pattern: AlarmFormData["vibrationPattern"],
 ): number {
-  switch (haptic) {
-    case "STANDARD":
-      return 1; // Standard pattern
-    case "DOUBLE":
-      return 2; // Double pulse pattern
+  // vibrationPattern is already a number 1-63, just validate range
+  return Math.max(1, Math.min(63, pattern));
+}
+
+/**
+ * Map alarm form LED pattern to BLE LED pattern number
+ */
+export function mapLedPatternToNumber(
+  ledPattern: AlarmFormData["ledPattern"],
+): number {
+  switch (ledPattern) {
+    case "SOLID":
+      return 3; // Solid
+    case "BLINK_SLOW":
+      return 1; // Blink slow
+    case "BLINK_FAST":
+      return 2; // Blink fast
     case "PULSE":
-      return 3; // Pulse pattern
-    case "WAVE":
-      return 4; // Wave pattern
-    case "STRONG":
-    case "SOFT":
+      return 2; // Map to blink fast (closest equivalent)
+    case "STROBE":
+      return 2; // Map to blink fast (closest equivalent)
     default:
-      return 1; // Default pattern
+      return 2; // Default to blink fast
   }
 }
 
 /**
- * Map alarm form color to BLE LED color
+ * Map alarm form LED color to BLE LED color number
  */
-export function mapColorToLedColor(color: string): number {
-  // Convert hex color to closest BLE LED color
-  switch (color.toLowerCase()) {
-    case "#0000ff":
-    case "#007aff": // iOS blue
-      return 1; // Blue
-    case "#00ff00":
-    case "#34c759": // iOS green
+export function mapLedColorToNumber(
+  ledColor: AlarmFormData["ledColor"],
+): number {
+  // Convert LED color enum to BLE LED color number
+  switch (ledColor) {
+    case "RED":
+      return 1; // Red
+    case "GREEN":
       return 2; // Green
-    case "#00ffff":
-      return 3; // Cyan
-    case "#ff0000":
-    case "#ff3b30": // iOS red
-      return 4; // Red
-    case "#ffff00":
-    case "#ffcc02": // iOS yellow
-      return 5; // Yellow
-    case "#ff00ff":
-    case "#af52de": // iOS purple
-      return 6; // Magenta
-    case "#ffffff":
+    case "BLUE":
+      return 3; // Blue
+    case "YELLOW":
+      return 4; // Yellow
+    case "MAGENTA":
+      return 5; // Magenta
+    case "CYAN":
+      return 6; // Cyan
+    case "WHITE":
       return 7; // White
     default:
-      return 4; // Default to Red for visibility
+      return 3; // Default to Blue
   }
 }
 
 /**
- * Calculate snooze settings based on priority
+ * Calculate snooze settings based on severity level
  */
-export function calculateSnoozeSettings(priority: AlarmFormData["priority"]): {
+export function calculateSnoozeSettings(
+  severityLevel: AlarmFormData["severityLevel"],
+): {
   snoozePeriod: number;
   snoozeTimeout: number;
 } {
-  switch (priority) {
-    case "HIGH":
+  switch (severityLevel) {
+    case "CRITICAL":
       return {
         snoozePeriod: 2, // 2 minutes for critical alarms
         snoozeTimeout: 10, // Stop allowing snooze after 10 minutes
       };
-    case "MEDIUM":
+    case "WARNING":
       return {
-        snoozePeriod: 5, // 5 minutes for important alarms
+        snoozePeriod: 5, // 5 minutes for warning alarms
         snoozeTimeout: 30, // Stop allowing snooze after 30 minutes
       };
-    case "LOW":
+    case "INFORMATIONAL":
       return {
         snoozePeriod: 10, // 10 minutes for informational alarms
         snoozeTimeout: 60, // Stop allowing snooze after 1 hour
@@ -136,15 +142,15 @@ export function alarmFormDataToBleParameters(
   cronExpression: string,
   eventIndex = 0,
 ): Record<string, unknown> {
-  const severityLevel = mapPriorityToSeverityLevel(formData.priority);
-  const vibrationIntensity = mapHapticToVibrationIntensity(
-    formData.hapticChoice,
+  const severityLevel = mapSeverityLevelToNumber(formData.severityLevel);
+  const vibrationIntensity = mapVibrationIntensityToNumber(
+    formData.vibrationIntensity,
   );
-  const vibrationPattern = mapHapticToVibrationPattern(formData.hapticChoice);
-  const ledColor = mapColorToLedColor(formData.color);
-  const { snoozePeriod, snoozeTimeout } = calculateSnoozeSettings(
-    formData.priority,
+  const vibrationPattern = mapVibrationPatternToNumber(
+    formData.vibrationPattern,
   );
+  const ledColor = mapLedColorToNumber(formData.ledColor);
+  const ledPattern = mapLedPatternToNumber(formData.ledPattern);
 
   return {
     eventIndex,
@@ -154,9 +160,61 @@ export function alarmFormDataToBleParameters(
     vibrationIntensity,
     vibrationPattern,
     ledColor,
-    ledPattern: 2, // Blink fast for visibility
-    snoozePeriod,
-    snoozeTimeout,
+    ledPattern,
+    snoozePeriod: formData.snoozePeriod,
+    snoozeTimeout: formData.snoozeTimeout,
+    retriggerDelay: formData.retriggerDelay,
+    retriggerTimeout: formData.retriggerTimeout,
+  };
+}
+
+/**
+ * Convert database alarm object to BLE CreateEventCommand parameters
+ */
+export function alarmDatabaseToBleParameters(
+  alarm: {
+    title: string;
+    cronExpression: string;
+    severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
+    ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+    ledColor:
+      | "RED"
+      | "GREEN"
+      | "BLUE"
+      | "YELLOW"
+      | "MAGENTA"
+      | "CYAN"
+      | "WHITE";
+    vibrationPattern: number;
+    vibrationIntensity: "LOW" | "MEDIUM" | "HIGH";
+    snoozePeriod: number;
+    snoozeTimeout: number;
+    retriggerDelay: number;
+    retriggerTimeout: number;
+  },
+  eventIndex = 0,
+): AddEventParams {
+  const severityLevel = mapSeverityLevelToNumber(alarm.severityLevel);
+  const vibrationIntensity = mapVibrationIntensityToNumber(
+    alarm.vibrationIntensity,
+  );
+  const vibrationPattern = mapVibrationPatternToNumber(alarm.vibrationPattern);
+  const ledColor = mapLedColorToNumber(alarm.ledColor);
+  const ledPattern = mapLedPatternToNumber(alarm.ledPattern);
+
+  return {
+    eventIndex,
+    eventName: alarm.title.substring(0, 10), // Truncate to BLE limit
+    cronExpression: alarm.cronExpression || "0 9 * * *", // Default if missing
+    severityLevel,
+    vibrationIntensity,
+    vibrationPattern,
+    ledColor,
+    ledPattern,
+    snoozePeriod: alarm.snoozePeriod,
+    snoozeTimeout: alarm.snoozeTimeout,
+    retriggerDelay: alarm.retriggerDelay,
+    retriggerTimeout: alarm.retriggerTimeout,
   };
 }
 

@@ -14,21 +14,38 @@ export const syncStatusEnum = pgEnum("SyncStatus", [
   "ERROR",
 ]);
 
-export const alarmPriorityEnum = pgEnum("AlarmPriority", [
+// Legacy enums removed - now using BLE protocol enums only
+
+// BLE Protocol Enums
+export const severityLevelEnum = pgEnum("SeverityLevel", [
+  "INFORMATIONAL",
+  "WARNING",
+  "CRITICAL",
+]);
+
+export const ledPatternEnum = pgEnum("LedPattern", [
+  "SOLID",
+  "BLINK_SLOW",
+  "BLINK_FAST",
+  "PULSE",
+  "STROBE",
+]);
+
+export const ledColorEnum = pgEnum("LedColor", [
+  "RED",
+  "GREEN",
+  "BLUE",
+  "YELLOW",
+  "MAGENTA",
+  "CYAN",
+  "WHITE",
+]);
+
+export const vibrationIntensityEnum = pgEnum("VibrationIntensity", [
   "LOW",
   "MEDIUM",
   "HIGH",
 ]);
-
-export const hapticChoiceEnum = pgEnum("HapticChoice", [
-  "STANDARD",
-  "STRONG",
-  "SOFT",
-  "DOUBLE",
-  "PULSE",
-  "WAVE",
-]);
-
 export const Device = pgTable("Device", (t) => ({
   id: pgCuid2("id").defaultRandom().primaryKey(),
   title: t.text().notNull(),
@@ -62,11 +79,18 @@ export const Alarm = pgTable("Alarm", (t) => ({
     .timestamp({ withTimezone: true, mode: "string" })
     .$onUpdate(() => sql`NOW()`)
     .notNull(),
-  color: t.text().default("#000000").notNull(),
   syncStatus: syncStatusEnum().default("NOT_SYNCED").notNull(),
-  priority: alarmPriorityEnum().default("MEDIUM").notNull(),
-  hapticChoice: hapticChoiceEnum().default("STANDARD").notNull(),
   lastSync: t.timestamp(),
+  // BLE Protocol fields (consolidated - these replace legacy color, priority, hapticChoice)
+  severityLevel: severityLevelEnum().default("INFORMATIONAL").notNull(),
+  ledPattern: ledPatternEnum().default("BLINK_SLOW").notNull(),
+  ledColor: ledColorEnum().default("BLUE").notNull(),
+  vibrationPattern: t.integer().default(1).notNull(),
+  vibrationIntensity: vibrationIntensityEnum().default("MEDIUM").notNull(),
+  snoozePeriod: t.integer().default(5).notNull(), // minutes
+  snoozeTimeout: t.integer().default(15).notNull(), // minutes
+  retriggerDelay: t.integer().default(1).notNull(), // minutes
+  retriggerTimeout: t.integer().default(5).notNull(), // minutes
   userId: t
     .text()
     .notNull()
@@ -133,11 +157,20 @@ export const CreateAlarmSchema = createInsertSchema(Alarm, {
   endDate: z.string().optional(),
   repeat: z.boolean().optional(),
   cronExpression: z.string().min(1),
-  color: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
-  hapticChoice: z
-    .enum(["STANDARD", "STRONG", "SOFT", "DOUBLE", "PULSE", "WAVE"])
+  // BLE Protocol fields (consolidated - replaces legacy color, priority, hapticChoice)
+  severityLevel: z.enum(["INFORMATIONAL", "WARNING", "CRITICAL"]).optional(),
+  ledPattern: z
+    .enum(["SOLID", "BLINK_SLOW", "BLINK_FAST", "PULSE", "STROBE"])
     .optional(),
+  ledColor: z
+    .enum(["RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"])
+    .optional(),
+  vibrationPattern: z.number().int().min(1).max(63).optional(),
+  vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  snoozePeriod: z.number().int().min(1).max(60).optional(),
+  snoozeTimeout: z.number().int().min(1).max(120).optional(),
+  retriggerDelay: z.number().int().min(1).max(60).optional(),
+  retriggerTimeout: z.number().int().min(1).max(120).optional(),
   deviceId: z.string().optional(),
 }).omit({
   id: true,
@@ -148,31 +181,9 @@ export const CreateAlarmSchema = createInsertSchema(Alarm, {
   userId: true, // This will be set from the session
 });
 
-export const UpdateAlarmSchema = createInsertSchema(Alarm, {
-  title: z.string().min(1).optional(),
-  description: z.string().optional(),
-  isActive: z.boolean().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  repeat: z.boolean().optional(),
-  cronExpression: z.string().min(1).optional(),
-  color: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
-  hapticChoice: z
-    .enum(["STANDARD", "STRONG", "SOFT", "DOUBLE", "PULSE", "WAVE"])
-    .optional(),
-  deviceId: z.string().optional(),
-})
-  .omit({
-    createdAt: true,
-    updatedAt: true,
-    syncStatus: true, // This will be handled automatically
-    lastSync: true, // This will be handled automatically
-    userId: true, // This will be set from the session
-  })
-  .extend({
-    id: z.string(), // Required for updates
-  });
+export const UpdateAlarmSchema = CreateAlarmSchema.partial().extend({
+  id: z.string(), // Required for updates
+});
 
 export const AlarmWhereUniqueSchema = z.object({
   id: z.string(),

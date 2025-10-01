@@ -109,24 +109,24 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
     }
   };
 
-  const getPriorityConfig = (priority: string) => {
-    switch (priority) {
-      case "HIGH":
+  const getSeverityConfig = (severityLevel: string) => {
+    switch (severityLevel) {
+      case "CRITICAL":
         return {
           color: colors.error[500],
           icon: "warning" as const,
           bgColor: colors.error[50],
         };
-      case "MEDIUM":
+      case "WARNING":
         return {
           color: colors.warning[500],
           icon: "alert-circle" as const,
           bgColor: colors.warning[50],
         };
-      case "LOW":
+      case "INFORMATIONAL":
         return {
           color: colors.success[500],
-          icon: "checkmark-circle" as const,
+          icon: "information-circle" as const,
           bgColor: colors.success[50],
         };
       default:
@@ -167,7 +167,7 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
     }
   };
 
-  const priorityConfig = getPriorityConfig(alarm.priority);
+  const severityConfig = getSeverityConfig(alarm.severityLevel);
   const syncConfig = getSyncStatusConfig(alarm.syncStatus);
 
   if (compact) {
@@ -252,16 +252,31 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
             }}
           >
             <Ionicons
-              name={priorityConfig.icon}
+              name={severityConfig.icon}
               size={16}
-              color={priorityConfig.color}
+              color={severityConfig.color}
             />
             <View
               style={{
                 width: 16,
                 height: 16,
                 borderRadius: 8,
-                backgroundColor: alarm.color,
+                backgroundColor:
+                  alarm.ledColor === "RED"
+                    ? "#ff3b30"
+                    : alarm.ledColor === "GREEN"
+                      ? "#34c759"
+                      : alarm.ledColor === "BLUE"
+                        ? "#007aff"
+                        : alarm.ledColor === "YELLOW"
+                          ? "#ffcc02"
+                          : alarm.ledColor === "MAGENTA"
+                            ? "#af52de"
+                            : alarm.ledColor === "CYAN"
+                              ? "#00ffff"
+                              : alarm.ledColor === "WHITE"
+                                ? "#ffffff"
+                                : "#007aff",
                 borderWidth: 1,
                 borderColor: colors.border.light,
               }}
@@ -342,22 +357,22 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
             paddingHorizontal: spacing[3],
             paddingVertical: spacing[2],
             borderRadius: spacing[2],
-            backgroundColor: priorityConfig.bgColor,
+            backgroundColor: severityConfig.bgColor,
           }}
         >
           <Ionicons
-            name={priorityConfig.icon}
+            name={severityConfig.icon}
             size={16}
-            color={priorityConfig.color}
+            color={severityConfig.color}
             style={{ marginRight: spacing[1] }}
           />
           <Text
             style={[
               typography.caption,
-              { color: priorityConfig.color, fontWeight: "600" },
+              { color: severityConfig.color, fontWeight: "600" },
             ]}
           >
-            {alarm.priority}
+            {alarm.severityLevel}
           </Text>
         </View>
 
@@ -447,7 +462,7 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
               { color: colors.text.primary, fontWeight: "600" },
             ]}
           >
-            {alarm.hapticChoice}
+            {alarm.vibrationIntensity}
           </Text>
         </View>
 
@@ -457,7 +472,22 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
               width: 20,
               height: 20,
               borderRadius: 10,
-              backgroundColor: alarm.color,
+              backgroundColor:
+                alarm.ledColor === "RED"
+                  ? "#ff3b30"
+                  : alarm.ledColor === "GREEN"
+                    ? "#34c759"
+                    : alarm.ledColor === "BLUE"
+                      ? "#007aff"
+                      : alarm.ledColor === "YELLOW"
+                        ? "#ffcc02"
+                        : alarm.ledColor === "MAGENTA"
+                          ? "#af52de"
+                          : alarm.ledColor === "CYAN"
+                            ? "#00ffff"
+                            : alarm.ledColor === "WHITE"
+                              ? "#ffffff"
+                              : "#007aff",
               borderWidth: 1,
               borderColor: colors.border.light,
               marginBottom: spacing[1],

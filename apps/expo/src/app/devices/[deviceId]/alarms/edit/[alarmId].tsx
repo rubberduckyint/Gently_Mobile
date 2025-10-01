@@ -97,9 +97,16 @@ export default function EditAlarmPage() {
         endDate,
         repeat: data.repeat,
         cronExpression,
-        color: data.color,
-        priority: data.priority,
-        hapticChoice: data.hapticChoice,
+        // BLE Protocol fields (consolidated - replaces legacy color, priority, hapticChoice)
+        severityLevel: data.severityLevel,
+        ledPattern: data.ledPattern,
+        ledColor: data.ledColor,
+        vibrationPattern: data.vibrationPattern,
+        vibrationIntensity: data.vibrationIntensity,
+        snoozePeriod: data.snoozePeriod,
+        snoozeTimeout: data.snoozeTimeout,
+        retriggerDelay: data.retriggerDelay,
+        retriggerTimeout: data.retriggerTimeout,
       });
     },
     onSuccess: () => {
@@ -151,9 +158,23 @@ export default function EditAlarmPage() {
     startDate: string | Date;
     endDate?: string | Date | null;
     repeat: boolean;
-    color: string;
-    priority: "LOW" | "MEDIUM" | "HIGH";
-    hapticChoice: "STANDARD" | "STRONG" | "SOFT" | "DOUBLE" | "PULSE" | "WAVE";
+    // BLE Protocol fields (consolidated schema)
+    severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
+    ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+    ledColor:
+      | "RED"
+      | "GREEN"
+      | "BLUE"
+      | "YELLOW"
+      | "MAGENTA"
+      | "CYAN"
+      | "WHITE";
+    vibrationPattern: number;
+    vibrationIntensity: "LOW" | "MEDIUM" | "HIGH";
+    snoozePeriod: number;
+    snoozeTimeout: number;
+    retriggerDelay: number;
+    retriggerTimeout: number;
   }): AlarmFormData => {
     // Safely parse the start date with validation
     let startDate: Date;
@@ -196,9 +217,16 @@ export default function EditAlarmPage() {
       ends: endsOnDate ? "on" : "never",
       endsOnDate,
       endsAfter: undefined,
-      color: alarm.color,
-      priority: alarm.priority,
-      hapticChoice: alarm.hapticChoice,
+      // BLE Protocol fields (consolidated schema)
+      severityLevel: alarm.severityLevel,
+      ledPattern: alarm.ledPattern,
+      ledColor: alarm.ledColor,
+      vibrationPattern: alarm.vibrationPattern,
+      vibrationIntensity: alarm.vibrationIntensity,
+      snoozePeriod: alarm.snoozePeriod,
+      snoozeTimeout: alarm.snoozeTimeout,
+      retriggerDelay: alarm.retriggerDelay,
+      retriggerTimeout: alarm.retriggerTimeout,
     };
   };
 

@@ -6,16 +6,13 @@
  */
 
 import React from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 
 import { cards, colors, inputs, spacing, typography } from "~/styles";
 
 export interface AlarmFormData {
   title: string;
   description: string;
-  color: string;
-  priority: "LOW" | "MEDIUM" | "HIGH";
-  hapticChoice: "STANDARD" | "STRONG" | "SOFT" | "DOUBLE" | "PULSE" | "WAVE";
   startDate: Date;
   repeat: boolean;
   repeatType: "minutes" | "hours" | "days" | "weeks";
@@ -24,18 +21,19 @@ export interface AlarmFormData {
   ends: "never" | "on" | "after";
   endsOnDate?: Date;
   endsAfter?: number;
+  // BLE Protocol fields (consolidated - these replace legacy color, priority, hapticChoice)
+  severityLevel: "INFORMATIONAL" | "WARNING" | "CRITICAL";
+  ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+  ledColor: "RED" | "GREEN" | "BLUE" | "YELLOW" | "MAGENTA" | "CYAN" | "WHITE";
+  vibrationPattern: number; // 1-63
+  vibrationIntensity: "LOW" | "MEDIUM" | "HIGH";
+  snoozePeriod: number; // minutes
+  snoozeTimeout: number; // minutes
+  retriggerDelay: number; // minutes
+  retriggerTimeout: number; // minutes
 }
 
-const COLOR_OPTIONS = [
-  "#007AFF", // Blue
-  "#34C759", // Green
-  "#FF3B30", // Red
-  "#FF9500", // Orange
-  "#AF52DE", // Purple
-  "#FF2D92", // Pink
-  "#00C7BE", // Teal
-  "#FFD60A", // Yellow
-];
+// COLOR_OPTIONS removed - LED colors are now handled in AdvancedSection
 
 interface BasicInfoSectionProps {
   formData: AlarmFormData;
@@ -82,37 +80,7 @@ export function BasicInfoSection({
         />
       </View>
 
-      {/* Color Selection */}
-      <View>
-        <Text style={[typography.label, { marginBottom: spacing[3] }]}>
-          Color
-        </Text>
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: spacing[3],
-          }}
-        >
-          {COLOR_OPTIONS.map((color) => (
-            <Pressable
-              key={color}
-              onPress={() => onUpdateFormData({ color })}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: color,
-                borderWidth: formData.color === color ? 3 : 2,
-                borderColor:
-                  formData.color === color
-                    ? colors.primary[600]
-                    : colors.border.light,
-              }}
-            />
-          ))}
-        </View>
-      </View>
+      {/* Color selection moved to AdvancedSection as LED Color */}
     </View>
   );
 }

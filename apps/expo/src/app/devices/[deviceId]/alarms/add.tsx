@@ -37,9 +37,16 @@ const getDefaultFormData = (): AlarmFormData => {
     ends: "never",
     endsOnDate: undefined,
     endsAfter: undefined,
-    color: "#007AFF",
-    priority: "MEDIUM",
-    hapticChoice: "STANDARD",
+    // BLE Protocol defaults (consolidated - replaces legacy color, priority, hapticChoice)
+    severityLevel: "INFORMATIONAL",
+    ledPattern: "BLINK_SLOW",
+    ledColor: "BLUE",
+    vibrationPattern: 1,
+    vibrationIntensity: "MEDIUM",
+    snoozePeriod: 5, // 5 minutes
+    snoozeTimeout: 15, // 15 minutes
+    retriggerDelay: 1, // 1 minute
+    retriggerTimeout: 5, // 5 minutes
   };
 };
 
@@ -105,9 +112,16 @@ export default function AddAlarmPage() {
         endDate,
         repeat: data.repeat,
         cronExpression,
-        color: data.color,
-        priority: data.priority,
-        hapticChoice: data.hapticChoice,
+        // BLE Protocol fields (consolidated - replaces legacy color, priority, hapticChoice)
+        severityLevel: data.severityLevel,
+        ledPattern: data.ledPattern,
+        ledColor: data.ledColor,
+        vibrationPattern: data.vibrationPattern,
+        vibrationIntensity: data.vibrationIntensity,
+        snoozePeriod: data.snoozePeriod,
+        snoozeTimeout: data.snoozeTimeout,
+        retriggerDelay: data.retriggerDelay,
+        retriggerTimeout: data.retriggerTimeout,
         deviceId,
       });
     },

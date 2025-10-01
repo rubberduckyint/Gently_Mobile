@@ -60,6 +60,7 @@ import {
   typography,
 } from "~/styles";
 import { trpc } from "~/utils/api";
+import { alarmDatabaseToBleParameters } from "~/utils/bleAlarmUtils";
 
 export default function DeviceDetailPage() {
   const { deviceId } = useGlobalSearchParams<{ deviceId: string }>();
@@ -450,31 +451,13 @@ export default function DeviceDetailPage() {
                       `➥ ===============================================================`,
                     );
 
-                    // Convert alarm to device event format
-                    const addEventCommand = createAddEventRequest({
-                      eventIndex: i,
-                      eventName: alarm.title.substring(0, 10),
-                      cronExpression: alarm.cronExpression || "0 9 * * *", // Default if missing
-                      vibrationPattern: 1, // Default pattern
-                      vibrationIntensity:
-                        alarm.priority === "HIGH"
-                          ? 3
-                          : alarm.priority === "MEDIUM"
-                            ? 2
-                            : 1,
-                      ledPattern: 2, // Blink fast
-                      ledColor: 4, // Red
-                      severityLevel:
-                        alarm.priority === "HIGH"
-                          ? 1
-                          : alarm.priority === "MEDIUM"
-                            ? 2
-                            : 3,
-                      snoozePeriod: 5, // 5 minutes
-                      snoozeTimeout: 60, // 1 hour
-                      retriggerDelay: 1, // 1 minute
-                      retriggerTimeout: 10, // 10 minutes
-                    });
+                    // Convert alarm to device event format using consolidated BLE protocol fields
+                    const bleParameters = alarmDatabaseToBleParameters(
+                      alarm,
+                      i,
+                    );
+                    const addEventCommand =
+                      createAddEventRequest(bleParameters);
 
                     console.log(
                       `🔑 About to send ADD_EVENT with key: ${encryptionKey}`,
@@ -646,31 +629,9 @@ export default function DeviceDetailPage() {
             `➕ Adding alarm ${i + 1}/${device.alarms.length}: ${alarm.title}`,
           );
 
-          // Convert alarm to device event format
-          const addEventCommand = createAddEventRequest({
-            eventIndex: i,
-            eventName: alarm.title.substring(0, 10),
-            cronExpression: alarm.cronExpression || "0 9 * * *", // Default if missing
-            vibrationPattern: 1, // Default pattern
-            vibrationIntensity:
-              alarm.priority === "HIGH"
-                ? 3
-                : alarm.priority === "MEDIUM"
-                  ? 2
-                  : 1,
-            ledPattern: 2, // Blink fast
-            ledColor: 4, // Red
-            severityLevel:
-              alarm.priority === "HIGH"
-                ? 1
-                : alarm.priority === "MEDIUM"
-                  ? 2
-                  : 3,
-            snoozePeriod: 5, // 5 minutes
-            snoozeTimeout: 60, // 1 hour
-            retriggerDelay: 1, // 1 minute
-            retriggerTimeout: 10, // 10 minutes
-          });
+          // Convert alarm to device event format using consolidated BLE protocol fields
+          const bleParameters = alarmDatabaseToBleParameters(alarm, i);
+          const addEventCommand = createAddEventRequest(bleParameters);
 
           console.log(
             `\n� ==================== SENDING ADD_EVENT ====================`,
