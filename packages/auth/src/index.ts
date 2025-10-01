@@ -2,10 +2,10 @@ import type { BetterAuthOptions } from "better-auth";
 import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { magicLink, oAuthProxy } from "better-auth/plugins";
+import { emailOTP, magicLink, oAuthProxy } from "better-auth/plugins";
 
 import { db } from "@gently/db/client";
-import { EmailSender, MagicLinkService } from "@gently/email";
+import { EmailSender, MagicLinkService, OTPService } from "@gently/email";
 
 export function initAuth(options: {
   baseUrl: string;
@@ -25,6 +25,7 @@ export function initAuth(options: {
 }) {
   // Initialize email service if SMTP is configured
   let magicLinkService: MagicLinkService | null = null;
+  let otpService: OTPService | null = null;
 
   if (options.smtpHost && options.smtpPort && options.emailFrom) {
     const emailSender = new EmailSender({
@@ -36,6 +37,7 @@ export function initAuth(options: {
     });
 
     magicLinkService = new MagicLinkService(emailSender);
+    otpService = new OTPService(emailSender);
   }
 
   const config = {
@@ -78,6 +80,36 @@ export function initAuth(options: {
           } catch (error) {
             console.error("Failed to send magic link:", error);
             throw error;
+          }
+        },
+      }),
+      emailOTP({
+        async sendVerificationOTP({ email, otp, type }) {
+          console.log(`🔥 sendVerificationOTP called with:`, { email, otp, type });
+          
+          if (type === "sign-in") {
+            try {
+              if (otpService) {
+                console.log(`📧 Using email service to send OTP`);
+                await otpService.sendOTP({
+                  email,
+                  otp,
+                  productName: "Gently",
+                });
+                console.log(`✅ OTP sent to ${email}`);
+              } else {
+                // Fallback for development or missing email config
+                console.log(`📝 OTP for ${email}: ${otp}`);
+                console.warn(
+                  "⚠️ Email service not configured. Using console fallback.",
+                );
+              }
+            } catch (error) {
+              console.error("❌ Failed to send OTP:", error);
+              throw error;
+            }
+          } else {
+            console.log(`⏭️ Skipping OTP send for type: ${type}`);
           }
         },
       }),

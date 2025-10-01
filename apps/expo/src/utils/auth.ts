@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import { expoClient } from "@better-auth/expo/client";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { emailOTPClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 // Configure Google Sign-In
@@ -30,6 +31,7 @@ export const authClient = createAuthClient({
       storagePrefix: "gently",
       storage: SecureStore,
     }),
+    emailOTPClient(),
   ],
 });
 

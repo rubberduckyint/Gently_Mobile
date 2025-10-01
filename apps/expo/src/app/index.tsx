@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,7 +30,11 @@ export default function LoginPage() {
   const { data: session, isPending } = authClient.useSession();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const otpRefs = useRef<TextInput[]>([]);
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
@@ -39,36 +43,126 @@ export default function LoginPage() {
     }
   }, [session]);
 
-  const handleEmailAuth = async () => {
+  const handleSendOTP = async () => {
     if (!email.trim()) {
       Alert.alert("Error", "Please enter your email address");
       return;
     }
 
     setIsLoading(true);
+    console.log("🔐 Sending OTP to:", email.trim());
+
     try {
-      // Use better-auth magic link
-      await authClient.$fetch("/magic-link/send", {
-        method: "POST",
-        body: {
-          email: email.trim(),
-          callbackURL: "gently://", // Use expo scheme for callback
-        },
+      const result = await authClient.emailOtp.sendVerificationOtp({
+        email: email.trim(),
+        type: "sign-in",
       });
 
-      setEmailSent(true);
+      console.log("✅ OTP send result:", result);
+      setOtpSent(true);
+
       Alert.alert(
         "Check Your Email",
-        "We've sent a sign-in link to your email address. Click the link to continue.",
+        `We've sent a verification code to ${email.trim()}. \n\n📧 Check your email inbox (and spam folder) for the 6-digit code.\n\n🔧 For development: Check MailHog at http://localhost:8025`,
         [{ text: "OK" }],
       );
     } catch (error: unknown) {
+      console.error("❌ Failed to send OTP:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+
       Alert.alert(
-        "Failed to Send Magic Link",
-        (error as Error).message || "Please try again.",
+        "Failed to Send OTP",
+        `Could not send verification code to ${email.trim()}.\n\nError: ${errorMessage}\n\n🔧 For development: Make sure MailHog is running with 'docker-compose up'`,
+        [
+          { text: "Retry", onPress: () => void handleSendOTP() },
+          { text: "Cancel", style: "cancel" },
+        ],
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    // Clear any previous errors
+    setOtpError("");
+
+    const otpString = otp.join("");
+
+    if (!otpString.trim()) {
+      setOtpError("Please enter the verification code");
+      return;
+    }
+
+    if (otpString.length !== 6) {
+      setOtpError("Please enter all 6 digits");
+      return;
+    }
+
+    setOtpLoading(true);
+    console.log("🔐 Verifying OTP:", {
+      email: email.trim(),
+      otpLength: otpString.length,
+    });
+
+    try {
+      const result = await authClient.signIn.emailOtp({
+        email: email.trim(),
+        otp: otpString,
+      });
+
+      console.log("✅ OTP verification successful:", result);
+      router.replace("/dashboard");
+    } catch (error: unknown) {
+      console.error("❌ OTP verification failed:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+
+      if (errorMessage.toLowerCase().includes("expired")) {
+        setOtpError("This code has expired. Please request a new one.");
+      } else if (
+        errorMessage.toLowerCase().includes("invalid") ||
+        errorMessage.toLowerCase().includes("incorrect")
+      ) {
+        setOtpError("Invalid verification code. Please check and try again.");
+      } else {
+        setOtpError(`Verification failed: ${errorMessage}`);
+      }
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    // Only allow numeric input
+    if (value && !/^\d$/.test(value)) return;
+
+    // Clear error when user starts typing
+    setOtpError("");
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    // Auto-focus next field when digit is entered
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-submit when all 6 digits are entered
+    if (value && newOtp.every((digit) => digit !== "")) {
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        void handleVerifyOTP();
+      }, 100);
+    }
+  };
+
+  const handleOtpKeyPress = (index: number, key: string) => {
+    // Move to previous field on backspace if current field is empty
+    if (key === "Backspace" && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
     }
   };
 
@@ -162,13 +256,13 @@ export default function LoginPage() {
           <View style={commonStyles.headerSection}>
             <Text style={typography.h1}>Welcome to Gently</Text>
             <Text style={[typography.subtitle, { textAlign: "center" }]}>
-              {emailSent
-                ? "Check your email for a sign-in link"
+              {otpSent
+                ? "Enter the verification code from your email"
                 : "Sign in to your account"}
             </Text>
           </View>
 
-          {!emailSent && (
+          {!otpSent && (
             <>
               {/* Email input */}
               <View style={inputs.container}>
@@ -186,7 +280,7 @@ export default function LoginPage() {
                 />
               </View>
 
-              {/* Magic Link Button */}
+              {/* OTP Button */}
               <Pressable
                 style={[
                   buttons.base,
@@ -194,13 +288,13 @@ export default function LoginPage() {
                   buttons.primary,
                   isLoading && buttons.disabled,
                 ]}
-                onPress={handleEmailAuth}
+                onPress={handleSendOTP}
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <ActivityIndicator color={colors.text.inverse} />
                 ) : (
-                  <Text style={buttonText.primary}>Send Sign-In Link</Text>
+                  <Text style={buttonText.primary}>Send Verification Code</Text>
                 )}
               </Pressable>
 
@@ -239,20 +333,9 @@ export default function LoginPage() {
             </>
           )}
 
-          {emailSent && (
-            <View style={[flex.itemsCenter, { paddingVertical: spacing[8] }]}>
-              <Text
-                style={[
-                  typography.h5,
-                  {
-                    color: colors.success[600],
-                    textAlign: "center",
-                    marginBottom: spacing[3],
-                  },
-                ]}
-              >
-                A sign-in link has been sent to {email}
-              </Text>
+          {/* OTP Input Screen */}
+          {otpSent && (
+            <View style={[flex.itemsCenter, { paddingVertical: spacing[4] }]}>
               <Text
                 style={[
                   typography.body,
@@ -264,17 +347,142 @@ export default function LoginPage() {
                   },
                 ]}
               >
-                Click the link in your email to complete sign-in. You can close
-                this screen.
+                We've sent a 6-digit verification code to {email}
               </Text>
+
+              {/* OTP Input */}
+              <View style={inputs.container}>
+                <Text style={inputs.label}>Verification Code</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginTop: spacing[2],
+                    gap: spacing[2],
+                  }}
+                >
+                  {otp.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      ref={(ref) => {
+                        if (ref) {
+                          otpRefs.current[index] = ref;
+                        }
+                      }}
+                      style={[
+                        {
+                          width: 50,
+                          height: 56,
+                          borderWidth: 2,
+                          borderColor: digit
+                            ? colors.primary[500]
+                            : otpError
+                              ? colors.error[500]
+                              : colors.border.light,
+                          borderRadius: 12,
+                          textAlign: "center",
+                          fontSize: 20,
+                          fontWeight: "700",
+                          color: colors.text.primary,
+                          backgroundColor: colors.background.secondary,
+                          shadowColor: colors.gray[900],
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.05,
+                          shadowRadius: 2,
+                          elevation: 1,
+                        },
+                        otpLoading && { opacity: 0.6 },
+                      ]}
+                      value={digit}
+                      onChangeText={(value) => handleOtpChange(index, value)}
+                      onKeyPress={({ nativeEvent }) =>
+                        handleOtpKeyPress(index, nativeEvent.key)
+                      }
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      selectTextOnFocus
+                      editable={!otpLoading}
+                      autoFocus={index === 0}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* Error Message */}
+              {otpError ? (
+                <View
+                  style={{ marginTop: spacing[2], marginBottom: spacing[4] }}
+                >
+                  <Text
+                    style={[
+                      typography.bodySmall,
+                      {
+                        color: colors.error[600],
+                        textAlign: "center",
+                        lineHeight: 20,
+                        paddingHorizontal: spacing[4],
+                      },
+                    ]}
+                  >
+                    {otpError}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Verify Button */}
               <Pressable
-                style={[buttons.base, buttons.medium, buttons.ghost]}
+                style={[
+                  buttons.base,
+                  buttons.large,
+                  buttons.primary,
+                  otpLoading && buttons.disabled,
+                ]}
+                onPress={handleVerifyOTP}
+                disabled={otpLoading}
+              >
+                {otpLoading ? (
+                  <ActivityIndicator color={colors.text.inverse} />
+                ) : (
+                  <Text style={buttonText.primary}>Verify & Sign In</Text>
+                )}
+              </Pressable>
+
+              {/* Back Button */}
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.medium,
+                  buttons.ghost,
+                  { marginTop: spacing[4] },
+                ]}
                 onPress={() => {
-                  setEmailSent(false);
+                  setOtpSent(false);
+                  setOtp(["", "", "", "", "", ""]);
                   setEmail("");
+                  setOtpError("");
                 }}
               >
-                <Text style={buttonText.ghost}>Try with different email</Text>
+                <Text style={buttonText.ghost}>Back to sign-in options</Text>
+              </Pressable>
+
+              {/* Resend Code */}
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.medium,
+                  buttons.ghost,
+                  { marginTop: spacing[2] },
+                ]}
+                onPress={() => {
+                  setOtpError("");
+                  setOtp(["", "", "", "", "", ""]);
+                  void handleSendOTP();
+                }}
+                disabled={isLoading}
+              >
+                <Text style={buttonText.ghost}>
+                  {isLoading ? "Sending..." : "Resend code"}
+                </Text>
               </Pressable>
             </View>
           )}
