@@ -22,10 +22,12 @@ const transporter = nodemailer.createTransport({
             pass: env.EMAIL_SERVER_PASSWORD,
           }
         : undefined,
-  // Add TLS options for better compatibility
+  // Add TLS options for better compatibility with AWS SES
   tls: {
     // Do not fail on invalid certs (useful for development)
     rejectUnauthorized: env.NODE_ENV === "production",
+    // Additional options for AWS SES
+    ciphers: "SSLv3",
   },
 });
 

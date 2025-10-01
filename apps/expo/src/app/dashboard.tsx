@@ -281,9 +281,24 @@ export default function DashboardPage() {
       return await trpc.device.delete.mutate({ id: deviceId });
     },
     onSuccess: (_, deviceId) => {
-      // Remove the specific device query from cache to prevent any lingering queries
+      // Remove all queries related to this specific device to prevent any stale data errors
       queryClient.removeQueries({
         queryKey: ["device", "getById", { id: deviceId }],
+      });
+      // Also remove any alarm-related queries for this device
+      queryClient.removeQueries({
+        queryKey: ["alarm"],
+        predicate: (query) => {
+          // Remove any alarm queries that reference this device
+          const queryKey = query.queryKey as unknown[];
+          return queryKey.some(
+            (key) =>
+              typeof key === "object" &&
+              key !== null &&
+              "deviceId" in key &&
+              key.deviceId === deviceId,
+          );
+        },
       });
       // Invalidate the devices list to refresh the dashboard
       void queryClient.invalidateQueries({ queryKey: ["devices"] });

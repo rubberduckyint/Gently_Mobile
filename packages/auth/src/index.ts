@@ -116,6 +116,12 @@ export function initAuth(options: {
             console.log(`⏭️ Skipping OTP send for type: ${type}`);
           }
         },
+        // Enable OTP storage and validation to prevent accepting any OTP
+        storeOTP: "hashed",
+        // Set reasonable limits
+        expiresIn: 300, // 5 minutes
+        allowedAttempts: 3, // Max 3 attempts per OTP
+        otpLength: 6, // 6-digit OTP
       }),
       expo(),
     ],
