@@ -1,3 +1,4 @@
+;
 /**
  * BLE Test Page
  *
@@ -7,85 +8,33 @@
 
 import type { Peripheral } from "react-native-ble-manager";
 import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
-import BleManager, {
-  BleScanCallbackType,
-  BleScanMatchMode,
-  BleScanMode,
-} from "react-native-ble-manager";
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import BleManager, { BleScanCallbackType, BleScanMatchMode, BleScanMode } from "react-native-ble-manager";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 
-import {
-  createAddEventRequest,
-  parseAddEventResponse,
-} from "~/services/ble/commands/addEvent";
+
+
+import { createAddEventRequest, parseAddEventResponse } from "~/services/ble/commands/addEvent";
 // Custom header - not using expo navigation
-import {
-  createFindMeRequest,
-  parseFindMeResponse,
-} from "~/services/ble/commands/findMe";
-import {
-  createGetAllEventsRequest,
-  parseGetAllEventsResponse,
-} from "~/services/ble/commands/getAllEvents";
-import {
-  createGetDeviceInfoRequest,
-  parseGetDeviceInfoResponse,
-} from "~/services/ble/commands/getDeviceInfo";
-import {
-  createGetDeviceStatusRequest,
-  parseGetDeviceStatusResponse,
-} from "~/services/ble/commands/getDeviceStatus";
-import {
-  createGetNumberOfEventsRequest,
-  parseGetNumberOfEventsResponse,
-} from "~/services/ble/commands/getNumberOfEvents";
-import {
-  createGetTimeRequest,
-  parseGetTimeResponse,
-} from "~/services/ble/commands/getTime";
-import {
-  createGetUptimeRequest,
-  parseGetUptimeResponse,
-} from "~/services/ble/commands/getUptime";
-import {
-  createSetEventOnOffRequest,
-  parseSetEventOnOffResponse,
-} from "~/services/ble/commands/setEventOnOff";
-import {
-  createSetTimeRequest,
-  parseSetTimeResponse,
-} from "~/services/ble/commands/setTime";
-import {
-  extractAndDecryptAdvertisementData,
-  generateDynamicKey,
-} from "~/services/ble/encryption";
-import {
-  sendCommand,
-  startNotifications,
-  stopNotifications,
-} from "~/services/ble/manager";
+import { createFindMeRequest, parseFindMeResponse } from "~/services/ble/commands/findMe";
+import { createGetAllEventsRequest, parseGetAllEventsResponse } from "~/services/ble/commands/getAllEvents";
+import { createGetDeviceInfoRequest, parseGetDeviceInfoResponse } from "~/services/ble/commands/getDeviceInfo";
+import { createGetDeviceStatusRequest, parseGetDeviceStatusResponse } from "~/services/ble/commands/getDeviceStatus";
+import { createGetNumberOfEventsRequest, parseGetNumberOfEventsResponse } from "~/services/ble/commands/getNumberOfEvents";
+import { createGetTimeRequest, parseGetTimeResponse } from "~/services/ble/commands/getTime";
+import { createGetUptimeRequest, parseGetUptimeResponse } from "~/services/ble/commands/getUptime";
+import { createSetEventOnOffRequest, parseSetEventOnOffResponse } from "~/services/ble/commands/setEventOnOff";
+import { createSetTimeRequest, parseSetTimeResponse } from "~/services/ble/commands/setTime";
+import { extractAndDecryptAdvertisementData, generateDynamicKey } from "~/services/ble/encryption";
+import { sendCommand, startNotifications, stopNotifications } from "~/services/ble/manager";
 import { FACTORY_BRACELET_KEY, ResponseStatus } from "~/services/ble/types";
-import {
-  buttons,
-  cards,
-  colors,
-  containers,
-  spacing,
-  typography,
-} from "~/styles";
+import { buttons, cards, colors, containers, spacing, typography } from "~/styles";
 import { trpc } from "~/utils/api";
+
 
 type ConnectionState = "disconnected" | "scanning" | "connecting" | "connected";
 
@@ -156,14 +105,19 @@ export default function BleTestPage() {
             addTestResult("🔐 Testing existing connection...");
 
             try {
-              // Request MTU if not already set
-              try {
-                await BleManager.requestMTU(peripheral.id, 512);
-                addTestResult("📶 MTU 512 requested for existing connection");
-              } catch (mtuError) {
-                addTestResult(
-                  `⚠️ MTU request failed: ${mtuError instanceof Error ? mtuError.message : String(mtuError)}`,
-                );
+              if (Platform.OS === "android") {
+                console.log(`🔧 Configuring MTU for Android device...`);
+                // Request MTU of 512 for better communication performance
+                try {
+                  await BleManager.requestMTU(peripheral.id, 512);
+                  console.log(`📶 MTU 512 requested for ${peripheral.id}`);
+                } catch (mtuError) {
+                  console.warn(
+                    `⚠️ MTU request failed for ${peripheral.id}:`,
+                    mtuError,
+                  );
+                  // Continue without MTU - this is not critical for basic functionality
+                }
               }
 
               // Start notifications if not already started
@@ -243,14 +197,19 @@ export default function BleTestPage() {
                 await BleManager.connect(peripheral.id);
                 addTestResult("✅ Connected to device");
 
-                // Request MTU of 512 for better performance
-                try {
-                  await BleManager.requestMTU(peripheral.id, 512);
-                  addTestResult("📶 MTU 512 requested");
-                } catch (mtuError) {
-                  addTestResult(
-                    `⚠️ MTU request failed: ${mtuError instanceof Error ? mtuError.message : String(mtuError)}`,
-                  );
+                if (Platform.OS === "android") {
+                  console.log(`🔧 Configuring MTU for Android device...`);
+                  // Request MTU of 512 for better communication performance
+                  try {
+                    await BleManager.requestMTU(peripheral.id, 512);
+                    console.log(`📶 MTU 512 requested for ${peripheral.id}`);
+                  } catch (mtuError) {
+                    console.warn(
+                      `⚠️ MTU request failed for ${peripheral.id}:`,
+                      mtuError,
+                    );
+                    // Continue without MTU - this is not critical for basic functionality
+                  }
                 }
 
                 await BleManager.retrieveServices(peripheral.id);

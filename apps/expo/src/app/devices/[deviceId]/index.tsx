@@ -3,6 +3,7 @@ import React, { useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -354,16 +355,19 @@ export default function DeviceDetailPage() {
                   await BleManager.connect(peripheral.id);
                   console.log(`✅ Connected to device: ${peripheral.id}`);
 
-                  // Request MTU of 512 for better sync performance
-                  try {
-                    await BleManager.requestMTU(peripheral.id, 512);
-                    console.log(`📶 MTU 512 requested for ${peripheral.id}`);
-                  } catch (mtuError) {
-                    console.warn(
-                      `⚠️ MTU request failed for ${peripheral.id}:`,
-                      mtuError,
-                    );
-                    // Continue without MTU - this is not critical for basic functionality
+                  if (Platform.OS === "android") {
+                    console.log(`🔧 Configuring MTU for Android device...`);
+                    // Request MTU of 512 for better communication performance
+                    try {
+                      await BleManager.requestMTU(peripheral.id, 512);
+                      console.log(`📶 MTU 512 requested for ${peripheral.id}`);
+                    } catch (mtuError) {
+                      console.warn(
+                        `⚠️ MTU request failed for ${peripheral.id}:`,
+                        mtuError,
+                      );
+                      // Continue without MTU - this is not critical for basic functionality
+                    }
                   }
 
                   await BleManager.retrieveServices(peripheral.id);
