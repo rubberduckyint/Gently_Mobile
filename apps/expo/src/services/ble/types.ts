@@ -1,4 +1,5 @@
 import type { Peripheral } from "react-native-ble-manager";
+import { Platform } from "react-native";
 
 /**
  * BLE Types for Gently Bracelet Communication
@@ -105,12 +106,31 @@ export interface EventResponse {
   status: ResponseStatus;
 }
 
-// BLE Service and Characteristic UUIDs
-export const BLE_SERVICE_UUID = "0000F021-0000-1000-8000-00805F9B34FB";
-export const BLE_REQUEST_CHARACTERISTIC_UUID =
+// BLE Service and Characteristic UUIDs - Raw values
+const BLE_SERVICE_UUID_FULL = "0000F021-0000-1000-8000-00805F9B34FB";
+const BLE_SERVICE_UUID_SHORT = "F021";
+
+// Full UUID format (used by Android)
+const BLE_REQUEST_CHARACTERISTIC_UUID_FULL =
   "0000F023-0000-1000-8000-00805F9B34FB"; // Write requests to bracelet
-export const BLE_RESPONSE_CHARACTERISTIC_UUID =
+const BLE_RESPONSE_CHARACTERISTIC_UUID_FULL =
   "0000F024-0000-1000-8000-00805F9B34FB"; // Notifications from bracelet
+
+// Short UUID format (used by iOS)
+const BLE_REQUEST_CHARACTERISTIC_UUID_SHORT = "F023";
+const BLE_RESPONSE_CHARACTERISTIC_UUID_SHORT = "F024";
+
+// Platform-specific exports - single source of truth for UUID format
+export const BLE_SERVICE_UUID =
+  Platform.OS === "ios" ? BLE_SERVICE_UUID_SHORT : BLE_SERVICE_UUID_FULL;
+export const BLE_REQUEST_CHARACTERISTIC_UUID =
+  Platform.OS === "ios"
+    ? BLE_REQUEST_CHARACTERISTIC_UUID_SHORT
+    : BLE_REQUEST_CHARACTERISTIC_UUID_FULL;
+export const BLE_RESPONSE_CHARACTERISTIC_UUID =
+  Platform.OS === "ios"
+    ? BLE_RESPONSE_CHARACTERISTIC_UUID_SHORT
+    : BLE_RESPONSE_CHARACTERISTIC_UUID_FULL;
 
 // Factory default bracelet key (16 bytes)
 export const FACTORY_BRACELET_KEY = "43EA5F35659859874A6F184742C32B2B";

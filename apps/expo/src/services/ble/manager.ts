@@ -3,6 +3,7 @@
  * Handles BLE connection, service discovery, and command execution
  */
 import type { BleManagerDidUpdateValueForCharacteristicEvent } from "react-native-ble-manager";
+import { Platform } from "react-native";
 import BleManager from "react-native-ble-manager";
 
 import type { BLECommandRequest, BLECommandResponse } from "./types";
@@ -167,11 +168,12 @@ export async function sendCommand({
       // Set up response listener
       responseListener = BleManager.onDidUpdateValueForCharacteristic(
         (data: BleManagerDidUpdateValueForCharacteristicEvent) => {
-          if (
-            data.peripheral === peripheralId &&
+          // Check if this is the response characteristic for our platform
+          const isCharacteristicMatch =
             data.characteristic.toUpperCase() ===
-              BLE_RESPONSE_CHARACTERISTIC_UUID.toUpperCase()
-          ) {
+            BLE_RESPONSE_CHARACTERISTIC_UUID.toUpperCase();
+
+          if (data.peripheral === peripheralId && isCharacteristicMatch) {
             try {
               console.log(`📥 Received response from ${peripheralId}`);
 
@@ -233,14 +235,29 @@ export async function sendCommand({
       // Send the encrypted packet
       const dataToSend = Array.from(encryptedPacket);
       console.log(`  - Sending ${dataToSend.length} bytes encrypted`);
+      console.log(
+        `  - iOS BLE fragmenting issue: Sending packet size ${dataToSend.length} (should arrive as single packet)`,
+      );
 
-      BleManager.writeWithoutResponse(
-        peripheralId,
-        BLE_SERVICE_UUID,
-        BLE_REQUEST_CHARACTERISTIC_UUID,
-        dataToSend,
-        dataToSend.length, // maxByteSize - set to packet size to send as single chunk
-      ).catch((error) => {
+      // Platform-specific BLE write methods - use write() for iOS, writeWithoutResponse() for Android
+      const writePromise =
+        Platform.OS === "ios"
+          ? BleManager.write(
+              peripheralId,
+              BLE_SERVICE_UUID,
+              BLE_REQUEST_CHARACTERISTIC_UUID,
+              dataToSend,
+              dataToSend.length, // Add length parameter for consistency
+            )
+          : BleManager.writeWithoutResponse(
+              peripheralId,
+              BLE_SERVICE_UUID,
+              BLE_REQUEST_CHARACTERISTIC_UUID,
+              dataToSend,
+              dataToSend.length,
+            );
+
+      writePromise.catch((error) => {
         console.error(`❌ Failed to send command ${command.command}:`, error);
         cleanup();
         reject(error instanceof Error ? error : new Error(String(error)));
