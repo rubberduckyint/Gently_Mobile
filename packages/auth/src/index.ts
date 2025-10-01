@@ -85,8 +85,12 @@ export function initAuth(options: {
       }),
       emailOTP({
         async sendVerificationOTP({ email, otp, type }) {
-          console.log(`🔥 sendVerificationOTP called with:`, { email, otp, type });
-          
+          console.log(`🔥 sendVerificationOTP called with:`, {
+            email,
+            otp,
+            type,
+          });
+
           if (type === "sign-in") {
             try {
               if (otpService) {

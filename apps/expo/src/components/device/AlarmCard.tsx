@@ -167,7 +167,7 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
     }
   };
 
-  const severityConfig = getSeverityConfig(alarm.severityLevel);
+  const severityConfig = getSeverityConfig(alarm.severityLevel as string);
   const syncConfig = getSyncStatusConfig(alarm.syncStatus);
 
   if (compact) {
@@ -274,9 +274,7 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
                             ? "#af52de"
                             : alarm.ledColor === "CYAN"
                               ? "#00ffff"
-                              : alarm.ledColor === "WHITE"
-                                ? "#ffffff"
-                                : "#007aff",
+                              : "#ffffff", // WHITE
                 borderWidth: 1,
                 borderColor: colors.border.light,
               }}
@@ -485,9 +483,7 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
                           ? "#af52de"
                           : alarm.ledColor === "CYAN"
                             ? "#00ffff"
-                            : alarm.ledColor === "WHITE"
-                              ? "#ffffff"
-                              : "#007aff",
+                            : "#ffffff", // WHITE
               borderWidth: 1,
               borderColor: colors.border.light,
               marginBottom: spacing[1],
