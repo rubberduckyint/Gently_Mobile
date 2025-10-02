@@ -116,6 +116,10 @@ export default function BleTestPage() {
     enabled: !!deviceId,
   });
 
+  function sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  }
+
   const addTestResult = (result: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setTestResults((prev) => [`[${timestamp}] ${result}`, ...prev]);
@@ -152,9 +156,23 @@ export default function BleTestPage() {
             addTestResult("🔗 Connecting to device...");
 
             try {
+              await BleManager.stopScan();
+
+              // use ble manager to check if peripheral.id is connected
+              const isConnected = await BleManager.isPeripheralConnected(
+                peripheral.id,
+              );
+              if (isConnected) {
+                // disconnect if already connected
+                await BleManager.disconnect(peripheral.id);
+              }
+
               // Connect to device
               await BleManager.connect(peripheral.id);
               addTestResult("✅ Connected to device");
+
+              // good idea to wait a bit before working with the device
+              await sleep(900);
 
               if (Platform.OS === "android") {
                 console.log(`🔧 Configuring MTU for Android device...`);

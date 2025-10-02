@@ -152,6 +152,10 @@ const AddDeviceScreen = () => {
     );
   };
 
+  function sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  }
+
   useEffect(() => {
     void requestBluetoothPermissions();
 
@@ -232,9 +236,26 @@ const AddDeviceScreen = () => {
         progress: 10,
         isComplete: false,
       });
+
+      // stop scan if it is still running
+      if (isScanning) {
+        console.log(`🛑 Stopping scan...`);
+        await BleManager.stopScan();
+      }
+
+      // use ble manager to check if peripheral.id is connected
+      const isConnected = await BleManager.isPeripheralConnected(peripheral.id);
+      if (isConnected) {
+        // disconnect if already connected
+        await BleManager.disconnect(peripheral.id);
+      }
+
       console.log(`🔗 Connecting to device: ${peripheral.id}`);
       await BleManager.connect(peripheral.id);
       console.log(`✅ Connected to device: ${peripheral.id}`);
+
+      // before retrieving services, it is often a good idea to let bonding & connection finish properly
+      await sleep(900);
 
       if (Platform.OS === "android") {
         console.log(`🔧 Configuring MTU for Android device...`);

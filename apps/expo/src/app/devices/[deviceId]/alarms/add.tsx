@@ -6,7 +6,14 @@
  */
 
 import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -229,7 +236,7 @@ export default function AddAlarmPage() {
       {showStartTimePicker && (
         <DateTimePicker
           value={formData.startDate}
-          mode="time"
+          mode={Platform.OS === "ios" ? "datetime" : "time"}
           display="default"
           onChange={(event, selectedDate) => {
             setShowStartTimePicker(false);
@@ -243,7 +250,7 @@ export default function AddAlarmPage() {
       {showEndDatePicker && (
         <DateTimePicker
           value={formData.endsOnDate ?? new Date()}
-          mode="date"
+          mode={Platform.OS === "ios" ? "datetime" : "date"}
           display="default"
           onChange={(event, selectedDate) => {
             setShowEndDatePicker(false);

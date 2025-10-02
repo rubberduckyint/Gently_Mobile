@@ -159,6 +159,10 @@ export default function DeviceDetailPage() {
     );
   };
 
+  function sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  }
+
   const handleSyncAlarms = async () => {
     if (!device?.serialNumber) {
       Alert.alert("Error", "Device serial number is required for syncing");
@@ -351,9 +355,22 @@ export default function DeviceDetailPage() {
                     `🔗 Starting connection to device: ${peripheral.id}`,
                   );
 
+                  await BleManager.stopScan();
+
+                  // use ble manager to check if peripheral.id is connected
+                  const isConnected = await BleManager.isPeripheralConnected(
+                    peripheral.id,
+                  );
+                  if (isConnected) {
+                    // disconnect if already connected
+                    await BleManager.disconnect(peripheral.id);
+                  }
+
                   // Step 1: Connect and establish services
                   await BleManager.connect(peripheral.id);
                   console.log(`✅ Connected to device: ${peripheral.id}`);
+
+                  await sleep(900); // Wait for a bit to ensure connection is stable
 
                   if (Platform.OS === "android") {
                     console.log(`🔧 Configuring MTU for Android device...`);
