@@ -390,7 +390,9 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
                     <span className="text-muted-foreground text-xs font-medium">
                       Severity:
                     </span>
-                    <Badge variant="outline">{formatSeverityLevel(alarm.severityLevel)}</Badge>
+                    <Badge variant="outline">
+                      {formatSeverityLevel(alarm.severityLevel)}
+                    </Badge>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -399,7 +401,8 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
                       Vibration:
                     </span>
                     <Badge variant="outline">
-                      {formatVibrationIntensity(alarm.vibrationIntensity)} (Pattern {alarm.vibrationPattern})
+                      {formatVibrationIntensity(alarm.vibrationIntensity)}{" "}
+                      (Pattern {alarm.vibrationPattern})
                     </Badge>
                   </div>
 
@@ -411,7 +414,9 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
                     <div className="flex items-center gap-1">
                       <div
                         className="h-4 w-4 rounded-full border shadow-sm"
-                        style={{ backgroundColor: getLedColorValue(alarm.ledColor) }}
+                        style={{
+                          backgroundColor: getLedColorValue(alarm.ledColor),
+                        }}
                         title={formatLedColor(alarm.ledColor)}
                       />
                       <Badge variant="outline" className="text-xs">

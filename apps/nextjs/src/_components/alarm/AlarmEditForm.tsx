@@ -81,22 +81,48 @@ const getDaysOfWeek = (t: ReturnType<typeof useTranslations>) =>
     },
   ] as const;
 
-const getVibrationIntensityOptions = (t: ReturnType<typeof useTranslations>) => [
-  { value: "LOW" as VibrationIntensity, label: t("alarms.vibration.low") || "Low" },
-  { value: "MEDIUM" as VibrationIntensity, label: t("alarms.vibration.medium") || "Medium" },
-  { value: "HIGH" as VibrationIntensity, label: t("alarms.vibration.high") || "High" },
+const getVibrationIntensityOptions = (
+  t: ReturnType<typeof useTranslations>,
+) => [
+  {
+    value: "LOW" as VibrationIntensity,
+    label: t("alarms.vibration.low") || "Low",
+  },
+  {
+    value: "MEDIUM" as VibrationIntensity,
+    label: t("alarms.vibration.medium") || "Medium",
+  },
+  {
+    value: "HIGH" as VibrationIntensity,
+    label: t("alarms.vibration.high") || "High",
+  },
 ];
 
 const getSeverityLevelOptions = (t: ReturnType<typeof useTranslations>) => [
-  { value: "INFORMATIONAL" as SeverityLevel, label: t("alarms.severity.informational") || "Informational" },
-  { value: "WARNING" as SeverityLevel, label: t("alarms.severity.warning") || "Warning" },
-  { value: "CRITICAL" as SeverityLevel, label: t("alarms.severity.critical") || "Critical" },
+  {
+    value: "INFORMATIONAL" as SeverityLevel,
+    label: t("alarms.severity.informational") || "Informational",
+  },
+  {
+    value: "WARNING" as SeverityLevel,
+    label: t("alarms.severity.warning") || "Warning",
+  },
+  {
+    value: "CRITICAL" as SeverityLevel,
+    label: t("alarms.severity.critical") || "Critical",
+  },
 ];
 
 const getLedPatternOptions = (t: ReturnType<typeof useTranslations>) => [
   { value: "SOLID" as LedPattern, label: t("alarms.led.solid") || "Solid" },
-  { value: "BLINK_SLOW" as LedPattern, label: t("alarms.led.blinkSlow") || "Blink Slow" },
-  { value: "BLINK_FAST" as LedPattern, label: t("alarms.led.blinkFast") || "Blink Fast" },
+  {
+    value: "BLINK_SLOW" as LedPattern,
+    label: t("alarms.led.blinkSlow") || "Blink Slow",
+  },
+  {
+    value: "BLINK_FAST" as LedPattern,
+    label: t("alarms.led.blinkFast") || "Blink Fast",
+  },
   { value: "PULSE" as LedPattern, label: t("alarms.led.pulse") || "Pulse" },
   { value: "STROBE" as LedPattern, label: t("alarms.led.strobe") || "Strobe" },
 ];
@@ -106,7 +132,10 @@ const getLedColorOptions = (t: ReturnType<typeof useTranslations>) => [
   { value: "GREEN" as LedColor, label: t("alarms.color.green") || "Green" },
   { value: "BLUE" as LedColor, label: t("alarms.color.blue") || "Blue" },
   { value: "YELLOW" as LedColor, label: t("alarms.color.yellow") || "Yellow" },
-  { value: "MAGENTA" as LedColor, label: t("alarms.color.magenta") || "Magenta" },
+  {
+    value: "MAGENTA" as LedColor,
+    label: t("alarms.color.magenta") || "Magenta",
+  },
   { value: "CYAN" as LedColor, label: t("alarms.color.cyan") || "Cyan" },
   { value: "WHITE" as LedColor, label: t("alarms.color.white") || "White" },
 ];
@@ -132,8 +161,22 @@ const alarmFormSchema = z
     endsOnDate: z.string().optional(),
     endsAfter: z.number().min(1, "Must be at least 1").optional(),
     severityLevel: z.enum(["INFORMATIONAL", "WARNING", "CRITICAL"]),
-    ledPattern: z.enum(["SOLID", "BLINK_SLOW", "BLINK_FAST", "PULSE", "STROBE"]),
-    ledColor: z.enum(["RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"]),
+    ledPattern: z.enum([
+      "SOLID",
+      "BLINK_SLOW",
+      "BLINK_FAST",
+      "PULSE",
+      "STROBE",
+    ]),
+    ledColor: z.enum([
+      "RED",
+      "GREEN",
+      "BLUE",
+      "YELLOW",
+      "MAGENTA",
+      "CYAN",
+      "WHITE",
+    ]),
     vibrationPattern: z.number().min(1).max(10),
     vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH"]),
     snoozePeriod: z.number().min(1).max(60),
@@ -482,9 +525,12 @@ export function AlarmEditForm({
           name="severityLevel"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("alarms.form.severityLevel") || "Severity Level"}</FormLabel>
+              <FormLabel>
+                {t("alarms.form.severityLevel") || "Severity Level"}
+              </FormLabel>
               <FormDescription>
-                {t("alarms.form.setImportanceLevel") || "Set the importance level of this alarm"}
+                {t("alarms.form.setImportanceLevel") ||
+                  "Set the importance level of this alarm"}
               </FormDescription>
               <FormControl>
                 <Select value={field.value} onValueChange={field.onChange}>
@@ -513,7 +559,8 @@ export function AlarmEditForm({
             <FormItem>
               <FormLabel>{t("alarms.form.ledColor") || "LED Color"}</FormLabel>
               <FormDescription>
-                {t("alarms.form.chooseLedColor") || "Choose the LED color for this alarm"}
+                {t("alarms.form.chooseLedColor") ||
+                  "Choose the LED color for this alarm"}
               </FormDescription>
               <FormControl>
                 <Select value={field.value} onValueChange={field.onChange}>
@@ -540,9 +587,12 @@ export function AlarmEditForm({
           name="ledPattern"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("alarms.form.ledPattern") || "LED Pattern"}</FormLabel>
+              <FormLabel>
+                {t("alarms.form.ledPattern") || "LED Pattern"}
+              </FormLabel>
               <FormDescription>
-                {t("alarms.form.selectLedPattern") || "Select the LED flashing pattern"}
+                {t("alarms.form.selectLedPattern") ||
+                  "Select the LED flashing pattern"}
               </FormDescription>
               <FormControl>
                 <Select value={field.value} onValueChange={field.onChange}>
@@ -569,9 +619,12 @@ export function AlarmEditForm({
           name="vibrationIntensity"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("alarms.form.vibrationIntensity") || "Vibration Intensity"}</FormLabel>
+              <FormLabel>
+                {t("alarms.form.vibrationIntensity") || "Vibration Intensity"}
+              </FormLabel>
               <FormDescription>
-                {t("alarms.form.selectVibrationIntensity") || "Select the vibration intensity"}
+                {t("alarms.form.selectVibrationIntensity") ||
+                  "Select the vibration intensity"}
               </FormDescription>
               <FormControl>
                 <Select value={field.value} onValueChange={field.onChange}>
@@ -598,9 +651,12 @@ export function AlarmEditForm({
           name="vibrationPattern"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("alarms.form.vibrationPattern") || "Vibration Pattern"}</FormLabel>
+              <FormLabel>
+                {t("alarms.form.vibrationPattern") || "Vibration Pattern"}
+              </FormLabel>
               <FormDescription>
-                {t("alarms.form.vibrationPatternDesc") || "Pattern number (1-10)"}
+                {t("alarms.form.vibrationPatternDesc") ||
+                  "Pattern number (1-10)"}
               </FormDescription>
               <FormControl>
                 <Input
@@ -623,9 +679,12 @@ export function AlarmEditForm({
             name="snoozePeriod"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("alarms.form.snoozePeriod") || "Snooze Period (min)"}</FormLabel>
+                <FormLabel>
+                  {t("alarms.form.snoozePeriod") || "Snooze Period (min)"}
+                </FormLabel>
                 <FormDescription>
-                  {t("alarms.form.snoozePeriodDesc") || "Minutes between snoozes"}
+                  {t("alarms.form.snoozePeriodDesc") ||
+                    "Minutes between snoozes"}
                 </FormDescription>
                 <FormControl>
                   <Input
@@ -646,9 +705,12 @@ export function AlarmEditForm({
             name="snoozeTimeout"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("alarms.form.snoozeTimeout") || "Snooze Timeout (min)"}</FormLabel>
+                <FormLabel>
+                  {t("alarms.form.snoozeTimeout") || "Snooze Timeout (min)"}
+                </FormLabel>
                 <FormDescription>
-                  {t("alarms.form.snoozeTimeoutDesc") || "How long snooze lasts"}
+                  {t("alarms.form.snoozeTimeoutDesc") ||
+                    "How long snooze lasts"}
                 </FormDescription>
                 <FormControl>
                   <Input
@@ -672,9 +734,12 @@ export function AlarmEditForm({
             name="retriggerDelay"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("alarms.form.retriggerDelay") || "Retrigger Delay (min)"}</FormLabel>
+                <FormLabel>
+                  {t("alarms.form.retriggerDelay") || "Retrigger Delay (min)"}
+                </FormLabel>
                 <FormDescription>
-                  {t("alarms.form.retriggerDelayDesc") || "Delay before retriggering"}
+                  {t("alarms.form.retriggerDelayDesc") ||
+                    "Delay before retriggering"}
                 </FormDescription>
                 <FormControl>
                   <Input
@@ -695,9 +760,13 @@ export function AlarmEditForm({
             name="retriggerTimeout"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("alarms.form.retriggerTimeout") || "Retrigger Timeout (min)"}</FormLabel>
+                <FormLabel>
+                  {t("alarms.form.retriggerTimeout") ||
+                    "Retrigger Timeout (min)"}
+                </FormLabel>
                 <FormDescription>
-                  {t("alarms.form.retriggerTimeoutDesc") || "How long retrigger lasts"}
+                  {t("alarms.form.retriggerTimeoutDesc") ||
+                    "How long retrigger lasts"}
                 </FormDescription>
                 <FormControl>
                   <Input
