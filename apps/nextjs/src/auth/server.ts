@@ -17,7 +17,7 @@ export const auth = initAuth({
   emailFrom: env.EMAIL_FROM,
   // Add email service configuration here if needed
   smtpHost: env.EMAIL_SERVER_HOST,
-  smtpPort: env.EMAIL_SERVER_PORT,
+  smtpPort: Number(env.EMAIL_SERVER_PORT),
   smtpUser: env.EMAIL_SERVER_USER,
   smtpPassword: env.EMAIL_SERVER_PASSWORD,
 });

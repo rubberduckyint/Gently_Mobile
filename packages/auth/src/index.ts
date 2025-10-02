@@ -30,7 +30,7 @@ export function initAuth(options: {
   if (options.smtpHost && options.smtpPort && options.emailFrom) {
     const emailSender = new EmailSender({
       smtpHost: options.smtpHost,
-      smtpPort: options.smtpPort,
+      smtpPort: Number(options.smtpPort),
       smtpUser: options.smtpUser,
       smtpPassword: options.smtpPassword,
       emailFrom: options.emailFrom,

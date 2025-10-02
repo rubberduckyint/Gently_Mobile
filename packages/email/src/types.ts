@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 export const EmailConfigSchema = z.object({
   smtpHost: z.string(),
-  smtpPort: z.number(),
+  smtpPort: z.coerce.number(),
   smtpUser: z.string().optional(),
   smtpPassword: z.string().optional(),
   emailFrom: z.string(),
@@ -11,7 +11,7 @@ export const EmailConfigSchema = z.object({
 export type EmailConfig = z.infer<typeof EmailConfigSchema>;
 
 export const SendEmailSchema = z.object({
-  to: z.union([z.string().email(), z.array(z.string().email())]),
+  to: z.union([z.string(), z.array(z.string())]),
   subject: z.string().min(1),
   text: z.string(),
   html: z.string(),
@@ -20,7 +20,7 @@ export const SendEmailSchema = z.object({
 export type SendEmailOptions = z.infer<typeof SendEmailSchema>;
 
 export const MagicLinkEmailSchema = z.object({
-  email: z.string().email(),
+  email: z.string(),
   url: z.string().url(),
   productName: z.string().default("Gently"),
 });

@@ -12,8 +12,8 @@ export class EmailSender {
 
     this.transporter = nodemailer.createTransport({
       host: this.config.smtpHost,
-      port: this.config.smtpPort,
-      secure: this.config.smtpPort === 465, // true for 465, false for other ports
+      port: Number(this.config.smtpPort),
+      secure: Number(this.config.smtpPort) === 465, // true for 465, false for other ports
       auth:
         this.config.smtpUser && this.config.smtpPassword
           ? {
@@ -56,8 +56,8 @@ export class EmailSender {
         to: validatedOptions.to,
         emailConfig: {
           host: this.config.smtpHost,
-          port: this.config.smtpPort,
-          secure: this.config.smtpPort === 465,
+          port: Number(this.config.smtpPort),
+          secure: Number(this.config.smtpPort) === 465,
           hasAuth: !!this.config.smtpUser,
         },
       });
