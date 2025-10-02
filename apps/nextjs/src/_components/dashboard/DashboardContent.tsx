@@ -33,7 +33,7 @@ export function DashboardContent() {
     void queryClient.invalidateQueries({
       queryKey: trpc.device.getAll.queryKey({}),
     });
-    
+
     // Force refetch
     void refetch();
   }, [queryClient, refetch, trpc.device.getAll]); // Include dependencies
@@ -57,8 +57,8 @@ export function DashboardContent() {
   if (error) {
     return (
       <div className="flex flex-col gap-8">
-        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4">
-          <p className="text-sm text-destructive">
+        <div className="border-destructive/20 bg-destructive/10 rounded-lg border p-4">
+          <p className="text-destructive text-sm">
             {t("dashboard.errorLoadingDevices")}: {error.message}
           </p>
         </div>

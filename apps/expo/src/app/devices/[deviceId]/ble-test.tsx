@@ -5,8 +5,12 @@
  * Connects to device by serial number and provides buttons to test various commands.
  */
 
-import type { Peripheral } from "react-native-ble-manager";
-import React, { useState } from "react";
+import type {
+  BleDisconnectPeripheralEvent,
+  BleManagerDidUpdateValueForCharacteristicEvent,
+  Peripheral,
+} from "react-native-ble-manager";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -117,6 +121,221 @@ export default function BleTestPage() {
     setTestResults((prev) => [`[${timestamp}] ${result}`, ...prev]);
   };
 
+  // Set up scan listener
+  const handleDiscoverPeripheral = useCallback(
+    async (peripheral: Peripheral) => {
+      let foundEncryptionKey: string | null = null;
+
+      if (peripheral.name !== "Gently") return; // Ignore non-Gently devices
+      if (!device?.serialNumber) return; // Device data must be loaded
+
+      if (peripheral.advertising.manufacturerRawData) {
+        try {
+          const adData = extractAndDecryptAdvertisementData(
+            peripheral.advertising.manufacturerRawData,
+          );
+
+          addTestResult(`🔍 Found device: ${adData?.serialNumber}`);
+
+          if (
+            adData &&
+            (adData.serialNumber === device.serialNumber ||
+              adData.serialNumber.toUpperCase() ===
+                device.serialNumber.toUpperCase())
+          ) {
+            addTestResult(`✅ Target device found: ${device.serialNumber}`);
+
+            // Stop scanning and begin connection
+            await BleManager.stopScan();
+
+            setConnectionState("connecting");
+            addTestResult("🔗 Connecting to device...");
+
+            try {
+              // Connect to device
+              await BleManager.connect(peripheral.id);
+              addTestResult("✅ Connected to device");
+
+              if (Platform.OS === "android") {
+                console.log(`🔧 Configuring MTU for Android device...`);
+                // Request MTU of 512 for better communication performance
+                try {
+                  await BleManager.requestMTU(peripheral.id, 512);
+                  console.log(`📶 MTU 512 requested for ${peripheral.id}`);
+                } catch (mtuError) {
+                  console.warn(
+                    `⚠️ MTU request failed for ${peripheral.id}:`,
+                    mtuError,
+                  );
+                  // Continue without MTU - this is not critical for basic functionality
+                }
+              }
+
+              await BleManager.retrieveServices(peripheral.id);
+              addTestResult("✅ Services discovered");
+
+              await startNotifications(peripheral.id);
+              addTestResult("✅ Notifications started");
+
+              // Generate encryption key
+              addTestResult("🔐 Generating encryption key...");
+
+              const uptimeResponse = await sendCommand({
+                peripheralId: peripheral.id,
+                command: createGetUptimeRequest(),
+                encryptionKey: FACTORY_BRACELET_KEY,
+              });
+
+              const uptimeData = parseGetUptimeResponse(uptimeResponse.payload);
+              addTestResult(`📊 Device uptime: ${uptimeData.uptime} seconds`);
+
+              // Generate dynamic key
+              foundEncryptionKey = generateDynamicKey(
+                FACTORY_BRACELET_KEY,
+                uptimeData.uptimeBytes,
+                device.serialNumber,
+              );
+
+              addTestResult("🔐 Dynamic encryption key generated");
+
+              // Send getDeviceInfo to validate the new key and complete pairing
+              addTestResult("📋 Validating connection with getDeviceInfo...");
+
+              const deviceInfoResponse = await sendCommand({
+                peripheralId: peripheral.id,
+                command: createGetDeviceInfoRequest(),
+                encryptionKey: foundEncryptionKey,
+              });
+
+              const deviceInfo = parseGetDeviceInfoResponse(
+                deviceInfoResponse.payload,
+              );
+              const deviceInfoStatusText =
+                deviceInfoResponse.status === ResponseStatus.OK
+                  ? "OK"
+                  : "ERROR";
+
+              addTestResult(
+                `📋 Device Info: HW v${deviceInfo.hardwareVersion}, FW v${deviceInfo.firmwareVersionMajor}.${deviceInfo.firmwareVersionMinor}.${deviceInfo.firmwareBuildNumber}`,
+              );
+              addTestResult(
+                `📊 Device Info Response: Status=${deviceInfoStatusText} (0x${deviceInfoResponse.status.toString(16)}), Command=0x${deviceInfoResponse.commandCode.toString(16)}`,
+              );
+
+              if (deviceInfoResponse.status !== ResponseStatus.OK) {
+                throw new Error(
+                  `Device info validation failed: Status=0x${deviceInfoResponse.status.toString(16)}`,
+                );
+              }
+
+              // Only store the key after successful device info validation
+              const sanitizedDeviceId = peripheral.id.replace(
+                /[^a-zA-Z0-9._-]/g,
+                "_",
+              );
+              await SecureStore.setItemAsync(
+                `ble_device_${sanitizedDeviceId}`,
+                foundEncryptionKey,
+              );
+
+              addTestResult(
+                "✅ Pairing completed - encryption key validated and stored",
+              );
+
+              setConnectedPeripheral(peripheral);
+              setEncryptionKey(foundEncryptionKey);
+              setConnectionState("connected");
+              addTestResult("🎉 Device ready for testing!");
+            } catch (connectionError) {
+              addTestResult(
+                `❌ Connection failed: ${connectionError instanceof Error ? connectionError.message : String(connectionError)}`,
+              );
+              setConnectionState("disconnected");
+            }
+          }
+        } catch {
+          // Not a Gently device, ignore
+        }
+      }
+    },
+    [device?.serialNumber],
+  ); // Add device.serialNumber as dependency
+
+  // BLE event handlers (defined outside useEffect for better performance)
+  const handleStopScan = useCallback(() => {
+    console.log("[handleStopScan] scan is stopped.");
+    setConnectionState((current) =>
+      current === "scanning" ? "disconnected" : current,
+    );
+    addTestResult("🔍 Scan stopped");
+  }, []);
+
+  const handleDisconnectedPeripheral = useCallback(
+    (event: BleDisconnectPeripheralEvent) => {
+      console.log(
+        `[handleDisconnectedPeripheral][${event.peripheral}] disconnected.`,
+      );
+      setConnectedPeripheral((current) => {
+        if (current && event.peripheral === current.id) {
+          setEncryptionKey(null);
+          setConnectionState("disconnected");
+          addTestResult(`🔌 Device disconnected: ${event.peripheral}`);
+          return null;
+        }
+        return current;
+      });
+    },
+    [],
+  );
+
+  const handleUpdateValueForCharacteristic = useCallback(
+    (data: BleManagerDidUpdateValueForCharacteristicEvent) => {
+      console.log(
+        `[handleUpdateValueForCharacteristic] received data from '${data.peripheral}' with characteristic='${data.characteristic}'`,
+        data.value,
+      );
+    },
+    [],
+  );
+
+  // Initialize BLE manager and set up listeners
+  useEffect(() => {
+    console.log("🔧 Initializing BLE manager and listeners...");
+
+    BleManager.start({ showAlert: false })
+      .then(() => {
+        console.log("BleManager started.");
+        addTestResult("🔧 BLE Manager started");
+      })
+      .catch((error) => {
+        console.error("BleManager could not be started.", error);
+        addTestResult(
+          `❌ BLE Manager failed to start: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+
+    const listeners = [
+      BleManager.onDiscoverPeripheral(handleDiscoverPeripheral),
+      BleManager.onStopScan(handleStopScan),
+      BleManager.onDisconnectPeripheral(handleDisconnectedPeripheral),
+      BleManager.onDidUpdateValueForCharacteristic(
+        handleUpdateValueForCharacteristic,
+      ),
+    ];
+
+    return () => {
+      console.debug("[ble-test] component unmounting. Removing listeners...");
+      for (const listener of listeners) {
+        listener.remove();
+      }
+    };
+  }, [
+    handleDiscoverPeripheral,
+    handleStopScan,
+    handleDisconnectedPeripheral,
+    handleUpdateValueForCharacteristic,
+  ]);
+
   const connectToDevice = async () => {
     if (!device?.serialNumber) {
       Alert.alert("Error", "Device serial number is required");
@@ -140,15 +359,28 @@ export default function BleTestPage() {
 
       // Check if any connected peripheral has a stored key for our device
       for (const peripheral of connectedPeripherals) {
+        addTestResult(
+          `🔍 Checking peripheral: ${peripheral.id} (name: ${peripheral.name ?? "unnamed"})`,
+        );
+
         const sanitizedDeviceId = peripheral.id.replace(
           /[^a-zA-Z0-9._-]/g,
           "_",
         );
+
+        addTestResult(
+          `🔑 Looking for stored key: ble_device_${sanitizedDeviceId}`,
+        );
+
         try {
           const storedKey = await SecureStore.getItemAsync(
             `ble_device_${sanitizedDeviceId}`,
           );
+
           if (storedKey) {
+            addTestResult(
+              `✅ Found stored key for peripheral: ${peripheral.id} (length: ${storedKey.length})`,
+            );
             addTestResult(
               `🔑 Found stored key for peripheral: ${peripheral.id}`,
             );
@@ -177,17 +409,27 @@ export default function BleTestPage() {
               addTestResult("✅ Notifications started for existing connection");
 
               // Validate the connection with a test command
-              const uptimeResponse = await sendCommand({
+              addTestResult(
+                "🔐 Testing stored encryption key with device status command...",
+              );
+              const statusResponse = await sendCommand({
                 peripheralId: peripheral.id,
-                command: createGetUptimeRequest(),
+                command: createGetDeviceStatusRequest(),
                 encryptionKey: storedKey,
               });
 
-              const uptimeData = parseGetUptimeResponse(uptimeResponse.payload);
-              addTestResult(`📊 Device uptime: ${uptimeData.uptime} seconds`);
+              const statusData = parseGetDeviceStatusResponse(
+                statusResponse.payload,
+              );
+              addTestResult(
+                `📊 Device status: Battery ${statusData.batteryLevel}/4, ${statusData.activeEventsCount} active events`,
+              );
 
-              if (uptimeResponse.status === ResponseStatus.OK) {
+              if (statusResponse.status === ResponseStatus.OK) {
                 addTestResult("✅ Existing connection validated successfully!");
+                addTestResult(
+                  `🔐 Using encryption key: ${storedKey.substring(0, 8)}...`,
+                );
                 setConnectedPeripheral(peripheral);
                 setEncryptionKey(storedKey);
                 setConnectionState("connected");
@@ -195,7 +437,10 @@ export default function BleTestPage() {
                 return; // Exit early, no need to scan
               } else {
                 addTestResult(
-                  "⚠️ Existing connection validation failed, will scan for device",
+                  `⚠️ Existing connection validation failed - Status: 0x${statusResponse.status.toString(16)} (expected: 0x${ResponseStatus.OK.toString(16)})`,
+                );
+                addTestResult(
+                  `🔐 Failed with encryption key: ${storedKey.substring(0, 8)}...`,
                 );
                 // Continue to scanning if validation fails
               }
@@ -203,11 +448,20 @@ export default function BleTestPage() {
               addTestResult(
                 `⚠️ Connection test failed: ${testError instanceof Error ? testError.message : String(testError)}`,
               );
+              addTestResult(
+                `🔐 Test failed with encryption key: ${storedKey.substring(0, 8)}...`,
+              );
               // Continue to scanning if test fails
             }
+          } else {
+            addTestResult(
+              `❌ No stored key found for peripheral: ${peripheral.id}`,
+            );
           }
-        } catch {
-          // No stored key for this peripheral, continue checking others
+        } catch (keyError) {
+          addTestResult(
+            `❌ Error retrieving stored key for ${peripheral.id}: ${keyError instanceof Error ? keyError.message : String(keyError)}`,
+          );
         }
       }
 
@@ -216,160 +470,31 @@ export default function BleTestPage() {
         "🔍 No valid existing connection found, starting device scan...",
       );
 
-      let foundEncryptionKey: string | null = null;
-
-      // Set up scan listener
-      const handleDiscoverPeripheral = async (peripheral: Peripheral) => {
-        if (peripheral.name !== "Gently") return; // Ignore non-Gently devices
-
-        if (peripheral.advertising.manufacturerRawData) {
-          try {
-            const adData = extractAndDecryptAdvertisementData(
-              peripheral.advertising.manufacturerRawData,
-            );
-
-            addTestResult(`🔍 Found device: ${adData?.serialNumber}`);
-
-            if (
-              adData &&
-              (adData.serialNumber === device.serialNumber ||
-                adData.serialNumber.toUpperCase() ===
-                  device.serialNumber?.toUpperCase())
-            ) {
-              addTestResult(`✅ Target device found: ${device.serialNumber}`);
-
-              // Stop scanning and begin connection
-              await BleManager.stopScan();
-
-              setConnectionState("connecting");
-              addTestResult("🔗 Connecting to device...");
-
-              try {
-                // Connect to device
-                await BleManager.connect(peripheral.id);
-                addTestResult("✅ Connected to device");
-
-                if (Platform.OS === "android") {
-                  console.log(`🔧 Configuring MTU for Android device...`);
-                  // Request MTU of 512 for better communication performance
-                  try {
-                    await BleManager.requestMTU(peripheral.id, 512);
-                    console.log(`📶 MTU 512 requested for ${peripheral.id}`);
-                  } catch (mtuError) {
-                    console.warn(
-                      `⚠️ MTU request failed for ${peripheral.id}:`,
-                      mtuError,
-                    );
-                    // Continue without MTU - this is not critical for basic functionality
-                  }
-                }
-
-                await BleManager.retrieveServices(peripheral.id);
-                addTestResult("✅ Services discovered");
-
-                await startNotifications(peripheral.id);
-                addTestResult("✅ Notifications started");
-
-                // Generate encryption key
-                addTestResult("🔐 Generating encryption key...");
-
-                const uptimeResponse = await sendCommand({
-                  peripheralId: peripheral.id,
-                  command: createGetUptimeRequest(),
-                  encryptionKey: FACTORY_BRACELET_KEY,
-                });
-
-                const uptimeData = parseGetUptimeResponse(
-                  uptimeResponse.payload,
-                );
-                addTestResult(`📊 Device uptime: ${uptimeData.uptime} seconds`);
-
-                // Generate dynamic key
-                foundEncryptionKey = generateDynamicKey(
-                  FACTORY_BRACELET_KEY,
-                  uptimeData.uptimeBytes,
-                  device.serialNumber,
-                );
-
-                addTestResult("🔐 Dynamic encryption key generated");
-
-                // Send getDeviceInfo to validate the new key and complete pairing
-                addTestResult("📋 Validating connection with getDeviceInfo...");
-
-                const deviceInfoResponse = await sendCommand({
-                  peripheralId: peripheral.id,
-                  command: createGetDeviceInfoRequest(),
-                  encryptionKey: foundEncryptionKey,
-                });
-
-                const deviceInfo = parseGetDeviceInfoResponse(
-                  deviceInfoResponse.payload,
-                );
-                const deviceInfoStatusText =
-                  deviceInfoResponse.status === ResponseStatus.OK
-                    ? "OK"
-                    : "ERROR";
-
-                addTestResult(
-                  `📋 Device Info: HW v${deviceInfo.hardwareVersion}, FW v${deviceInfo.firmwareVersionMajor}.${deviceInfo.firmwareVersionMinor}.${deviceInfo.firmwareBuildNumber}`,
-                );
-                addTestResult(
-                  `📊 Device Info Response: Status=${deviceInfoStatusText} (0x${deviceInfoResponse.status.toString(16)}), Command=0x${deviceInfoResponse.commandCode.toString(16)}`,
-                );
-
-                if (deviceInfoResponse.status !== ResponseStatus.OK) {
-                  throw new Error(
-                    `Device info validation failed: Status=0x${deviceInfoResponse.status.toString(16)}`,
-                  );
-                }
-
-                // Only store the key after successful device info validation
-                const sanitizedDeviceId = peripheral.id.replace(
-                  /[^a-zA-Z0-9._-]/g,
-                  "_",
-                );
-                await SecureStore.setItemAsync(
-                  `ble_device_${sanitizedDeviceId}`,
-                  foundEncryptionKey,
-                );
-
-                addTestResult(
-                  "✅ Pairing completed - encryption key validated and stored",
-                );
-
-                setConnectedPeripheral(peripheral);
-                setEncryptionKey(foundEncryptionKey);
-                setConnectionState("connected");
-                addTestResult("🎉 Device ready for testing!");
-              } catch (connectionError) {
-                addTestResult(
-                  `❌ Connection failed: ${connectionError instanceof Error ? connectionError.message : String(connectionError)}`,
-                );
-                setConnectionState("disconnected");
-              }
-            }
-          } catch {
-            // Not a Gently device, ignore
-          }
-        }
-      };
-
-      // Start scanning
-      BleManager.onDiscoverPeripheral(handleDiscoverPeripheral);
-      addTestResult("🔍 Setup onDiscoveryPeripheral...");
-
-      await BleManager.scan([], 10, false, {
+      // Start scanning (don't await - let it run in background)
+      console.debug("[connectToDevice] starting scan...");
+      BleManager.scan([], 10, false, {
         matchMode: BleScanMatchMode.Sticky,
         scanMode: BleScanMode.LowLatency,
         callbackType: BleScanCallbackType.AllMatches,
         legacy: false,
-      });
+      })
+        .then(() => {
+          console.debug("[connectToDevice] scan completed after timeout.");
+          addTestResult("🔍 Scan completed - no device found within timeout");
+          if (connectionState === "scanning") {
+            setConnectionState("disconnected");
+          }
+        })
+        .catch((error) => {
+          console.error("[connectToDevice] scan error:", error);
+          addTestResult(
+            `❌ Scan error: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          setConnectionState("disconnected");
+        });
 
-      addTestResult("🔍 Scan complete...");
-
-      // Note: targetPeripheral might be set during the scan callback
-      console.log("🔍 Scan completed, checking if device was found...");
-      // Device connection happens in the discover callback above
+      addTestResult("🔍 Scanning for device... (10 second timeout)");
+      // Note: Device connection happens in the handleDiscoverPeripheral callback
     } catch (error) {
       addTestResult(
         `❌ Scan failed: ${error instanceof Error ? error.message : String(error)}`,
