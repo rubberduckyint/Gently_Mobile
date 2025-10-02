@@ -161,8 +161,6 @@ const AddDeviceScreen = () => {
   }
 
   useEffect(() => {
-    void requestBluetoothPermissions();
-
     BleManager.start({ showAlert: false })
       .then(() => {
         console.log("BleManager started.");
@@ -180,13 +178,16 @@ const AddDeviceScreen = () => {
       ),
     ];
 
+    void requestBluetoothPermissions();
+
     return () => {
       console.debug("[app] main component unmounting. Removing listeners...");
       for (const listener of listeners) {
         listener.remove();
       }
     };
-  }, [handleDiscoverPeripheral]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const startScan = () => {
     if (!isScanning) {
