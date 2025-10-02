@@ -7,11 +7,11 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
-    EMAIL_SERVER_HOST: z.string(),
-    EMAIL_SERVER_PORT: z.coerce.number(),
+    EMAIL_SERVER_HOST: z.string().default("email-smtp.us-east-1.amazonaws.com"),
+    EMAIL_SERVER_PORT: z.coerce.number().default(587),
     EMAIL_SERVER_USER: z.string().optional(),
     EMAIL_SERVER_PASSWORD: z.string().optional(),
-    EMAIL_FROM: z.string(),
+    EMAIL_FROM: z.string().default("Gently <noreply@gentlyus.com>"),
     AUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string()
