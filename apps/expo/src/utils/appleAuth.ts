@@ -107,7 +107,7 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
     });
 
     console.log('✅ Apple native authentication successful');
-    console.log('📧 Email:', appleResponse.email || 'Not provided');
+    console.log('📧 Email:', appleResponse.email ?? 'Not provided');
     console.log('👤 Full Name:', appleResponse.fullName?.givenName, appleResponse.fullName?.familyName);
     
     if (!appleResponse.identityToken) {
@@ -121,28 +121,29 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
       success: true,
       identityToken: appleResponse.identityToken,
       user: appleResponse.user,
-      email: appleResponse.email || undefined,
+      email: appleResponse.email ?? undefined,
       fullName: appleResponse.fullName ? {
-        givenName: appleResponse.fullName.givenName || undefined,
-        familyName: appleResponse.fullName.familyName || undefined,
+        givenName: appleResponse.fullName.givenName ?? undefined,
+        familyName: appleResponse.fullName.familyName ?? undefined,
       } : undefined,
     };
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Apple Sign In failed:', error);
     
     // Handle specific error cases
-    if (error.code === 'ERR_REQUEST_CANCELED') {
+    const appleError = error as { code?: string; message?: string };
+    if (appleError.code === 'ERR_REQUEST_CANCELED') {
       return {
         success: false,
         error: 'Apple Sign In was cancelled by user'
       };
-    } else if (error.code === 'ERR_REQUEST_NOT_HANDLED') {
+    } else if (appleError.code === 'ERR_REQUEST_NOT_HANDLED') {
       return {
         success: false,
         error: 'Apple Sign In request was not handled'
       };
-    } else if (error.code === 'ERR_REQUEST_FAILED') {
+    } else if (appleError.code === 'ERR_REQUEST_FAILED') {
       return {
         success: false,
         error: 'Apple Sign In request failed'
@@ -150,7 +151,7 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
     } else {
       return {
         success: false,
-        error: error.message || 'Unknown Apple Sign In error'
+        error: appleError.message ?? 'Unknown Apple Sign In error'
       };
     }
   }
@@ -180,18 +181,18 @@ export async function authenticateWithBetterAuth(identityToken: string): Promise
       console.error('❌ BetterAuth authentication failed:', result.error);
       return {
         success: false,
-        error: result.error.message || 'Authentication failed'
+        error: result.error.message ?? 'Authentication failed'
       };
     }
     
     console.log('✅ BetterAuth authentication successful');
     return { success: true };
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ BetterAuth authentication failed:', error);
     return {
       success: false,
-      error: error.message || 'Network error during authentication'
+      error: error instanceof Error ? error.message : 'Network error during authentication'
     };
   }
 }
@@ -208,7 +209,7 @@ export async function completeAppleSignIn(): Promise<{ success: boolean; error?:
     if (!appleResult.success || !appleResult.identityToken) {
       return {
         success: false,
-        error: appleResult.error || 'Apple Sign In failed'
+        error: appleResult.error ?? 'Apple Sign In failed'
       };
     }
 
@@ -247,7 +248,9 @@ export async function checkAppleCredentialState(userID: string): Promise<number 
   
   try {
     // Apple credential states are numeric constants
-    const credentialState = await AppleAuthentication.getCredentialStateAsync(userID);
+    // Using any here as getCredentialStateAsync is not in the official types but exists in the API
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const credentialState = await (AppleAuthentication as any).getCredentialStateAsync(userID);
     return credentialState as number;
   } catch (error) {
     console.warn('Failed to check Apple credential state:', error);

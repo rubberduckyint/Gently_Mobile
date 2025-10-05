@@ -18,6 +18,10 @@ export const auth = initAuth({
   // Apple Sign In configuration
   appleClientId: env.APPLE_CLIENT_ID,
   appleAppBundleId: env.APPLE_APP_BUNDLE_ID,
+  appleTeamId: env.APPLE_TEAM_ID,
+  appleKeyId: env.APPLE_KEY_ID,
+  applePrivateKey: env.APPLE_PRIVATE_KEY,
+  applePrivateKeyPath: env.APPLE_PRIVATE_KEY_PATH,
   appleEnabled: !!(env.APPLE_CLIENT_ID && env.APPLE_TEAM_ID && env.APPLE_KEY_ID && (env.APPLE_PRIVATE_KEY ?? env.APPLE_PRIVATE_KEY_PATH)),
   
   emailFrom: env.EMAIL_FROM,

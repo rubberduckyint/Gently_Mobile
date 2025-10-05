@@ -55,41 +55,30 @@ interface CachedToken {
 let cachedToken: CachedToken | null = null;
 
 /**
- * Reads and validates Apple configuration from environment variables
+ * Cached Apple configuration
+ */
+let appleConfig: AppleConfig | null = null;
+
+/**
+ * Sets the Apple configuration for JWT generation
  * 
- * @throws {Error} If any required environment variable is missing
+ * @param config Apple configuration object with all required values
+ */
+export function setAppleConfig(config: AppleConfig): void {
+  appleConfig = config;
+}
+
+/**
+ * Gets the current Apple configuration
+ * 
+ * @throws {Error} If configuration has not been set
  * @returns {AppleConfig} Validated Apple configuration
  */
 function getAppleConfig(): AppleConfig {
-  const teamId = process.env.APPLE_TEAM_ID;
-  const keyId = process.env.APPLE_KEY_ID;
-  const clientId = process.env.APPLE_CLIENT_ID;
-  const privateKey = process.env.APPLE_PRIVATE_KEY;
-  const privateKeyPath = process.env.APPLE_PRIVATE_KEY_PATH;
-
-  if (!teamId) {
-    throw new Error('APPLE_TEAM_ID environment variable is required');
+  if (!appleConfig) {
+    throw new Error('Apple configuration has not been set. Call setAppleConfig() first.');
   }
-  
-  if (!keyId) {
-    throw new Error('APPLE_KEY_ID environment variable is required');
-  }
-  
-  if (!clientId) {
-    throw new Error('APPLE_CLIENT_ID environment variable is required');
-  }
-
-  if (!privateKey && !privateKeyPath) {
-    throw new Error('Either APPLE_PRIVATE_KEY or APPLE_PRIVATE_KEY_PATH environment variable is required');
-  }
-
-  return {
-    teamId,
-    keyId,
-    clientId,
-    privateKey: privateKey || '',
-    privateKeyPath
-  };
+  return appleConfig;
 }
 
 /**
@@ -221,9 +210,9 @@ function createAppleClientSecret(): CachedToken {
  */
 export function generateAppleClientSecret(): string {
   // Return cached token if it's still valid
-  if (isCachedTokenValid(cachedToken)) {
+  if (isCachedTokenValid(cachedToken) && cachedToken) {
     console.debug('Apple client secret: Using cached token');
-    return cachedToken!.token;
+    return cachedToken.token;
   }
   
   console.debug('Apple client secret: Generating new token');

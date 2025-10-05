@@ -7,16 +7,16 @@ import { emailOTP, magicLink, oAuthProxy } from "better-auth/plugins";
 import { db } from "@gently/db/client";
 import { EmailSender, MagicLinkService, OTPService } from "@gently/email";
 
+// Import the function here to use inside the config
+import { generateAppleClientSecret, setAppleConfig } from "./apple-client-secret";
+
 // Export Apple client secret utilities
 export {
   generateAppleClientSecret,
   getApplePrivateKey,
   clearAppleClientSecretCache,
   getAppleClientSecretInfo,
-} from "./apple-client-secret.js";
-
-// Import the function here to use inside the config
-import { generateAppleClientSecret } from "./apple-client-secret.js";
+} from "./apple-client-secret";
 
 export function initAuth(options: {
   baseUrl: string;
@@ -29,6 +29,10 @@ export function initAuth(options: {
   // Apple Sign In configuration
   appleClientId?: string;
   appleAppBundleId?: string;
+  appleTeamId?: string;
+  appleKeyId?: string;
+  applePrivateKey?: string;
+  applePrivateKeyPath?: string;
   appleEnabled?: boolean;
 
   // Email configuration for magic links
@@ -54,6 +58,17 @@ export function initAuth(options: {
 
     magicLinkService = new MagicLinkService(emailSender);
     otpService = new OTPService(emailSender);
+  }
+
+  // Initialize Apple configuration if enabled
+  if (options.appleEnabled && options.appleClientId && options.appleTeamId && options.appleKeyId) {
+    setAppleConfig({
+      teamId: options.appleTeamId,
+      keyId: options.appleKeyId,
+      clientId: options.appleClientId,
+      privateKey: options.applePrivateKey ?? '',
+      privateKeyPath: options.applePrivateKeyPath,
+    });
   }
 
   const config = {

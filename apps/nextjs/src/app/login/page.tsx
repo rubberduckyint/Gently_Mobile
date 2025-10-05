@@ -104,15 +104,16 @@ export default function LoginPage() {
     }
   };
 
-  const handleAppleSignIn = () => {
+  const handleAppleSignIn = async () => {
     setIsAppleLoading(true);
     try {
-      // Apple sign-in is not configured yet
-      toast.error("Apple sign-in is coming soon!");
+      await authClient.signIn.social({
+        provider: "apple",
+        callbackURL: "/dashboard",
+      });
     } catch {
-      toast.error("Failed to sign in with Apple. Please try again.");
-    } finally {
       setIsAppleLoading(false);
+      toast.error("Failed to sign in with Apple. Please try again.");
     }
   };
 
