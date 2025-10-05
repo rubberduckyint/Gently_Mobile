@@ -24,8 +24,8 @@ import {
   spacing,
   typography,
 } from "~/styles";
-import { authClient, GoogleSignin } from "~/utils/auth";
 import { completeAppleSignIn, isAppleAuthAvailable } from "~/utils/appleAuth";
+import { authClient, GoogleSignin } from "~/utils/auth";
 
 export default function LoginPage() {
   const { data: session, isPending } = authClient.useSession();
@@ -245,7 +245,7 @@ export default function LoginPage() {
 
       // Complete Apple Sign In flow
       const result = await completeAppleSignIn();
-      
+
       if (result.success) {
         console.log("✅ Apple Sign In successful, navigating to dashboard");
         router.replace("/dashboard");
@@ -370,14 +370,14 @@ export default function LoginPage() {
               </Pressable>
 
               {/* Apple Sign In Button */}
-              {Platform.OS === 'ios' && (
+              {Platform.OS === "ios" && (
                 <Pressable
                   style={[
                     buttons.base,
                     buttons.large,
                     buttons.secondary,
                     isLoading && buttons.disabled,
-                    { marginTop: spacing[4] }
+                    { marginTop: spacing[4] },
                   ]}
                   onPress={handleAppleAuth}
                   disabled={isLoading}

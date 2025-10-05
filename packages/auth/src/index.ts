@@ -8,7 +8,10 @@ import { db } from "@gently/db/client";
 import { EmailSender, MagicLinkService, OTPService } from "@gently/email";
 
 // Import the function here to use inside the config
-import { generateAppleClientSecret, setAppleConfig } from "./apple-client-secret";
+import {
+  generateAppleClientSecret,
+  setAppleConfig,
+} from "./apple-client-secret";
 
 // Export Apple client secret utilities
 export {
@@ -61,12 +64,17 @@ export function initAuth(options: {
   }
 
   // Initialize Apple configuration if enabled
-  if (options.appleEnabled && options.appleClientId && options.appleTeamId && options.appleKeyId) {
+  if (
+    options.appleEnabled &&
+    options.appleClientId &&
+    options.appleTeamId &&
+    options.appleKeyId
+  ) {
     setAppleConfig({
       teamId: options.appleTeamId,
       keyId: options.appleKeyId,
       clientId: options.appleClientId,
-      privateKey: options.applePrivateKey ?? '',
+      privateKey: options.applePrivateKey ?? "",
       privateKeyPath: options.applePrivateKeyPath,
     });
   }
@@ -161,17 +169,18 @@ export function initAuth(options: {
         clientId: options.googleClientId,
         clientSecret: options.googleClientSecret,
       },
-      ...(options.appleEnabled && options.appleClientId && {
-        apple: {
-          clientId: options.appleClientId,
-          clientSecret: generateAppleClientSecret(),
-          redirectURI: `${options.baseUrl}/api/auth/callback/apple`,
-          // Required for native iOS apps
-          ...(options.appleAppBundleId && {
-            appBundleIdentifier: options.appleAppBundleId,
-          }),
-        },
-      }),
+      ...(options.appleEnabled &&
+        options.appleClientId && {
+          apple: {
+            clientId: options.appleClientId,
+            clientSecret: generateAppleClientSecret(),
+            redirectURI: `${options.baseUrl}/api/auth/callback/apple`,
+            // Required for native iOS apps
+            ...(options.appleAppBundleId && {
+              appBundleIdentifier: options.appleAppBundleId,
+            }),
+          },
+        }),
     },
     trustedOrigins: ["gently://", "gently://*", "https://appleid.apple.com"],
   } satisfies BetterAuthOptions;
