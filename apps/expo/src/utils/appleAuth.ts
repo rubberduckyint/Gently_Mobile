@@ -266,11 +266,12 @@ export async function checkAppleCredentialState(
   try {
     // Apple credential states are numeric constants
     // Using any here as getCredentialStateAsync is not in the official types but exists in the API
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
     const credentialState = await (
       AppleAuthentication as any
     ).getCredentialStateAsync(userID);
     return credentialState as number;
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
   } catch (error) {
     console.warn("Failed to check Apple credential state:", error);
     return null;
