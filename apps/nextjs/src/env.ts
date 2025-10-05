@@ -18,6 +18,14 @@ export const env = createEnv({
         : z.string().optional(),
     AUTH_GOOGLE_ID: z.string(),
     AUTH_GOOGLE_SECRET: z.string(),
+    
+    // Apple Sign In (optional)
+    APPLE_CLIENT_ID: z.string().optional(),
+    APPLE_APP_BUNDLE_ID: z.string().optional(),
+    APPLE_TEAM_ID: z.string().optional(),
+    APPLE_KEY_ID: z.string().optional(),
+    APPLE_PRIVATE_KEY: z.string().optional(),
+    APPLE_PRIVATE_KEY_PATH: z.string().optional(),
     POSTGRES_URL: z.string(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
@@ -47,6 +55,15 @@ export const env = createEnv({
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
     AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
+    
+    // Apple Sign In
+    APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID,
+    APPLE_APP_BUNDLE_ID: process.env.APPLE_APP_BUNDLE_ID,
+    APPLE_TEAM_ID: process.env.APPLE_TEAM_ID,
+    APPLE_KEY_ID: process.env.APPLE_KEY_ID,
+    APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY,
+    APPLE_PRIVATE_KEY_PATH: process.env.APPLE_PRIVATE_KEY_PATH,
+    
     POSTGRES_URL: process.env.POSTGRES_URL,
     NODE_ENV: process.env.NODE_ENV,
   },

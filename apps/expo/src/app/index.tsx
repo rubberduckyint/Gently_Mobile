@@ -25,6 +25,7 @@ import {
   typography,
 } from "~/styles";
 import { authClient, GoogleSignin } from "~/utils/auth";
+import { completeAppleSignIn, isAppleAuthAvailable } from "~/utils/appleAuth";
 
 export default function LoginPage() {
   const { data: session, isPending } = authClient.useSession();
@@ -227,6 +228,42 @@ export default function LoginPage() {
     }
   };
 
+  const handleAppleAuth = async () => {
+    console.log("Apple auth button pressed");
+    setIsLoading(true);
+
+    try {
+      // Check if Apple Sign In is available
+      const isAvailable = await isAppleAuthAvailable();
+      if (!isAvailable) {
+        Alert.alert(
+          "Apple Sign In Unavailable",
+          "Apple Sign In is not available on this device.",
+        );
+        return;
+      }
+
+      // Complete Apple Sign In flow
+      const result = await completeAppleSignIn();
+      
+      if (result.success) {
+        console.log("✅ Apple Sign In successful, navigating to dashboard");
+        router.replace("/dashboard");
+      } else {
+        console.error("❌ Apple Sign In failed:", result.error);
+        Alert.alert("Sign In Failed", result.error ?? "Apple Sign In failed");
+      }
+    } catch (error: unknown) {
+      console.error("Apple auth error:", error);
+      Alert.alert(
+        "Authentication Failed",
+        (error as Error).message || "Failed to sign in with Apple",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Show loading while checking authentication status
   if (isPending) {
     return (
@@ -331,6 +368,23 @@ export default function LoginPage() {
               >
                 <Text style={buttonText.secondary}>Continue with Google</Text>
               </Pressable>
+
+              {/* Apple Sign In Button */}
+              {Platform.OS === 'ios' && (
+                <Pressable
+                  style={[
+                    buttons.base,
+                    buttons.large,
+                    buttons.secondary,
+                    isLoading && buttons.disabled,
+                    { marginTop: spacing[4] }
+                  ]}
+                  onPress={handleAppleAuth}
+                  disabled={isLoading}
+                >
+                  <Text style={buttonText.secondary}>Continue with Apple</Text>
+                </Pressable>
+              )}
             </>
           )}
 

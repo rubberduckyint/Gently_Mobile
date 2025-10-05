@@ -14,6 +14,12 @@ export const auth = initAuth({
   secret: env.AUTH_SECRET,
   googleClientId: env.AUTH_GOOGLE_ID,
   googleClientSecret: env.AUTH_GOOGLE_SECRET,
+  
+  // Apple Sign In configuration
+  appleClientId: env.APPLE_CLIENT_ID,
+  appleAppBundleId: env.APPLE_APP_BUNDLE_ID,
+  appleEnabled: !!(env.APPLE_CLIENT_ID && env.APPLE_TEAM_ID && env.APPLE_KEY_ID && (env.APPLE_PRIVATE_KEY ?? env.APPLE_PRIVATE_KEY_PATH)),
+  
   emailFrom: env.EMAIL_FROM,
   // Add email service configuration here if needed
   smtpHost: env.EMAIL_SERVER_HOST,

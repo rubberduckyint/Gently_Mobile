@@ -35,6 +35,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "This app needs location access to scan for Bluetooth devices.",
       ITSAppUsesNonExemptEncryption: false,
     },
+    entitlements: {
+      "com.apple.developer.applesignin": ["Default"],
+    },
   },
   android: {
     package: "com.gentlyus.gently",
@@ -66,6 +69,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-secure-store",
     "expo-web-browser",
     "expo-location",
+    "expo-apple-authentication",
     [
       "@react-native-google-signin/google-signin",
       {

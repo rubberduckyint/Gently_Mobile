@@ -11,6 +11,13 @@ export function authEnv() {
           ? z.string().min(1)
           : z.string().min(1).optional(),
       NODE_ENV: z.enum(["development", "production"]).optional(),
+      
+      // Apple Sign In (optional)
+      APPLE_CLIENT_ID: z.string().min(1).optional(),
+      APPLE_TEAM_ID: z.string().min(1).optional(),
+      APPLE_KEY_ID: z.string().min(1).optional(),
+      APPLE_PRIVATE_KEY: z.string().min(1).optional(),
+      APPLE_PRIVATE_KEY_PATH: z.string().optional(),
     },
     experimental__runtimeEnv: {},
     skipValidation:

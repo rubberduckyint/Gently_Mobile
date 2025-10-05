@@ -7,6 +7,17 @@ import { emailOTP, magicLink, oAuthProxy } from "better-auth/plugins";
 import { db } from "@gently/db/client";
 import { EmailSender, MagicLinkService, OTPService } from "@gently/email";
 
+// Export Apple client secret utilities
+export {
+  generateAppleClientSecret,
+  getApplePrivateKey,
+  clearAppleClientSecretCache,
+  getAppleClientSecretInfo,
+} from "./apple-client-secret.js";
+
+// Import the function here to use inside the config
+import { generateAppleClientSecret } from "./apple-client-secret.js";
+
 export function initAuth(options: {
   baseUrl: string;
   productionUrl: string;
@@ -14,6 +25,11 @@ export function initAuth(options: {
 
   googleClientId: string;
   googleClientSecret: string;
+
+  // Apple Sign In configuration
+  appleClientId?: string;
+  appleAppBundleId?: string;
+  appleEnabled?: boolean;
 
   // Email configuration for magic links
   emailFrom: string;
@@ -130,8 +146,19 @@ export function initAuth(options: {
         clientId: options.googleClientId,
         clientSecret: options.googleClientSecret,
       },
+      ...(options.appleEnabled && options.appleClientId && {
+        apple: {
+          clientId: options.appleClientId,
+          clientSecret: generateAppleClientSecret(),
+          redirectURI: `${options.baseUrl}/api/auth/callback/apple`,
+          // Required for native iOS apps
+          ...(options.appleAppBundleId && {
+            appBundleIdentifier: options.appleAppBundleId,
+          }),
+        },
+      }),
     },
-    trustedOrigins: ["gently://", "gently://*"],
+    trustedOrigins: ["gently://", "gently://*", "https://appleid.apple.com"],
   } satisfies BetterAuthOptions;
 
   return betterAuth(config);
