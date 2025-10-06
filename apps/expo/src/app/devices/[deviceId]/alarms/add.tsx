@@ -5,7 +5,7 @@
  * All settings are displayed on one scrollable page for better UX.
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Platform,
@@ -92,15 +92,17 @@ export default function AddAlarmPage() {
   const [formData, setFormData] = useState<AlarmFormData>(getDefaultFormData());
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  
+
   // Local state for temporary picker values (iOS only)
   const [tempStartDate, setTempStartDate] = useState(formData.startDate);
-  const [tempEndDate, setTempEndDate] = useState(formData.endsOnDate ?? new Date());
-  
+  const [tempEndDate, setTempEndDate] = useState(
+    formData.endsOnDate ?? new Date(),
+  );
+
   // Validation state
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const isFormValid = formData.title.trim().length > 0;
-  
+
   // Update temp values when form data changes
   useEffect(() => {
     setTempStartDate(formData.startDate);
@@ -109,7 +111,7 @@ export default function AddAlarmPage() {
   useEffect(() => {
     setTempEndDate(formData.endsOnDate ?? new Date());
   }, [formData.endsOnDate]);
-  
+
   const queryClient = useQueryClient();
 
   const createAlarmMutation = useMutation({
@@ -242,10 +244,11 @@ export default function AddAlarmPage() {
             buttons.base,
             buttons.primary,
             createAlarmMutation.isPending && { opacity: 0.5 },
-            !isFormValid && showValidationErrors && {
-              backgroundColor: colors.error[500],
-              borderColor: colors.error[600],
-            },
+            !isFormValid &&
+              showValidationErrors && {
+                backgroundColor: colors.error[500],
+                borderColor: colors.error[600],
+              },
           ]}
           onPress={() => {
             if (!isFormValid) {
@@ -253,7 +256,7 @@ export default function AddAlarmPage() {
               Alert.alert(
                 "Missing Required Fields",
                 "Please fill in all required fields before creating the alarm.",
-                [{ text: "OK" }]
+                [{ text: "OK" }],
               );
               return;
             }
@@ -265,20 +268,26 @@ export default function AddAlarmPage() {
             {createAlarmMutation.isPending
               ? "Creating..."
               : !isFormValid && showValidationErrors
-              ? "Missing Required Fields"
-              : "Create Alarm"}
+                ? "Missing Required Fields"
+                : "Create Alarm"}
           </Text>
         </Pressable>
       </View>
 
       {/* Date/Time Pickers */}
       {showStartTimePicker && (
-        <View style={Platform.OS === "ios" ? {
-          backgroundColor: colors.background.secondary,
-          borderRadius: 12,
-          marginVertical: 10,
-          padding: 10,
-        } : undefined}>
+        <View
+          style={
+            Platform.OS === "ios"
+              ? {
+                  backgroundColor: colors.background.secondary,
+                  borderRadius: 12,
+                  marginVertical: 10,
+                  padding: 10,
+                }
+              : undefined
+          }
+        >
           <DateTimePicker
             value={Platform.OS === "ios" ? tempStartDate : formData.startDate}
             mode={Platform.OS === "ios" ? "datetime" : "time"}
@@ -295,22 +304,28 @@ export default function AddAlarmPage() {
                 setTempStartDate(selectedDate);
               }
             }}
-            style={Platform.OS === "ios" ? {
-              backgroundColor: colors.background.secondary,
-              height: 200,
-            } : undefined}
+            style={
+              Platform.OS === "ios"
+                ? {
+                    backgroundColor: colors.background.secondary,
+                    height: 200,
+                  }
+                : undefined
+            }
             textColor={colors.text.primary}
           />
           {Platform.OS === "ios" && (
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              paddingTop: 10,
-              borderTopWidth: 1,
-              borderTopColor: colors.border.light,
-              marginTop: 10,
-            }}>
-              <TouchableOpacity 
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                paddingTop: 10,
+                borderTopWidth: 1,
+                borderTopColor: colors.border.light,
+                marginTop: 10,
+              }}
+            >
+              <TouchableOpacity
                 onPress={() => {
                   // Save temporary picker value to form and close
                   updateFormData({ startDate: tempStartDate });
@@ -323,7 +338,13 @@ export default function AddAlarmPage() {
                   borderRadius: 8,
                 }}
               >
-                <Text style={{ color: colors.text.inverse, fontSize: 16, fontWeight: '600' }}>
+                <Text
+                  style={{
+                    color: colors.text.inverse,
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}
+                >
                   Done
                 </Text>
               </TouchableOpacity>
@@ -333,14 +354,24 @@ export default function AddAlarmPage() {
       )}
 
       {showEndDatePicker && (
-        <View style={Platform.OS === "ios" ? {
-          backgroundColor: colors.background.secondary,
-          borderRadius: 12,
-          marginVertical: 10,
-          padding: 10,
-        } : undefined}>
+        <View
+          style={
+            Platform.OS === "ios"
+              ? {
+                  backgroundColor: colors.background.secondary,
+                  borderRadius: 12,
+                  marginVertical: 10,
+                  padding: 10,
+                }
+              : undefined
+          }
+        >
           <DateTimePicker
-            value={Platform.OS === "ios" ? tempEndDate : (formData.endsOnDate ?? new Date())}
+            value={
+              Platform.OS === "ios"
+                ? tempEndDate
+                : (formData.endsOnDate ?? new Date())
+            }
             mode={Platform.OS === "ios" ? "datetime" : "date"}
             display={Platform.OS === "ios" ? "spinner" : "default"}
             onChange={(event, selectedDate) => {
@@ -355,22 +386,28 @@ export default function AddAlarmPage() {
                 setTempEndDate(selectedDate);
               }
             }}
-            style={Platform.OS === "ios" ? {
-              backgroundColor: colors.background.secondary,
-              height: 200,
-            } : undefined}
+            style={
+              Platform.OS === "ios"
+                ? {
+                    backgroundColor: colors.background.secondary,
+                    height: 200,
+                  }
+                : undefined
+            }
             textColor={colors.text.primary}
           />
           {Platform.OS === "ios" && (
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              paddingTop: 10,
-              borderTopWidth: 1,
-              borderTopColor: colors.border.light,
-              marginTop: 10,
-            }}>
-              <TouchableOpacity 
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                paddingTop: 10,
+                borderTopWidth: 1,
+                borderTopColor: colors.border.light,
+                marginTop: 10,
+              }}
+            >
+              <TouchableOpacity
                 onPress={() => {
                   // Save temporary picker value to form and close
                   updateFormData({ endsOnDate: tempEndDate });
@@ -383,7 +420,13 @@ export default function AddAlarmPage() {
                   borderRadius: 8,
                 }}
               >
-                <Text style={{ color: colors.text.inverse, fontSize: 16, fontWeight: '600' }}>
+                <Text
+                  style={{
+                    color: colors.text.inverse,
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}
+                >
                   Done
                 </Text>
               </TouchableOpacity>

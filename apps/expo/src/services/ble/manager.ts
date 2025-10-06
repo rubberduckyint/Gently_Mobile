@@ -117,7 +117,9 @@ export async function sendMultiPacketCommand<T>(
 
           if (data.peripheral === peripheralId && isCharacteristicMatch) {
             try {
-              console.log(`📥 Received multi-packet response from ${peripheralId}`);
+              console.log(
+                `📥 Received multi-packet response from ${peripheralId}`,
+              );
 
               // Decrypt the response
               const tea = new TEAEncryption(encryptionKey);
@@ -141,15 +143,16 @@ export async function sendMultiPacketCommand<T>(
 
               // Use the packet handler to process this packet (payload has headers stripped)
               const result = packetHandler(response.payload, peripheralId);
-              
+
               // If handler returns a result, we're done
               if (result !== null) {
-                console.log(`✅ Multi-packet command 0x${command.command.toString(16).padStart(2, "0")} completed`);
+                console.log(
+                  `✅ Multi-packet command 0x${command.command.toString(16).padStart(2, "0")} completed`,
+                );
                 cleanup();
                 resolve(result);
               }
               // Otherwise, continue waiting for more packets
-
             } catch (error) {
               console.error(
                 `❌ Error processing multi-packet response for command ${command.command}:`,
@@ -197,7 +200,6 @@ export async function sendMultiPacketCommand<T>(
         cleanup();
         reject(error instanceof Error ? error : new Error(String(error)));
       });
-
     } catch (error) {
       console.error(`❌ Failed to setup multi-packet command:`, error);
       cleanup();

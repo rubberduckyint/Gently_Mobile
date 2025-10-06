@@ -40,9 +40,7 @@ import {
   createFindMeRequest,
   parseFindMeResponse,
 } from "~/services/ble/commands/findMe";
-import {
-  getAllEvents,
-} from "~/services/ble/commands/getAllEvents";
+import { getAllEvents } from "~/services/ble/commands/getAllEvents";
 import {
   createGetDeviceInfoRequest,
   parseGetDeviceInfoResponse,
@@ -650,9 +648,9 @@ export default function BleTestPage() {
 
     try {
       addTestResult(`🔍 Getting all events using multi-packet handler...`);
-      
+
       const result = await getAllEvents(connectedPeripheral.id, encryptionKey);
-      
+
       addTestResult(`✅ Get All Events: Found ${result.totalEvents} events`);
       if (result.events.length > 0) {
         result.events.forEach((event, index) => {
@@ -671,7 +669,9 @@ export default function BleTestPage() {
         `📊 Multi-packet All Events: Total=${result.totalEvents}, Parsed=${result.events.length}`,
       );
     } catch (error) {
-      addTestResult(`❌ Get All Events failed: ${error instanceof Error ? error.message : String(error)}`);
+      addTestResult(
+        `❌ Get All Events failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 

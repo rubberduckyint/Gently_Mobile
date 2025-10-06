@@ -56,11 +56,13 @@ export function BasicInfoSection({
 
       {/* Title Input */}
       <View style={{ marginBottom: spacing[4] }}>
-        <Text style={[
-          typography.label, 
-          { marginBottom: spacing[2] },
-          showTitleError && { color: colors.error[500] }
-        ]}>
+        <Text
+          style={[
+            typography.label,
+            { marginBottom: spacing[2] },
+            showTitleError && { color: colors.error[500] },
+          ]}
+        >
           Title *
         </Text>
         <TextInput
@@ -69,7 +71,7 @@ export function BasicInfoSection({
             showTitleError && {
               borderColor: colors.error[500],
               borderWidth: 2,
-            }
+            },
           ]}
           value={formData.title}
           onChangeText={(text) => onUpdateFormData({ title: text })}
@@ -77,10 +79,12 @@ export function BasicInfoSection({
           placeholderTextColor={colors.text.secondary}
         />
         {showTitleError && (
-          <Text style={[
-            typography.caption,
-            { color: colors.error[500], marginTop: spacing[1] }
-          ]}>
+          <Text
+            style={[
+              typography.caption,
+              { color: colors.error[500], marginTop: spacing[1] },
+            ]}
+          >
             Title is required
           </Text>
         )}

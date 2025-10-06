@@ -4,8 +4,8 @@
  */
 
 import type { BLECommandRequest } from "../types";
-import { CommandCode } from "../types";
 import { sendMultiPacketCommand } from "../manager";
+import { CommandCode } from "../types";
 
 export interface Event {
   id: number;
@@ -50,11 +50,17 @@ export function handleGetAllEventsPacket(
   deviceId: string,
 ): AllEventsResponse | null {
   console.log(`📥 GET_ALL_EVENTS Packet Handler for device: ${deviceId}`);
-  console.log(`  - Payload after header stripping (${payload.length} bytes): [${Array.from(payload).map(b => "0x" + b.toString(16).padStart(2, "0")).join(", ")}]`);
-  
+  console.log(
+    `  - Payload after header stripping (${payload.length} bytes): [${Array.from(
+      payload,
+    )
+      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+      .join(", ")}]`,
+  );
+
   if (payload.length < 2) {
     console.error(`❌ Packet too short (${payload.length} < 2)`);
-    throw new Error("Invalid packet: payload too short");  
+    throw new Error("Invalid packet: payload too short");
   }
 
   // After parseResponsePacket strips headers, the payload structure is:
@@ -62,10 +68,10 @@ export function handleGetAllEventsPacket(
   // payload[1]: Total packets expected (N)
   // payload[2]: Current event index (0-49)
   // payload[3+]: Event data
-  
+
   const packetNumber = payload[0] ?? 0;
   const totalPackets = payload[1] ?? 0;
-  
+
   console.log(`  - Packet ${packetNumber}/${totalPackets}`);
 
   // Initialize or get accumulator for this device
@@ -81,11 +87,13 @@ export function handleGetAllEventsPacket(
 
   // Store this packet
   accumulator.packets.set(packetNumber, payload);
-  
+
   // Check if we have all packets (all should have status 0x00 per protocol)
   if (accumulator.packets.size === totalPackets) {
-    console.log(`✅ All packets received for device ${deviceId}, processing...`);
-    
+    console.log(
+      `✅ All packets received for device ${deviceId}, processing...`,
+    );
+
     // Process all packets in order
     const allEvents: Event[] = [];
     for (let i = 1; i <= totalPackets; i++) {
@@ -98,17 +106,19 @@ export function handleGetAllEventsPacket(
         console.warn(`⚠️ Missing packet ${i} for device ${deviceId}`);
       }
     }
-    
+
     // Clean up
     eventPacketStore.delete(deviceId);
-    
-  return {
-    events: allEvents,
-    totalEvents: allEvents.length,
-    rawPayload: new Uint8Array(), // Combined payload would be too large
-  };
-}  // Still waiting for more packets
-  console.log(`⏳ Waiting for ${totalPackets - accumulator.packets.size} more packets...`);
+
+    return {
+      events: allEvents,
+      totalEvents: allEvents.length,
+      rawPayload: new Uint8Array(), // Combined payload would be too large
+    };
+  } // Still waiting for more packets
+  console.log(
+    `⏳ Waiting for ${totalPackets - accumulator.packets.size} more packets...`,
+  );
   return null;
 }
 
@@ -220,7 +230,7 @@ export function parseGetAllEventsResponse(
 
   return {
     events,
-    totalEvents: totalPackets,  
+    totalEvents: totalPackets,
     rawPayload: payload,
   };
 }
@@ -233,9 +243,9 @@ export async function getAllEvents(
   encryptionKey: string,
 ): Promise<AllEventsResponse> {
   console.log(`🔍 Getting all events from device: ${peripheralId}`);
-  
+
   const command = createGetAllEventsRequest();
-  
+
   return sendMultiPacketCommand(
     peripheralId,
     encryptionKey,

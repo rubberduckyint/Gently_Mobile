@@ -101,14 +101,14 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
   ]);
 
   const getDetailedScheduleDescription = () => {
-    const startTime = safeStartDate.toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const startTime = safeStartDate.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
     });
     const startDate = safeStartDate.toLocaleDateString();
-    
+
     let description = "";
-    
+
     // Base schedule
     if (alarm.repeat) {
       try {
@@ -119,43 +119,43 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
     } else {
       description = `One-time alarm on ${startDate} at ${startTime}`;
     }
-    
+
     // Add end date information if available
     if (safeEndDate) {
       const endDate = safeEndDate.toLocaleDateString();
-      const endTime = safeEndDate.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      const endTime = safeEndDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
       });
-      
+
       if (alarm.repeat) {
         description += ` until ${endDate} at ${endTime}`;
       }
     } else if (alarm.repeat) {
       description += " (continues indefinitely)";
     }
-    
+
     // Add next occurrence info if available
     if (scheduleInfo.nextOccurrence && alarm.isActive) {
-      const nextTime = scheduleInfo.nextOccurrence.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      const nextTime = scheduleInfo.nextOccurrence.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
       });
       const nextDate = scheduleInfo.nextOccurrence.toLocaleDateString();
       const today = new Date().toLocaleDateString();
-      
+
       if (nextDate === today) {
         description += `\nNext: Today at ${nextTime}`;
       } else {
         description += `\nNext: ${nextDate} at ${nextTime}`;
       }
     }
-    
+
     // Add additional context for better understanding
     if (alarm.repeat && alarm.snoozePeriod && alarm.snoozePeriod > 0) {
       description += `\nSnooze: ${alarm.snoozePeriod} minutes`;
     }
-    
+
     // Add status information
     if (!alarm.isActive) {
       description += "\n(Inactive)";
@@ -164,7 +164,7 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
     } else if (!scheduleInfo.nextOccurrence) {
       description += "\n(No upcoming occurrences)";
     }
-    
+
     return description;
   };
 
@@ -458,8 +458,8 @@ export function AlarmCard({ alarm, compact = false, onPress }: AlarmCardProps) {
         <Text
           style={[
             typography.bodySmall,
-            { 
-              color: colors.text.primary, 
+            {
+              color: colors.text.primary,
               marginBottom: spacing[2],
               lineHeight: 20,
             },

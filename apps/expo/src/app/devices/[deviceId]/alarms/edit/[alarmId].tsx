@@ -44,11 +44,11 @@ export default function EditAlarmPage() {
   const [formData, setFormData] = useState<AlarmFormData | null>(null);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  
+
   // Validation state
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const isFormValid = formData ? formData.title.trim().length > 0 : false;
-  
+
   const queryClient = useQueryClient();
 
   const {
@@ -463,10 +463,11 @@ export default function EditAlarmPage() {
             buttons.base,
             buttons.primary,
             updateAlarmMutation.isPending && { opacity: 0.5 },
-            !isFormValid && showValidationErrors && {
-              backgroundColor: colors.error[500],
-              borderColor: colors.error[600],
-            },
+            !isFormValid &&
+              showValidationErrors && {
+                backgroundColor: colors.error[500],
+                borderColor: colors.error[600],
+              },
           ]}
           onPress={() => {
             if (!isFormValid) {
@@ -474,7 +475,7 @@ export default function EditAlarmPage() {
               Alert.alert(
                 "Missing Required Fields",
                 "Please fill in all required fields before updating the alarm.",
-                [{ text: "OK" }]
+                [{ text: "OK" }],
               );
               return;
             }
@@ -486,8 +487,8 @@ export default function EditAlarmPage() {
             {updateAlarmMutation.isPending
               ? "Updating..."
               : !isFormValid && showValidationErrors
-              ? "Missing Required Fields"
-              : "Update Alarm"}
+                ? "Missing Required Fields"
+                : "Update Alarm"}
           </Text>
         </Pressable>
       </View>

@@ -5,8 +5,16 @@
  * Used by both add and edit alarm forms.
  */
 
-import React, { useState, useEffect } from "react";
-import { Platform, Pressable, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
 import type { AlarmFormData } from "./BasicInfoSection";
@@ -31,7 +39,9 @@ export function ScheduleSection({
 }: ScheduleSectionProps) {
   // Local state for temporary picker values (iOS only)
   const [tempStartDate, setTempStartDate] = useState(formData.startDate);
-  const [tempEndDate, setTempEndDate] = useState(formData.endsOnDate ?? new Date());
+  const [tempEndDate, setTempEndDate] = useState(
+    formData.endsOnDate ?? new Date(),
+  );
 
   // Update temp values when form data changes
   useEffect(() => {
@@ -121,7 +131,13 @@ export function ScheduleSection({
               <Text style={[typography.label, { marginBottom: spacing[2] }]}>
                 Repeat Every
               </Text>
-              <View style={{ flexDirection: "row", gap: spacing[2], alignItems: 'flex-start' }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: spacing[2],
+                  alignItems: "flex-start",
+                }}
+              >
                 <TextInput
                   style={[inputs.base, { flex: 1, minWidth: 80 }]}
                   value={formData.repeatEvery.toString()}
@@ -134,56 +150,70 @@ export function ScheduleSection({
                 />
                 <View style={{ flex: 2 }}>
                   {/* Repeat Type Options */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing[1] }}>
-                    {(['minutes', 'hours', 'days', 'weeks'] as const).map((type) => {
-                      const isSelected = formData.repeatType === type;
-                      return (
-                        <Pressable
-                          key={type}
-                          onPress={() => {
-                            const updates: Partial<typeof formData> = { repeatType: type };
-                            // Clear days of week if switching away from weeks
-                            if (formData.repeatType === 'weeks' && type !== 'weeks') {
-                              updates.daysOfWeek = [];
-                            }
-                            onUpdateFormData(updates);
-                          }}
-                          style={[
-                            {
-                              paddingHorizontal: spacing[3],
-                              paddingVertical: spacing[2],
-                              borderRadius: 8,
-                              borderWidth: 1,
-                              minWidth: 60,
-                              alignItems: 'center',
-                            },
-                            isSelected
-                              ? {
-                                  backgroundColor: colors.primary[500],
-                                  borderColor: colors.primary[500],
-                                }
-                              : {
-                                  backgroundColor: colors.background.secondary,
-                                  borderColor: colors.border.medium,
-                                },
-                          ]}
-                        >
-                          <Text
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      gap: spacing[1],
+                    }}
+                  >
+                    {(["minutes", "hours", "days", "weeks"] as const).map(
+                      (type) => {
+                        const isSelected = formData.repeatType === type;
+                        return (
+                          <Pressable
+                            key={type}
+                            onPress={() => {
+                              const updates: Partial<typeof formData> = {
+                                repeatType: type,
+                              };
+                              // Clear days of week if switching away from weeks
+                              if (
+                                formData.repeatType === "weeks" &&
+                                type !== "weeks"
+                              ) {
+                                updates.daysOfWeek = [];
+                              }
+                              onUpdateFormData(updates);
+                            }}
                             style={[
-                              typography.caption,
                               {
-                                color: isSelected
-                                  ? colors.text.inverse
-                                  : colors.text.primary,
-                                fontWeight: isSelected ? '600' : '400',
+                                paddingHorizontal: spacing[3],
+                                paddingVertical: spacing[2],
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                minWidth: 60,
+                                alignItems: "center",
                               },
+                              isSelected
+                                ? {
+                                    backgroundColor: colors.primary[500],
+                                    borderColor: colors.primary[500],
+                                  }
+                                : {
+                                    backgroundColor:
+                                      colors.background.secondary,
+                                    borderColor: colors.border.medium,
+                                  },
                             ]}
                           >
-                            {type}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                            <Text
+                              style={[
+                                typography.caption,
+                                {
+                                  color: isSelected
+                                    ? colors.text.inverse
+                                    : colors.text.primary,
+                                  fontWeight: isSelected ? "600" : "400",
+                                },
+                              ]}
+                            >
+                              {type}
+                            </Text>
+                          </Pressable>
+                        );
+                      },
+                    )}
                   </View>
                 </View>
               </View>
@@ -344,12 +374,18 @@ export function ScheduleSection({
 
       {/* Date/Time Pickers */}
       {showStartTimePicker && (
-        <View style={Platform.OS === "ios" ? {
-          backgroundColor: colors.background.secondary,
-          borderRadius: 12,
-          marginVertical: 10,
-          padding: 10,
-        } : undefined}>
+        <View
+          style={
+            Platform.OS === "ios"
+              ? {
+                  backgroundColor: colors.background.secondary,
+                  borderRadius: 12,
+                  marginVertical: 10,
+                  padding: 10,
+                }
+              : undefined
+          }
+        >
           <DateTimePicker
             value={Platform.OS === "ios" ? tempStartDate : formData.startDate}
             mode="time"
@@ -366,22 +402,28 @@ export function ScheduleSection({
                 setTempStartDate(selectedDate);
               }
             }}
-            style={Platform.OS === "ios" ? {
-              backgroundColor: colors.background.secondary,
-              height: 200,
-            } : undefined}
+            style={
+              Platform.OS === "ios"
+                ? {
+                    backgroundColor: colors.background.secondary,
+                    height: 200,
+                  }
+                : undefined
+            }
             textColor={colors.text.primary}
           />
           {Platform.OS === "ios" && (
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              paddingTop: 10,
-              borderTopWidth: 1,
-              borderTopColor: colors.border.light,
-              marginTop: 10,
-            }}>
-              <TouchableOpacity 
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                paddingTop: 10,
+                borderTopWidth: 1,
+                borderTopColor: colors.border.light,
+                marginTop: 10,
+              }}
+            >
+              <TouchableOpacity
                 onPress={() => {
                   // Save temporary picker value to form and close
                   onUpdateFormData({ startDate: tempStartDate });
@@ -404,14 +446,24 @@ export function ScheduleSection({
       )}
 
       {showEndDatePicker && (
-        <View style={Platform.OS === "ios" ? {
-          backgroundColor: colors.background.secondary,
-          borderRadius: 12,
-          marginVertical: 10,
-          padding: 10,
-        } : undefined}>
-                    <DateTimePicker
-            value={Platform.OS === "ios" ? tempEndDate : (formData.endsOnDate ?? new Date())}
+        <View
+          style={
+            Platform.OS === "ios"
+              ? {
+                  backgroundColor: colors.background.secondary,
+                  borderRadius: 12,
+                  marginVertical: 10,
+                  padding: 10,
+                }
+              : undefined
+          }
+        >
+          <DateTimePicker
+            value={
+              Platform.OS === "ios"
+                ? tempEndDate
+                : (formData.endsOnDate ?? new Date())
+            }
             mode="date"
             display={Platform.OS === "ios" ? "spinner" : "default"}
             onChange={(event, selectedDate) => {
@@ -426,22 +478,28 @@ export function ScheduleSection({
                 setTempEndDate(selectedDate);
               }
             }}
-            style={Platform.OS === "ios" ? {
-              backgroundColor: colors.background.secondary,
-              height: 200,
-            } : undefined}
+            style={
+              Platform.OS === "ios"
+                ? {
+                    backgroundColor: colors.background.secondary,
+                    height: 200,
+                  }
+                : undefined
+            }
             textColor={colors.text.primary}
           />
           {Platform.OS === "ios" && (
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              paddingTop: 10,
-              borderTopWidth: 1,
-              borderTopColor: colors.border.light,
-              marginTop: 10,
-            }}>
-              <TouchableOpacity 
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                paddingTop: 10,
+                borderTopWidth: 1,
+                borderTopColor: colors.border.light,
+                marginTop: 10,
+              }}
+            >
+              <TouchableOpacity
                 onPress={() => {
                   // Save temporary picker value to form and close
                   onUpdateFormData({ endsOnDate: tempEndDate });
