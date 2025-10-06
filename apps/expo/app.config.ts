@@ -36,7 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ITSAppUsesNonExemptEncryption: false,
     },
     entitlements: {
-      //"com.apple.developer.applesignin": ["Default"],
+      "com.apple.developer.applesignin": ["Default"],
     },
   },
   android: {

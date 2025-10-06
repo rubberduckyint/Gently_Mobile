@@ -22,12 +22,14 @@ export const auth = initAuth({
   appleKeyId: env.APPLE_KEY_ID,
   applePrivateKey: env.APPLE_PRIVATE_KEY,
   applePrivateKeyPath: env.APPLE_PRIVATE_KEY_PATH,
-  appleEnabled: !!(
-    env.APPLE_CLIENT_ID &&
-    env.APPLE_TEAM_ID &&
-    env.APPLE_KEY_ID &&
-    (env.APPLE_PRIVATE_KEY ?? env.APPLE_PRIVATE_KEY_PATH)
-  ),
+  appleEnabled:
+    false &&
+    !!(
+      env.APPLE_CLIENT_ID &&
+      env.APPLE_TEAM_ID &&
+      env.APPLE_KEY_ID &&
+      (env.APPLE_PRIVATE_KEY ?? env.APPLE_PRIVATE_KEY_PATH)
+    ),
 
   emailFrom: env.EMAIL_FROM,
   // Add email service configuration here if needed
