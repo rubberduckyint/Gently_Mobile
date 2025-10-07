@@ -295,7 +295,7 @@ const AddDeviceScreen = () => {
 
       // Step 2: Use standardized connection process
       setPairingStatus({
-        step: "Discovering services...",
+        step: "Connecting to device (up to 60s)...",
         progress: 20,
         isComplete: false,
       });
@@ -304,7 +304,7 @@ const AddDeviceScreen = () => {
         "Step 2: Starting detailed inline BLE connection with debug logging",
         {
           maxRetries: 3,
-          connectionTimeout: 5000,
+          connectionTimeout: 20000,
           stabilizationDelay: 900,
           mtuSize: 512,
           platform: Platform.OS,
@@ -313,7 +313,7 @@ const AddDeviceScreen = () => {
 
       // Inline BLE connection with detailed logging
       const maxRetries = 3;
-      const connectionTimeout = 5000;
+      const connectionTimeout = 20000; // 20 seconds per attempt
       const stabilizationDelay = 900;
       const mtuSize = 512;
 
@@ -335,12 +335,16 @@ const AddDeviceScreen = () => {
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          addDebugLog("info", `Connection attempt ${attempt}/${maxRetries}`, {
-            deviceId: peripheral.id,
-            attempt,
-            maxRetries,
-            timeout: connectionTimeout,
-          });
+          addDebugLog(
+            "info",
+            `Connection attempt ${attempt}/${maxRetries} (${connectionTimeout / 1000}s timeout)`,
+            {
+              deviceId: peripheral.id,
+              attempt,
+              maxRetries,
+              timeout: connectionTimeout,
+            },
+          );
 
           // Create connection with timeout
           const connectionPromise = BleManager.connect(peripheral.id);
@@ -348,7 +352,9 @@ const AddDeviceScreen = () => {
             setTimeout(
               () =>
                 reject(
-                  new Error(`Connection timeout after ${connectionTimeout}ms`),
+                  new Error(
+                    `Connection timeout after ${connectionTimeout / 1000} seconds`,
+                  ),
                 ),
               connectionTimeout,
             );
@@ -359,7 +365,7 @@ const AddDeviceScreen = () => {
           addDebugLog("success", `Connected to device on attempt ${attempt}`, {
             deviceId: peripheral.id,
             attempt,
-            timeElapsed: `${connectionTimeout}ms or less`,
+            timeElapsed: `${connectionTimeout / 1000}s or less`,
           });
           connectionSuccess = true;
           break;
@@ -376,14 +382,17 @@ const AddDeviceScreen = () => {
           });
 
           if (attempt < maxRetries) {
-            addDebugLog("info", "Waiting 1 second before retry");
+            addDebugLog(
+              "info",
+              `Waiting 1 second before retry (next attempt will timeout after ${connectionTimeout / 1000}s)`,
+            );
             await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }
       }
 
       if (!connectionSuccess) {
-        const errorMessage = `Failed to connect after ${maxRetries} attempts. ${lastError?.message ?? "Unknown error"}`;
+        const errorMessage = `Failed to connect after ${maxRetries} attempts (${(maxRetries * connectionTimeout) / 1000}s total). ${lastError?.message ?? "Unknown error"}`;
         addDebugLog("error", "All connection attempts failed", {
           maxRetries,
           finalError: lastError?.message,

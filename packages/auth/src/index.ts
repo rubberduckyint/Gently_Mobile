@@ -2,7 +2,7 @@ import type { BetterAuthOptions } from "better-auth";
 import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { emailOTP, magicLink, oAuthProxy } from "better-auth/plugins";
+import { emailOTP, magicLink } from "better-auth/plugins";
 
 import { db } from "@gently/db/client";
 import { EmailSender, MagicLinkService, OTPService } from "@gently/email";
@@ -59,13 +59,6 @@ export function initAuth(options: {
       },
     },
     plugins: [
-      oAuthProxy({
-        /**
-         * Auto-inference blocked by https://github.com/better-auth/better-auth/pull/2891
-         */
-        currentURL: options.baseUrl,
-        productionURL: options.productionUrl,
-      }),
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           try {
