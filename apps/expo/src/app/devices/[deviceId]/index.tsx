@@ -3,6 +3,7 @@ import React, { useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -23,6 +24,7 @@ import type { AdvertisementData } from "~/services/ble/types";
 import { AlarmCard } from "~/components/device";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { Header } from "~/components/ui/Header";
+import { useBLE } from "~/contexts/BLEContext";
 import {
   createAddEventRequest,
   parseAddEventResponse,
@@ -41,15 +43,12 @@ import {
   createSetEventOnOffRequest,
   parseSetEventOnOffResponse,
 } from "~/services/ble/commands/setEventOnOff";
-import {
-  connectToBLEDevice,
-  disconnectFromBLEDevice,
-} from "~/services/ble/connection";
+import { disconnectFromBLEDevice } from "~/services/ble/connection";
 import {
   extractAndDecryptAdvertisementData,
   generateDynamicKey,
 } from "~/services/ble/encryption";
-import { sendCommand } from "~/services/ble/manager";
+import { sendCommand, startNotifications } from "~/services/ble/manager";
 import { FACTORY_BRACELET_KEY, ResponseStatus } from "~/services/ble/types";
 import {
   buttons,
@@ -70,6 +69,9 @@ export default function DeviceDetailPage() {
 
   // Store the initial device ID to prevent it from changing during navigation
   const [initialDeviceId] = React.useState(deviceId);
+
+  // Use BLE context to show connection status
+  const { connectionState, connectedDevice, encryptionKey } = useBLE();
 
   const {
     data: device,
@@ -430,33 +432,230 @@ export default function DeviceDetailPage() {
                 await BleManager.stopScan();
 
                 try {
-                  setSyncProgress("Connecting to device...");
+                  setSyncProgress("Connecting to device (up to 60s)...");
                   console.log(
-                    `🔗 Starting connection to device: ${peripheral.id}`,
+                    `🔗 Starting inline BLE connection to device: ${peripheral.id}`,
                   );
 
                   await BleManager.stopScan();
 
-                  // Use standardized connection process
-                  const connectionResult = await connectToBLEDevice(
-                    peripheral.id,
-                    {
-                      maxRetries: 3,
-                      connectionTimeout: 5000,
-                      stabilizationDelay: 900,
-                      enableMTU: true,
-                      mtuSize: 512,
-                    },
-                  );
+                  // Inline BLE connection with detailed logging and 20s timeout
+                  const maxRetries = 3;
+                  const connectionTimeout = 20000; // 20 seconds per attempt
+                  const stabilizationDelay = 900;
+                  const mtuSize = 512;
 
-                  if (!connectionResult.success) {
+                  // Check existing connection
+                  console.log(
+                    "🔍 Checking existing connection status for sync",
+                  );
+                  const isConnected = await BleManager.isPeripheralConnected(
+                    peripheral.id,
+                  );
+                  if (isConnected) {
+                    console.log(
+                      "⚠️ Device already connected, disconnecting first for sync",
+                    );
+                    await BleManager.disconnect(peripheral.id);
+                    await new Promise((resolve) => setTimeout(resolve, 500));
+                    console.log("✅ Previous connection disconnected for sync");
+                  } else {
+                    console.log("ℹ️ No existing connection found for sync");
+                  }
+
+                  // Connection attempts with retries for sync
+                  let connectionSuccess = false;
+                  let lastError: Error | null = null;
+
+                  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                      setSyncProgress(
+                        `Connecting attempt ${attempt}/${maxRetries} (${connectionTimeout / 1000}s timeout)...`,
+                      );
+                      console.log(
+                        `🔗 Sync connection attempt ${attempt}/${maxRetries} (${connectionTimeout / 1000}s timeout)`,
+                        {
+                          deviceId: peripheral.id,
+                          attempt,
+                          maxRetries,
+                          timeout: connectionTimeout,
+                          timeoutSeconds: connectionTimeout / 1000,
+                        },
+                      );
+
+                      // Create connection with timeout
+                      const connectionPromise = BleManager.connect(
+                        peripheral.id,
+                      );
+                      const timeoutPromise = new Promise<never>((_, reject) => {
+                        setTimeout(
+                          () =>
+                            reject(
+                              new Error(
+                                `Sync connection timeout after ${connectionTimeout / 1000} seconds`,
+                              ),
+                            ),
+                          connectionTimeout,
+                        );
+                      });
+
+                      await Promise.race([connectionPromise, timeoutPromise]);
+
+                      console.log(
+                        `✅ Sync connected to device on attempt ${attempt}`,
+                        {
+                          deviceId: peripheral.id,
+                          attempt,
+                          timeElapsed: `${connectionTimeout / 1000}s or less`,
+                        },
+                      );
+                      connectionSuccess = true;
+                      break;
+                    } catch (connectionError) {
+                      lastError =
+                        connectionError instanceof Error
+                          ? connectionError
+                          : new Error(String(connectionError));
+                      console.warn(
+                        `⚠️ Sync connection attempt ${attempt} failed`,
+                        {
+                          attempt,
+                          error: lastError.message,
+                          deviceId: peripheral.id,
+                          willRetry: attempt < maxRetries,
+                        },
+                      );
+
+                      if (attempt < maxRetries) {
+                        console.log(
+                          `⏳ Waiting 1 second before sync retry (next attempt will timeout after ${connectionTimeout / 1000}s)`,
+                        );
+                        await new Promise((resolve) =>
+                          setTimeout(resolve, 1000),
+                        );
+                      }
+                    }
+                  }
+
+                  if (!connectionSuccess) {
+                    const errorMessage = `Failed to connect after ${maxRetries} sync attempts (${(maxRetries * connectionTimeout) / 1000}s total). ${lastError?.message ?? "Unknown error"}`;
+                    console.error("❌ All sync connection attempts failed", {
+                      maxRetries,
+                      finalError: lastError?.message,
+                      deviceId: peripheral.id,
+                    });
+                    throw new Error(errorMessage);
+                  }
+
+                  // Connection stabilization for sync
+                  setSyncProgress("Stabilizing sync connection...");
+                  console.log(
+                    `⏱️ Waiting ${stabilizationDelay}ms for sync connection stabilization`,
+                  );
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, stabilizationDelay),
+                  );
+                  console.log("✅ Sync connection stabilization complete");
+
+                  // Configure MTU for Android sync
+                  if (Platform.OS === "android") {
+                    setSyncProgress("Configuring sync connection...");
+                    console.log(
+                      `🔧 Configuring MTU for Android sync (${mtuSize} bytes)`,
+                    );
+                    try {
+                      await BleManager.requestMTU(peripheral.id, mtuSize);
+                      console.log(
+                        `📶 MTU ${mtuSize} configured for sync successfully`,
+                      );
+                    } catch (mtuError) {
+                      const mtuMessage =
+                        mtuError instanceof Error
+                          ? mtuError.message
+                          : String(mtuError);
+                      console.warn(
+                        `⚠️ MTU configuration failed for sync: ${mtuMessage}`,
+                        {
+                          error: mtuMessage,
+                          requestedMTU: mtuSize,
+                        },
+                      );
+                    }
+                  } else {
+                    console.log(
+                      `ℹ️ Skipping MTU configuration for sync (Platform: ${Platform.OS})`,
+                    );
+                  }
+
+                  // Discover services for sync
+                  setSyncProgress("Discovering sync services...");
+                  console.log(
+                    "🔍 Discovering BLE services and characteristics for sync",
+                  );
+                  try {
+                    // Use Promise.race with timeout to prevent hanging (GitHub community fix)
+                    await Promise.race([
+                      BleManager.retrieveServices(peripheral.id),
+                      new Promise<never>((_, reject) =>
+                        setTimeout(
+                          () =>
+                            reject(
+                              new Error(
+                                "Sync service discovery timeout after 3000ms",
+                              ),
+                            ),
+                          3000,
+                        ),
+                      ),
+                    ]);
+                    console.log(
+                      "✅ BLE services discovered successfully for sync",
+                    );
+                  } catch (servicesError) {
+                    const servicesMessage =
+                      servicesError instanceof Error
+                        ? servicesError.message
+                        : String(servicesError);
+                    console.error(
+                      `❌ Sync service discovery failed: ${servicesMessage}`,
+                      {
+                        error: servicesMessage,
+                        deviceId: peripheral.id,
+                        isTimeout: servicesMessage.includes("timeout"),
+                      },
+                    );
                     throw new Error(
-                      connectionResult.error ?? "Failed to connect to device",
+                      `Sync service discovery failed: ${servicesMessage}`,
+                    );
+                  }
+
+                  // Start notifications for sync
+                  setSyncProgress("Starting sync notifications...");
+                  console.log("🔔 Starting BLE notifications for sync");
+                  try {
+                    await startNotifications(peripheral.id);
+                    console.log(
+                      "✅ BLE notifications started successfully for sync",
+                    );
+                  } catch (notificationError) {
+                    const notificationMessage =
+                      notificationError instanceof Error
+                        ? notificationError.message
+                        : String(notificationError);
+                    console.error(
+                      `❌ Sync notification setup failed: ${notificationMessage}`,
+                      {
+                        error: notificationMessage,
+                        deviceId: peripheral.id,
+                      },
+                    );
+                    throw new Error(
+                      `Sync notification setup failed: ${notificationMessage}`,
                     );
                   }
 
                   console.log(
-                    `✅ BLE connection established for ${peripheral.id}`,
+                    `🎉 BLE sync connection fully established for ${peripheral.id}`,
                   );
 
                   // Step 2: Generate encryption key
@@ -561,8 +760,204 @@ export default function DeviceDetailPage() {
                       alarm,
                       i,
                     );
+
+                    console.log(
+                      `\n📋 ==================== ALARM SYNC DATA DETAILS ====================`,
+                    );
+                    console.log(`📋 Database Alarm:`);
+                    console.log(`   - ID: ${alarm.id}`);
+                    console.log(`   - Title: "${alarm.title}"`);
+                    console.log(
+                      `   - Description: "${alarm.description || "None"}"`,
+                    );
+                    console.log(`   - Is Active: ${alarm.isActive}`);
+                    console.log(`   - Start Date: ${alarm.startDate}`);
+                    console.log(`   - Repeat: ${alarm.repeat}`);
+                    console.log(
+                      `   - Cron Expression from DB: "${alarm.cronExpression}"`,
+                    );
+                    console.log(`📋 Converted BLE Parameters:`);
+                    console.log(
+                      `   - Event Index: ${bleParameters.eventIndex}`,
+                    );
+                    console.log(
+                      `   - Event Name: "${bleParameters.eventName}"`,
+                    );
+                    console.log(
+                      `   - Cron Expression: "${bleParameters.cronExpression}"`,
+                    );
+                    console.log(
+                      `   - Cron Length: ${bleParameters.cronExpression.length} chars`,
+                    );
+                    console.log(
+                      `   - Cron Bytes: [${Array.from(
+                        new TextEncoder().encode(bleParameters.cronExpression),
+                      )
+                        .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+                        .join(", ")}]`,
+                    );
+                    console.log(
+                      `   - Vibration Pattern: ${bleParameters.vibrationPattern}`,
+                    );
+                    console.log(
+                      `   - Vibration Intensity: ${bleParameters.vibrationIntensity}`,
+                    );
+                    console.log(
+                      `   - LED Pattern: ${bleParameters.ledPattern}`,
+                    );
+                    console.log(`   - LED Color: ${bleParameters.ledColor}`);
+                    console.log(
+                      `   - Severity Level: ${bleParameters.severityLevel}`,
+                    );
+                    console.log(
+                      `   - Snooze Period: ${bleParameters.snoozePeriod}`,
+                    );
+                    console.log(
+                      `   - Snooze Timeout: ${bleParameters.snoozeTimeout}`,
+                    );
+                    console.log(
+                      `   - Retrigger Delay: ${bleParameters.retriggerDelay}`,
+                    );
+                    console.log(
+                      `   - Retrigger Timeout: ${bleParameters.retriggerTimeout}`,
+                    );
+                    console.log(
+                      `📋 ============================================================\n`,
+                    );
+
                     const addEventCommand =
                       createAddEventRequest(bleParameters);
+
+                    console.log(
+                      `\n📦 ==================== BLE PAYLOAD DETAILS ====================`,
+                    );
+                    console.log(
+                      `📦 Command Code: 0x${addEventCommand.command.toString(16).padStart(2, "0")}`,
+                    );
+                    console.log(
+                      `📦 API Version: ${addEventCommand.apiVersion}`,
+                    );
+
+                    if (addEventCommand.payload) {
+                      console.log(
+                        `📦 Payload Length: ${addEventCommand.payload.length} bytes`,
+                      );
+                      console.log(
+                        `📦 Full Payload Bytes: [${Array.from(
+                          addEventCommand.payload,
+                        )
+                          .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+                          .join(", ")}]`,
+                      );
+
+                      // Parse the payload structure for detailed logging
+                      let offset = 0;
+                      console.log(`📦 Payload Structure:`);
+                      console.log(
+                        `   - Byte ${offset}: Event Index = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")} (${addEventCommand.payload[offset]})`,
+                      );
+                      offset++;
+                      console.log(
+                        `   - Byte ${offset}: Vibration = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")}`,
+                      );
+                      offset++;
+                      console.log(
+                        `   - Byte ${offset}: LED = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")}`,
+                      );
+                      offset++;
+                      console.log(
+                        `   - Byte ${offset}: Severity = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")} (${addEventCommand.payload[offset]})`,
+                      );
+                      offset++;
+                      console.log(
+                        `   - Byte ${offset}: Snooze Period = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")} (${addEventCommand.payload[offset]})`,
+                      );
+                      offset++;
+                      console.log(
+                        `   - Byte ${offset}: Snooze Timeout = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")} (${addEventCommand.payload[offset]})`,
+                      );
+                      offset++;
+                      console.log(
+                        `   - Byte ${offset}: Retrigger Delay = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")} (${addEventCommand.payload[offset]})`,
+                      );
+                      offset++;
+                      console.log(
+                        `   - Byte ${offset}: Retrigger Timeout = 0x${addEventCommand.payload[offset]?.toString(16).padStart(2, "0")} (${addEventCommand.payload[offset]})`,
+                      );
+                      offset++;
+
+                      // Find event name string
+                      const eventNameStart = offset;
+                      let eventNameEnd = offset;
+                      while (
+                        eventNameEnd < addEventCommand.payload.length &&
+                        addEventCommand.payload[eventNameEnd] !== 0
+                      ) {
+                        eventNameEnd++;
+                      }
+                      const eventNameBytes = addEventCommand.payload.slice(
+                        eventNameStart,
+                        eventNameEnd,
+                      );
+                      const eventNameString = new TextDecoder().decode(
+                        eventNameBytes,
+                      );
+                      console.log(
+                        `   - Bytes ${eventNameStart}-${eventNameEnd - 1}: Event Name = "${eventNameString}" [${Array.from(
+                          eventNameBytes,
+                        )
+                          .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+                          .join(", ")}]`,
+                      );
+                      console.log(
+                        `   - Byte ${eventNameEnd}: Event Name Terminator = 0x${addEventCommand.payload[eventNameEnd]?.toString(16).padStart(2, "0")}`,
+                      );
+                      offset = eventNameEnd + 1;
+
+                      // Find cron expression string
+                      const cronStart = offset;
+                      let cronEnd = offset;
+                      while (
+                        cronEnd < addEventCommand.payload.length &&
+                        addEventCommand.payload[cronEnd] !== 0
+                      ) {
+                        cronEnd++;
+                      }
+                      const cronBytes = addEventCommand.payload.slice(
+                        cronStart,
+                        cronEnd,
+                      );
+                      const cronString = new TextDecoder().decode(cronBytes);
+                      console.log(
+                        `   - Bytes ${cronStart}-${cronEnd - 1}: Cron Expression = "${cronString}" [${Array.from(
+                          cronBytes,
+                        )
+                          .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+                          .join(", ")}]`,
+                      );
+                      console.log(
+                        `   - Byte ${cronEnd}: Cron Terminator = 0x${addEventCommand.payload[cronEnd]?.toString(16).padStart(2, "0")}`,
+                      );
+
+                      // Show remaining padding
+                      const remainingBytes = addEventCommand.payload.slice(
+                        cronEnd + 1,
+                      );
+                      if (remainingBytes.length > 0) {
+                        console.log(
+                          `   - Bytes ${cronEnd + 1}-${addEventCommand.payload.length - 1}: Padding = [${Array.from(
+                            remainingBytes,
+                          )
+                            .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+                            .join(", ")}]`,
+                        );
+                      }
+                    } else {
+                      console.log(`📦 Payload: undefined`);
+                    }
+                    console.log(
+                      `📦 ============================================================\n`,
+                    );
 
                     console.log(
                       `🔑 About to send ADD_EVENT with key: ${encryptionKey}`,
@@ -1077,6 +1472,138 @@ export default function DeviceDetailPage() {
                 </View>
               )}
             </View>
+          </View>
+        </View>
+
+        {/* BLE Connection Status */}
+        <View style={[cards.base, { marginTop: spacing[4] }]}>
+          <View
+            style={[
+              {
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: spacing[3],
+              },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <Ionicons
+                name="bluetooth"
+                size={20}
+                color={
+                  connectionState === "connected"
+                    ? colors.success[600]
+                    : connectionState === "connecting"
+                      ? colors.warning[600]
+                      : colors.gray[400]
+                }
+                style={{ marginRight: spacing[2] }}
+              />
+              <Text style={[typography.h6, { color: colors.text.primary }]}>
+                BLE Connection
+              </Text>
+            </View>
+            <Pressable
+              style={[
+                buttons.base,
+                buttons.secondary,
+                { paddingHorizontal: spacing[3], paddingVertical: spacing[2] },
+              ]}
+              onPress={() => {
+                router.push(`/devices/${deviceId}/ble-test`);
+              }}
+            >
+              <Text style={[typography.body, { color: colors.text.primary }]}>
+                Test BLE
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={{ gap: spacing[2] }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Text style={[typography.body, { color: colors.text.secondary }]}>
+                Status:
+              </Text>
+              <Text
+                style={[
+                  typography.body,
+                  {
+                    color:
+                      connectionState === "connected"
+                        ? colors.success[600]
+                        : connectionState === "connecting"
+                          ? colors.warning[600]
+                          : connectionState === "scanning"
+                            ? colors.primary[600]
+                            : colors.text.secondary,
+                    fontWeight: "500",
+                  },
+                ]}
+              >
+                {connectionState.charAt(0).toUpperCase() +
+                  connectionState.slice(1)}
+              </Text>
+            </View>
+
+            {connectedDevice && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={[typography.body, { color: colors.text.secondary }]}
+                >
+                  Device ID:
+                </Text>
+                <Text
+                  style={[
+                    typography.caption,
+                    { color: colors.text.primary, fontFamily: "monospace" },
+                  ]}
+                >
+                  {connectedDevice.id.substring(0, 12)}...
+                </Text>
+              </View>
+            )}
+
+            {encryptionKey && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={[typography.body, { color: colors.text.secondary }]}
+                >
+                  Encryption:
+                </Text>
+                <Text
+                  style={[
+                    typography.caption,
+                    { color: colors.success[600], fontWeight: "500" },
+                  ]}
+                >
+                  ✓ Secured
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 

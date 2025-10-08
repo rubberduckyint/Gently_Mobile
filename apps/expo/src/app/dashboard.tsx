@@ -182,7 +182,7 @@ export default function DashboardPage() {
     refetchOnMount: "always", // Always refetch when component mounts
     refetchOnWindowFocus: true, // Refetch when app comes to foreground
     staleTime: 0, // Consider data stale immediately
-    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+    gcTime: 0, // No garbage collection time - data removed immediately
   });
 
   const deleteDeviceMutation = useMutation({

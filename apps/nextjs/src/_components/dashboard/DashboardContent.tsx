@@ -24,7 +24,7 @@ export function DashboardContent() {
     refetchOnMount: "always", // Always refetch when component mounts
     refetchOnWindowFocus: true, // Also refetch when window gains focus
     staleTime: 0, // Consider data stale immediately
-    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+    gcTime: 0, // No garbage collection time - data removed immediately
   });
 
   // Invalidate and refetch devices data whenever we navigate to dashboard

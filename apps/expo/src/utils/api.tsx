@@ -10,8 +10,14 @@ import { authClient } from "./auth";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 30, // 30 minutes
+      staleTime: 0, // No caching - consider data stale immediately
+      gcTime: 0, // No garbage collection time - data removed immediately
+      refetchOnMount: "always", // Always refetch when component mounts
+      refetchOnWindowFocus: true, // Refetch when app comes to foreground
+      refetchOnReconnect: true, // Refetch when network reconnects
+    },
+    mutations: {
+      gcTime: 0, // No garbage collection time for mutations
     },
   },
 });

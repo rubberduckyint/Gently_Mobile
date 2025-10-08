@@ -84,6 +84,17 @@ export async function sendMultiPacketCommand<T>(
     `🔄 Sending multi-packet command 0x${command.command.toString(16).padStart(2, "0")} to ${peripheralId}`,
   );
 
+  // Validate connection and services before sending command
+  try {
+    await validateBLEConnection(peripheralId);
+  } catch (validationError) {
+    console.error(
+      `❌ Pre-command validation failed for multi-packet command:`,
+      validationError,
+    );
+    throw validationError;
+  }
+
   return new Promise<T>((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
@@ -268,6 +279,42 @@ function parseResponsePacket(encryptedData: Uint8Array): BLECommandResponse {
 }
 
 /**
+ * Validates BLE connection and service availability
+ */
+async function validateBLEConnection(peripheralId: string): Promise<void> {
+  // Check if device is still connected
+  const isConnected = await BleManager.isPeripheralConnected(peripheralId);
+  if (!isConnected) {
+    throw new Error(`Device ${peripheralId} is not connected`);
+  }
+
+  // Retrieve and check services
+  try {
+    const peripheralInfo = await BleManager.retrieveServices(peripheralId);
+    const hasService = peripheralInfo.services?.some(
+      (service) =>
+        service.uuid.toUpperCase() === BLE_SERVICE_UUID.toUpperCase() ||
+        service.uuid.toUpperCase() === "0000F021-0000-1000-8000-00805F9B34FB",
+    );
+
+    if (!hasService) {
+      console.warn(
+        `⚠️ BLE service ${BLE_SERVICE_UUID} not found. Available services:`,
+        peripheralInfo.services?.map((s) => s.uuid) ?? [],
+      );
+      throw new Error(
+        `BLE service ${BLE_SERVICE_UUID} not available on device ${peripheralId}`,
+      );
+    }
+
+    console.log(`✅ BLE connection and service validated for ${peripheralId}`);
+  } catch (error) {
+    console.error(`❌ Service validation failed for ${peripheralId}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Sends a command to the bracelet and waits for response
  */
 export async function sendCommand({
@@ -277,6 +324,14 @@ export async function sendCommand({
   timeoutMs = 5000,
 }: BLECommand): Promise<BLECommandResponse> {
   console.log(`📤 Sending command ${command.command} to ${peripheralId}`);
+
+  // Validate connection and services before sending command
+  try {
+    await validateBLEConnection(peripheralId);
+  } catch (validationError) {
+    console.error(`❌ Pre-command validation failed:`, validationError);
+    throw validationError;
+  }
 
   return new Promise<BLECommandResponse>((resolve, reject) => {
     const timeout = setTimeout(() => {

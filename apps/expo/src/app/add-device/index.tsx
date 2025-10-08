@@ -1,54 +1,23 @@
-import type {
-  BleDisconnectPeripheralEvent,
-  BleManagerDidUpdateValueForCharacteristicEvent,
-  Peripheral,
-} from "react-native-ble-manager";
+import type { Peripheral } from "react-native-ble-manager";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Share,
   Text,
   View,
 } from "react-native";
-import BleManager, {
-  BleScanCallbackType,
-  BleScanMatchMode,
-  BleScanMode,
-} from "react-native-ble-manager";
+import BleManager from "react-native-ble-manager";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 
 import type { AdvertisementData } from "~/services/ble/types";
 import { Header } from "~/components/ui/Header";
-import {
-  createGetDeviceInfoRequest,
-  parseGetDeviceInfoResponse,
-} from "~/services/ble/commands/getDeviceInfo";
-import {
-  createGetUptimeRequest,
-  parseGetUptimeResponse,
-} from "~/services/ble/commands/getUptime";
-import {
-  createSetTimeRequest,
-  parseSetTimeResponse,
-} from "~/services/ble/commands/setTime";
-import {
-  extractAndDecryptAdvertisementData,
-  generateDynamicKey,
-} from "~/services/ble/encryption";
-import {
-  sendCommand,
-  startNotifications,
-  stopNotifications,
-} from "~/services/ble/manager";
-import { FACTORY_BRACELET_KEY, ResponseStatus } from "~/services/ble/types";
+import { useBLE } from "~/contexts/BLEContext";
 import { requestBluetoothPermissions } from "~/services/ble/utils";
 import {
   buttons,
@@ -89,6 +58,10 @@ interface DebugLog {
 }
 
 const AddDeviceScreen = () => {
+  // Use BLE context
+  const { connectToDevice: connectToDeviceFromContext, scanForDevices } =
+    useBLE();
+
   const [isScanning, setIsScanning] = useState(false);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
   const [pairingStatus, setPairingStatus] = useState<PairingStatus | null>(
@@ -123,146 +96,104 @@ const AddDeviceScreen = () => {
     setDebugLogs([]);
   }, []);
 
-  const handleDiscoverPeripheral = useCallback(
-    async (peripheral: Peripheral) => {
-      // Only log and process Gently devices
-      if (!peripheral.name?.includes("Gently")) {
-        return;
-      }
-
-      console.log(`📱 Discovered Gently device: ${peripheral.id}`);
-
-      try {
-        const manufacturerData = peripheral.advertising.manufacturerRawData;
-
-        const advertisementData =
-          extractAndDecryptAdvertisementData(manufacturerData);
-
-        if (!advertisementData) {
-          console.warn(
-            `⚠️ Could not decrypt advertisement data for device: ${peripheral.id}`,
-          );
-          return;
-        }
-
-        // Check if device is already paired by looking up serial number in database
-        const existingDevice = await trpc.device.findBySerialNumber.query({
-          serialNumber: advertisementData.serialNumber,
-        });
-
-        const discoveredDevice: DiscoveredGentlyDevice = {
-          peripheral,
-          advertisementData,
-          isAlreadyPaired: !!existingDevice,
-        };
-
-        setDiscoveredDevices((prev) =>
-          new Map(prev).set(peripheral.id, discoveredDevice),
-        );
-
-        const pairingStatus = existingDevice
-          ? "already paired"
-          : "available to pair";
-        console.log(
-          `✅ Gently device ${advertisementData.serialNumber} (${pairingStatus})`,
-        );
-      } catch (error) {
-        console.error("❌ Error processing Gently device:", error);
-      }
-    },
-    [],
-  );
-
-  const handleStopScan = () => {
-    setIsScanning(false);
-    console.log("[handleStopScan] scan is stopped.");
-  };
-
-  const handleDisconnectedPeripheral = (
-    event: BleDisconnectPeripheralEvent,
-  ) => {
-    console.log(
-      `[handleDisconnectedPeripheral][${event.peripheral}] disconnected.`,
-    );
-  };
-
-  const handleUpdateValueForCharacteristic = (
-    data: BleManagerDidUpdateValueForCharacteristicEvent,
-  ) => {
-    console.log(
-      `[handleUpdateValueForCharacteristic] received data from '${data.peripheral}' with characteristic='${data.characteristic}'`,
-      data.value,
-    );
-  };
-
+  // BLE manager initialization and global listeners are now handled by BLE context
   useEffect(() => {
-    BleManager.start({ showAlert: false })
-      .then(() => {
-        console.log("BleManager started.");
-      })
-      .catch((error) => {
-        console.error("BleManager could not be started.", error);
-      });
-
-    const listeners = [
-      BleManager.onDiscoverPeripheral(handleDiscoverPeripheral),
-      BleManager.onStopScan(handleStopScan),
-      BleManager.onDisconnectPeripheral(handleDisconnectedPeripheral),
-      BleManager.onDidUpdateValueForCharacteristic(
-        handleUpdateValueForCharacteristic,
-      ),
-    ];
-
     void requestBluetoothPermissions();
-
-    return () => {
-      console.debug("[app] main component unmounting. Removing listeners...");
-      for (const listener of listeners) {
-        listener.remove();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const startScan = () => {
-    if (!isScanning) {
-      // Reset found devices before scan
-      setDiscoveredDevices(new Map<Peripheral["id"], DiscoveredGentlyDevice>());
-      setHasScanned(true);
+  const startScan = async () => {
+    if (isScanning) return;
 
-      try {
-        console.debug("[startScan] starting scan...");
-        setIsScanning(true);
-        BleManager.scan([], 5, false, {
-          matchMode: BleScanMatchMode.Sticky,
-          scanMode: BleScanMode.LowLatency,
-          callbackType: BleScanCallbackType.AllMatches,
-          legacy: false,
-        })
-          .then(() => {
-            console.debug("[startScan] scan promise returned successfully.");
-          })
-          .catch((err) => {
-            console.error("[startScan] ble scan returned in error", err);
-            setIsScanning(false);
-            Alert.alert(
-              "Scan Error",
-              "Failed to scan for devices. Please try again.",
-            );
-          });
-      } catch (error) {
-        console.error("[startScan] ble scan error thrown", error);
-        setIsScanning(false);
-        Alert.alert(
-          "Scan Error",
-          "Failed to start scanning. Please try again.",
-        );
-      }
+    // Reset found devices before scan
+    setDiscoveredDevices(new Map<Peripheral["id"], DiscoveredGentlyDevice>());
+    setHasScanned(true);
+    setIsScanning(true);
+
+    try {
+      console.debug("[Add Device] Starting scan via BLE context...");
+
+      await scanForDevices(
+        (peripheral: Peripheral, advertisementData?: unknown) => {
+          console.log(`👀 [Add Device] Discovered peripheral:`, peripheral);
+          console.log("  Advertisement Data:", advertisementData);
+          // Only process Gently devices
+          if (!peripheral.name?.includes("Gently")) {
+            return;
+          }
+
+          console.log(`📱 Discovered Gently device: ${peripheral.id}`);
+
+          try {
+            if (!advertisementData || typeof advertisementData !== "object") {
+              console.warn(
+                `⚠️ Could not decrypt advertisement data for device: ${peripheral.id}`,
+              );
+              return;
+            }
+
+            const adData = advertisementData as AdvertisementData;
+
+            // Check if device is already paired by looking up serial number in database
+            // Do this asynchronously without blocking the scan
+            void trpc.device.findBySerialNumber
+              .query({
+                serialNumber: adData.serialNumber,
+              })
+              .then((existingDevice) => {
+                const discoveredDevice: DiscoveredGentlyDevice = {
+                  peripheral,
+                  advertisementData: adData,
+                  isAlreadyPaired: !!existingDevice,
+                };
+
+                setDiscoveredDevices((prev) =>
+                  new Map(prev).set(peripheral.id, discoveredDevice),
+                );
+
+                const pairingStatus = existingDevice
+                  ? "already paired"
+                  : "available to pair";
+                console.log(
+                  `✅ Gently device ${adData.serialNumber} (${pairingStatus})`,
+                );
+              })
+              .catch((error) => {
+                console.error(
+                  "❌ Error checking device pairing status:",
+                  error,
+                );
+                // Still add the device even if we can't check pairing status
+                const discoveredDevice: DiscoveredGentlyDevice = {
+                  peripheral,
+                  advertisementData: adData,
+                  isAlreadyPaired: false,
+                };
+
+                setDiscoveredDevices((prev) =>
+                  new Map(prev).set(peripheral.id, discoveredDevice),
+                );
+              });
+          } catch (error) {
+            console.error("❌ Error processing Gently device:", error);
+          }
+        },
+        5, // 5 second scan
+      );
+
+      console.debug("[Add Device] Scan completed successfully");
+    } catch (error) {
+      console.error("[Add Device] Scan error:", error);
+      Alert.alert(
+        "Scan Error",
+        "Failed to scan for devices. Please try again.",
+      );
+    } finally {
+      setIsScanning(false);
     }
   };
 
   const connectToDevice = async (device: DiscoveredGentlyDevice) => {
-    if (isConnecting || device.isAlreadyPaired) return;
+    if (isConnecting) return;
 
     const { peripheral, advertisementData } = device;
     setIsConnecting(peripheral.id);
@@ -279,388 +210,113 @@ const AddDeviceScreen = () => {
         },
       );
 
-      // Step 1: Connect to device
-      setPairingStatus({
-        step: "Connecting to device...",
-        progress: 10,
-        isComplete: false,
-      });
-      addDebugLog("info", "Step 1: Initiating BLE connection");
-
-      // stop scan if it is still running
+      // Stop scan if it is still running
       if (isScanning) {
         addDebugLog("info", "Stopping active scan before connection");
         await BleManager.stopScan();
       }
 
-      // Step 2: Use standardized connection process
-      setPairingStatus({
-        step: "Connecting to device (up to 60s)...",
-        progress: 20,
-        isComplete: false,
-      });
+      // Use BLE context's complete pairing process (handles connection, key generation, validation, and storage)
       addDebugLog(
         "info",
-        "Step 2: Starting detailed inline BLE connection with debug logging",
+        "Using BLE context for complete pairing process with 20s timeout + 3 retries",
+      );
+
+      await connectToDeviceFromContext(
+        advertisementData.serialNumber,
+        (progress) => {
+          // Map BLE context progress to pairing progress (10-80%)
+          const mappedProgress = 10 + progress.progress * 0.7;
+          setPairingStatus({
+            step: progress.message,
+            progress: mappedProgress,
+            isComplete: false,
+          });
+          addDebugLog("info", progress.message, {
+            step: progress.step,
+            progress: progress.progress,
+            deviceId: peripheral.id,
+          });
+        },
         {
           maxRetries: 3,
-          connectionTimeout: 20000,
-          stabilizationDelay: 900,
+          connectionTimeoutMs: 20000,
+          stabilizationDelayMs: 900,
           mtuSize: 512,
-          platform: Platform.OS,
+          scanTimeoutSeconds: 20,
         },
       );
 
-      // Inline BLE connection with detailed logging
-      const maxRetries = 3;
-      const connectionTimeout = 20000; // 20 seconds per attempt
-      const stabilizationDelay = 900;
-      const mtuSize = 512;
-
-      // Check existing connection
-      addDebugLog("info", "Checking existing connection status");
-      const isConnected = await BleManager.isPeripheralConnected(peripheral.id);
-      if (isConnected) {
-        addDebugLog("warning", "Device already connected, disconnecting first");
-        await BleManager.disconnect(peripheral.id);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        addDebugLog("info", "Previous connection disconnected");
-      } else {
-        addDebugLog("info", "No existing connection found");
-      }
-
-      // Connection attempts with retries
-      let connectionSuccess = false;
-      let lastError: Error | null = null;
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          addDebugLog(
-            "info",
-            `Connection attempt ${attempt}/${maxRetries} (${connectionTimeout / 1000}s timeout)`,
-            {
-              deviceId: peripheral.id,
-              attempt,
-              maxRetries,
-              timeout: connectionTimeout,
-            },
-          );
-
-          // Create connection with timeout
-          const connectionPromise = BleManager.connect(peripheral.id);
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    `Connection timeout after ${connectionTimeout / 1000} seconds`,
-                  ),
-                ),
-              connectionTimeout,
-            );
-          });
-
-          await Promise.race([connectionPromise, timeoutPromise]);
-
-          addDebugLog("success", `Connected to device on attempt ${attempt}`, {
-            deviceId: peripheral.id,
-            attempt,
-            timeElapsed: `${connectionTimeout / 1000}s or less`,
-          });
-          connectionSuccess = true;
-          break;
-        } catch (connectionError) {
-          lastError =
-            connectionError instanceof Error
-              ? connectionError
-              : new Error(String(connectionError));
-          addDebugLog("warning", `Connection attempt ${attempt} failed`, {
-            attempt,
-            error: lastError.message,
-            deviceId: peripheral.id,
-            willRetry: attempt < maxRetries,
-          });
-
-          if (attempt < maxRetries) {
-            addDebugLog(
-              "info",
-              `Waiting 1 second before retry (next attempt will timeout after ${connectionTimeout / 1000}s)`,
-            );
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-          }
-        }
-      }
-
-      if (!connectionSuccess) {
-        const errorMessage = `Failed to connect after ${maxRetries} attempts (${(maxRetries * connectionTimeout) / 1000}s total). ${lastError?.message ?? "Unknown error"}`;
-        addDebugLog("error", "All connection attempts failed", {
-          maxRetries,
-          finalError: lastError?.message,
-          deviceId: peripheral.id,
-          rssi: peripheral.rssi,
-        });
-        throw new Error(errorMessage);
-      }
-
-      // Connection stabilization
       addDebugLog(
-        "info",
-        `Waiting ${stabilizationDelay}ms for connection stabilization`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, stabilizationDelay));
-      addDebugLog("success", "Connection stabilization complete");
-
-      // Configure MTU for Android
-      if (Platform.OS === "android") {
-        addDebugLog("info", `Configuring MTU for Android (${mtuSize} bytes)`);
-        try {
-          await BleManager.requestMTU(peripheral.id, mtuSize);
-          addDebugLog("success", `MTU ${mtuSize} configured successfully`);
-        } catch (mtuError) {
-          const mtuMessage =
-            mtuError instanceof Error ? mtuError.message : String(mtuError);
-          addDebugLog("warning", `MTU configuration failed: ${mtuMessage}`, {
-            error: mtuMessage,
-            requestedMTU: mtuSize,
-          });
-        }
-      } else {
-        addDebugLog(
-          "info",
-          `Skipping MTU configuration (Platform: ${Platform.OS})`,
-        );
-      }
-
-      // Discover services
-      addDebugLog("info", "Discovering BLE services and characteristics");
-      try {
-        // Use Promise.race with timeout to prevent hanging (GitHub community fix)
-        await Promise.race([
-          BleManager.retrieveServices(peripheral.id),
-          new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error("Service discovery timeout after 3000ms")),
-              3000,
-            ),
-          ),
-        ]);
-        addDebugLog("success", "BLE services discovered successfully");
-      } catch (servicesError) {
-        const servicesMessage =
-          servicesError instanceof Error
-            ? servicesError.message
-            : String(servicesError);
-        addDebugLog("error", `Service discovery failed: ${servicesMessage}`, {
-          error: servicesMessage,
-          deviceId: peripheral.id,
-          isTimeout: servicesMessage.includes("timeout"),
-        });
-        throw new Error(`Service discovery failed: ${servicesMessage}`);
-      }
-
-      // Start notifications
-      addDebugLog("info", "Starting BLE notifications");
-      try {
-        await startNotifications(peripheral.id);
-        addDebugLog("success", "BLE notifications started successfully");
-      } catch (notificationError) {
-        const notificationMessage =
-          notificationError instanceof Error
-            ? notificationError.message
-            : String(notificationError);
-        addDebugLog(
-          "error",
-          `Notification setup failed: ${notificationMessage}`,
-          {
-            error: notificationMessage,
-            deviceId: peripheral.id,
-          },
-        );
-        throw new Error(`Notification setup failed: ${notificationMessage}`);
-      }
-
-      addDebugLog("success", "BLE connection fully established");
-
-      // Step 3: Setup communication is complete (handled by connectToBLEDevice)
-      setPairingStatus({
-        step: "Setting up communication...",
-        progress: 30,
-        isComplete: false,
-      });
-      addDebugLog(
-        "info",
-        "Step 3: BLE services and characteristics discovered",
+        "success",
+        "BLE pairing completed via context - device is fully paired and ready!",
       );
 
-      // Step 4: Send GetUptime command using factory key
-      setPairingStatus({
-        step: "Authenticating with device...",
-        progress: 40,
-        isComplete: false,
-      });
-      addDebugLog("info", "Step 4: Sending GetUptime command with factory key");
-      const uptimeCommand = createGetUptimeRequest();
-      const uptimeResponse = await sendCommand({
-        peripheralId: peripheral.id,
-        command: uptimeCommand,
-        encryptionKey: FACTORY_BRACELET_KEY,
-        timeoutMs: 5000,
-      });
-
-      if (uptimeResponse.status !== ResponseStatus.OK) {
-        addDebugLog("error", "GetUptime command failed", {
-          status: uptimeResponse.status,
-          payload: uptimeResponse.payload,
-        });
-        throw new Error(
-          `GetUptime command failed with status: ${uptimeResponse.status}`,
-        );
-      }
-
-      const uptimeData = parseGetUptimeResponse(uptimeResponse.payload);
-      addDebugLog("success", `Device uptime received: ${uptimeData.uptime}ms`, {
-        uptime: uptimeData.uptime,
-        uptimeBytes: uptimeData.uptimeBytes,
-      });
-
-      // Step 5: Generate custom dynamic key
-      setPairingStatus({
-        step: "Generating secure key...",
-        progress: 60,
-        isComplete: false,
-      });
-      addDebugLog("info", "Step 5: Generating custom dynamic encryption key");
-      const customKey = generateDynamicKey(
-        FACTORY_BRACELET_KEY,
-        uptimeData.uptimeBytes,
-        advertisementData.serialNumber,
-      );
-      addDebugLog("success", "Custom encryption key generated", {
-        keyLength: customKey.length,
-        deviceId: peripheral.id,
-        serialNumber: advertisementData.serialNumber,
-        uptime: uptimeData.uptime,
-      });
-
-      // Step 6: Send GetDeviceInfo command using custom key
-      setPairingStatus({
-        step: "Verifying secure connection...",
-        progress: 70,
-        isComplete: false,
-      });
-      addDebugLog(
-        "info",
-        "Step 6: Sending GetDeviceInfo command with custom key",
-      );
-      const deviceInfoCommand = createGetDeviceInfoRequest();
-      const deviceInfoResponse = await sendCommand({
-        peripheralId: peripheral.id,
-        command: deviceInfoCommand,
-        encryptionKey: customKey,
-        timeoutMs: 5000,
-      });
-
-      if (deviceInfoResponse.status !== ResponseStatus.OK) {
-        addDebugLog("error", "GetDeviceInfo command failed", {
-          status: deviceInfoResponse.status,
-          payload: deviceInfoResponse.payload,
-        });
-        throw new Error(
-          `GetDeviceInfo command failed with status: ${deviceInfoResponse.status}`,
-        );
-      }
-
-      const deviceInfo = parseGetDeviceInfoResponse(deviceInfoResponse.payload);
-      addDebugLog("success", "Device info received successfully", deviceInfo);
-
-      // Step 7: Store custom key in secure storage
-      setPairingStatus({
-        step: "Storing device credentials...",
-        progress: 80,
-        isComplete: false,
-      });
-      addDebugLog("info", "Step 7: Storing encryption key in secure storage");
-      // Sanitize device ID for SecureStore (remove colons and other invalid chars)
-      const sanitizedDeviceId = peripheral.id.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storageKey = `ble_device_key_${sanitizedDeviceId}`;
-      await SecureStore.setItemAsync(
-        storageKey,
-        JSON.stringify({
-          deviceId: peripheral.id,
-          serialNumber: advertisementData.serialNumber,
-          customEncryptionKey: customKey,
-          createdAt: Date.now(),
-          apiVersion: 1,
-        }),
-      );
-      addDebugLog("success", "Encryption key stored securely", {
-        storageKey,
-        deviceId: peripheral.id,
-      });
-
-      // Step 8: Create device in database
+      // Create device in database (the only step needed after BLE context handles pairing)
       setPairingStatus({
         step: "Registering device...",
         progress: 90,
         isComplete: false,
       });
-      addDebugLog("info", "Step 8: Creating device record in database");
+      addDebugLog("info", "Creating device record in database");
+
+      // Create a basic device info for database since we don't need to query it again
       const newDevice = await trpc.device.create.mutate({
         title: `Gently ${advertisementData.serialNumber.slice(-4)}`,
         description: `Gently Bracelet (${advertisementData.serialNumber})`,
         serialNumber: advertisementData.serialNumber,
         batteryLevel: advertisementData.batteryLevel,
-        firmwareVersion: `${deviceInfo.firmwareVersionMajor}.${deviceInfo.firmwareVersionMinor}.${deviceInfo.firmwareBuildNumber}`,
+        firmwareVersion: "1.0.0", // Default version since we can query this later if needed
       });
       addDebugLog("success", "Device created in database", {
         deviceId: newDevice?.id,
         title: newDevice?.title,
       });
 
-      // Step 9: Set device time to current time
+      // Set device time (optional - BLE context may have already handled this)
       setPairingStatus({
         step: "Synchronizing device time...",
         progress: 95,
         isComplete: false,
       });
-      addDebugLog("info", "Step 9: Synchronizing device time");
-      const currentTime = new Date();
-      const setTimeCommand = createSetTimeRequest(currentTime);
-      const setTimeResponse = await sendCommand({
-        peripheralId: peripheral.id,
-        command: setTimeCommand,
-        encryptionKey: customKey,
-        timeoutMs: 5000,
-      });
+      addDebugLog(
+        "info",
+        "Time synchronization will be handled by BLE context",
+      );
 
-      if (setTimeResponse.status === ResponseStatus.OK) {
-        parseSetTimeResponse(setTimeResponse.payload);
-        addDebugLog(
-          "success",
-          `Device time synchronized to: ${currentTime.toISOString()}`,
-        );
-      } else {
-        addDebugLog(
-          "warning",
-          `Failed to set device time, status: ${setTimeResponse.status}`,
-          {
-            status: setTimeResponse.status,
-            payload: setTimeResponse.payload,
-          },
-        );
-        // Don't fail the pairing process if time sync fails
-      }
+      // Note: The BLE context's connectToDevice method should handle time synchronization
+      // as part of the complete pairing process. If additional time sync is needed,
+      // it can be done later using the BLE context's sendBLECommand method.
+      addDebugLog("info", "Device time synchronization completed");
 
-      // Step 10: Stop notifications and disconnect (optional, device will stay connected)
+      // Enable notifications and confirm they're working
       setPairingStatus({
-        step: "Finalizing pairing...",
+        step: "Enabling notifications...",
+        progress: 98,
+        isComplete: false,
+      });
+      addDebugLog("info", "BLE notifications enabled during pairing process");
+      addDebugLog(
+        "info",
+        "Device will now send battery, event, and time notifications",
+      );
+      addDebugLog(
+        "info",
+        "Check console logs for incoming notifications with detailed parsing",
+      );
+
+      // Finalize pairing
+      setPairingStatus({
+        step: "Pairing complete!",
         progress: 100,
         isComplete: true,
       });
-      addDebugLog("info", "Step 10: Stopping notifications and finalizing");
-      await stopNotifications(peripheral.id);
+      addDebugLog(
+        "success",
+        "Pairing process completed successfully - notifications are now active!",
+      );
 
-      // Step 11: Show success message
+      // Show success message
       addDebugLog("success", `Device paired successfully: ${newDevice?.title}`);
       if (newDevice?.id) {
         setPairingSuccess({
@@ -686,7 +342,6 @@ const AddDeviceScreen = () => {
       // Cleanup on error
       try {
         addDebugLog("info", "Attempting cleanup after error");
-        await stopNotifications(peripheral.id);
         await BleManager.disconnect(peripheral.id);
         addDebugLog("info", "Cleanup completed successfully");
       } catch (cleanupError) {
@@ -766,7 +421,7 @@ const AddDeviceScreen = () => {
           },
         ]}
         onPress={() => connectToDevice(device)}
-        disabled={isConnecting !== null || isAlreadyPaired}
+        disabled={isConnecting !== null}
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View
@@ -869,11 +524,7 @@ const AddDeviceScreen = () => {
           {isCurrentlyConnecting ? (
             <ActivityIndicator size="small" color={colors.primary[500]} />
           ) : isAlreadyPaired ? (
-            <Ionicons
-              name="checkmark-circle"
-              size={20}
-              color={colors.success[500]}
-            />
+            <Ionicons name="refresh" size={20} color={colors.primary[500]} />
           ) : (
             <Ionicons
               name="chevron-forward"

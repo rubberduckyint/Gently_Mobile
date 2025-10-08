@@ -23,6 +23,165 @@ export interface AllEventsResponse {
   rawPayload: Uint8Array; // For debugging
 }
 
+export interface CronParseResult {
+  isValid: boolean;
+  hour: number;
+  minute: number;
+  days: number; // Bitmask for days of week
+  daysText: string;
+  error?: string;
+}
+
+function getEventStateText(eventState: number): string {
+  const stateTexts = [
+    "OFF",
+    "ON/Inactive",
+    "ON/Vibrating",
+    "ON/Retrigger Delay",
+    "ON/Snooze Period",
+    "ON/Other",
+  ];
+  return stateTexts[eventState] ?? `Unknown State (${eventState})`;
+}
+
+function parseCronExpression(cronExpression: string): CronParseResult {
+  if (!cronExpression || cronExpression.trim() === "") {
+    return {
+      isValid: false,
+      hour: 0,
+      minute: 0,
+      days: 0,
+      daysText: "None",
+      error: "Empty cron expression",
+    };
+  }
+
+  try {
+    // Standard cron format: "minute hour day month weekday"
+    // For device scheduling, we typically care about: "minute hour * * weekday"
+    const parts = cronExpression.trim().split(/\s+/);
+
+    if (parts.length < 5) {
+      return {
+        isValid: false,
+        hour: 0,
+        minute: 0,
+        days: 0,
+        daysText: "Invalid format",
+        error: `Expected 5 parts, got ${parts.length}`,
+      };
+    }
+
+    const minute = parseInt(parts[0] ?? "0", 10);
+    const hour = parseInt(parts[1] ?? "0", 10);
+    const weekday = parts[4] ?? "*";
+
+    // Validate time ranges
+    if (isNaN(minute) || minute < 0 || minute > 59) {
+      return {
+        isValid: false,
+        hour: 0,
+        minute: 0,
+        days: 0,
+        daysText: "Invalid minute",
+        error: `Invalid minute: ${parts[0]}`,
+      };
+    }
+
+    if (isNaN(hour) || hour < 0 || hour > 23) {
+      return {
+        isValid: false,
+        hour: 0,
+        minute: 0,
+        days: 0,
+        daysText: "Invalid hour",
+        error: `Invalid hour: ${parts[1]}`,
+      };
+    }
+
+    // Parse weekday to bitmask
+    let daysBitmask = 0;
+    let daysText = "";
+
+    if (weekday === "*") {
+      daysBitmask = 0b1111111; // All days
+      daysText = "Every day";
+    } else if (weekday.includes(",")) {
+      // Multiple specific days: "1,3,5"
+      const dayNumbers = weekday.split(",").map((d) => parseInt(d.trim(), 10));
+      const dayNames: string[] = [];
+
+      for (const dayNum of dayNumbers) {
+        if (dayNum >= 0 && dayNum <= 6) {
+          daysBitmask |= 1 << dayNum;
+          dayNames.push(getDayName(dayNum));
+        }
+      }
+      daysText = dayNames.join(", ");
+    } else if (weekday.includes("-")) {
+      // Range of days: "1-5" (Mon-Fri)
+      const rangeParts = weekday.split("-").map((d) => parseInt(d.trim(), 10));
+      const start = rangeParts[0];
+      const end = rangeParts[1];
+
+      if (
+        start !== undefined &&
+        end !== undefined &&
+        !isNaN(start) &&
+        !isNaN(end) &&
+        start >= 0 &&
+        start <= 6 &&
+        end >= 0 &&
+        end <= 6
+      ) {
+        const dayNames: string[] = [];
+        for (let day = start; day <= end; day++) {
+          daysBitmask |= 1 << day;
+          dayNames.push(getDayName(day));
+        }
+        daysText = dayNames.join(", ");
+      }
+    } else {
+      // Single day
+      const dayNum = parseInt(weekday, 10);
+      if (!isNaN(dayNum) && dayNum >= 0 && dayNum <= 6) {
+        daysBitmask = 1 << dayNum;
+        daysText = getDayName(dayNum);
+      }
+    }
+
+    return {
+      isValid: true,
+      hour,
+      minute,
+      days: daysBitmask,
+      daysText: daysText || "No days selected",
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      hour: 0,
+      minute: 0,
+      days: 0,
+      daysText: "Parse error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+function getDayName(dayNumber: number): string {
+  const dayNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  return dayNames[dayNumber] ?? `Day${dayNumber}`;
+}
+
 export function createGetAllEventsRequest(): BLECommandRequest {
   console.log(`📤 GET_ALL_EVENTS Request Created:`);
   console.log(
@@ -199,18 +358,52 @@ export function parseGetAllEventsResponse(
 
   // Parse cron expression (bytes 22-64, after header stripping)
   let cronExpression = "";
-  for (let i = 22; i < 65 && i < payload.length; i++) {
+  console.log(`  - Debug: Looking for cron expression starting at byte 22`);
+  console.log(`  - Debug: Payload length is ${payload.length}`);
+
+  // Find the end of the event name to locate cron expression start
+  let cronStart = 11;
+  while (cronStart < payload.length && payload[cronStart] !== 0) {
+    cronStart++;
+  }
+  cronStart++; // Skip the null terminator
+
+  console.log(`  - Debug: Cron expression should start at byte ${cronStart}`);
+  console.log(
+    `  - Debug: Bytes from ${cronStart} onward: [${Array.from(
+      payload.slice(cronStart, Math.min(cronStart + 20, payload.length)),
+    )
+      .map((b) => `0x${b.toString(16).padStart(2, "0")}`)
+      .join(", ")}]`,
+  );
+
+  for (let i = cronStart; i < payload.length; i++) {
     const byte = payload[i] ?? 0;
     if (byte === 0) break; // null terminator
     cronExpression += String.fromCharCode(byte);
   }
 
+  // Parse cron expression to extract time and days
+  const cronParsed = parseCronExpression(cronExpression);
+
   console.log(`  - Event Index: ${eventIndex}`);
   console.log(
-    `  - Event State: 0x${eventState.toString(16).padStart(2, "0")} (${eventState === 0 ? "OFF" : eventState === 1 ? "ON/Inactive" : eventState === 2 ? "ON/Vibrating" : "ON/Other"})`,
+    `  - Event State: 0x${eventState.toString(16).padStart(2, "0")} (${getEventStateText(eventState)})`,
   );
   console.log(`  - Event Name: "${eventName}"`);
   console.log(`  - Cron Expression: "${cronExpression}"`);
+
+  if (cronParsed.isValid) {
+    console.log(
+      `  - Parsed Time: ${cronParsed.hour.toString().padStart(2, "0")}:${cronParsed.minute.toString().padStart(2, "0")}`,
+    );
+    console.log(
+      `  - Days: ${cronParsed.daysText} (bitmask: 0b${cronParsed.days.toString(2).padStart(7, "0")})`,
+    );
+  } else {
+    console.log(`  - ⚠️ Cron parsing failed: ${cronParsed.error}`);
+  }
+
   console.log(
     `  - Vibration: Pattern=${vibrationPattern}, Intensity=${vibrationIntensity}`,
   );
@@ -220,9 +413,9 @@ export function parseGetAllEventsResponse(
   // Create event object
   events.push({
     id: eventIndex,
-    hour: 0, // Will need to parse from cron expression
-    minute: 0, // Will need to parse from cron expression
-    days: 0, // Will need to parse from cron expression
+    hour: cronParsed.isValid ? cronParsed.hour : 0,
+    minute: cronParsed.isValid ? cronParsed.minute : 0,
+    days: cronParsed.isValid ? cronParsed.days : 0,
     enabled: eventState > 0,
     vibratePattern: vibrationPattern,
     name: eventName,
