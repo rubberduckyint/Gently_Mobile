@@ -25,6 +25,7 @@ import {
   createAddEventRequest,
   parseAddEventResponse,
 } from "~/services/ble/commands/addEvent";
+import { TEAEncryption } from "~/services/ble/encryption";
 // Custom header - not using expo navigation
 import {
   createFindMeRequest,
@@ -100,6 +101,96 @@ export default function BleTestPage() {
   const addTestResult = (result: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setTestResults((prev) => [`[${timestamp}] ${result}`, ...prev]);
+  };
+
+  // Helper function to log detailed encryption information
+  const logCommandEncryptionDetails = (command: { command: number; apiVersion?: number; payload?: Uint8Array }, commandName: string) => {
+    if (!encryptionKey || !connectedDevice) return;
+
+    console.log(`\n🔍 ===== ${commandName.toUpperCase()} COMMAND ENCRYPTION DETAILS =====`);
+    
+    // Log raw command structure before encryption
+    console.log(`📤 Raw Command (before encryption):`);
+    console.log(`   Command Code: 0x${command.command.toString(16).padStart(2, '0')}`);
+    console.log(`   API Version: ${command.apiVersion ?? 1}`);
+    
+    if (command.payload) {
+      console.log(`   Payload Length: ${command.payload.length} bytes`);
+      console.log(`   Payload (hex): [${Array.from(command.payload).map((b: number) => `0x${b.toString(16).padStart(2, '0')}`).join(', ')}]`);
+      console.log(`   Payload (ASCII): "${Array.from(command.payload).map((b: number) => b >= 32 && b <= 126 ? String.fromCharCode(b) : '.').join('')}"`);
+    } else {
+      console.log(`   Payload: None (command has no payload)`);
+    }
+
+    // Log encryption details
+    console.log(`🔐 Encryption Details:`);
+    console.log(`   Encryption Key: "${encryptionKey}"`);
+    console.log(`   Key Length: ${encryptionKey.length} characters`);
+    console.log(`   Device ID: ${connectedDevice.id}`);
+    console.log(`   Device Name: ${connectedDevice.name ?? 'Unknown'}`);
+
+    // Simulate the packet creation process (this is what sendCommand does internally)
+    try {
+      const tea = new TEAEncryption(encryptionKey);
+      
+      // Create the packet structure (API + Command + Payload)
+      const packetSize = 2 + (command.payload ? command.payload.length : 0);
+      const packet = new Uint8Array(packetSize);
+      packet[0] = command.apiVersion ?? 1;
+      packet[1] = command.command;
+      
+      if (command.payload) {
+        packet.set(command.payload, 2);
+      }
+
+      console.log(`📦 Complete Packet (before encryption):`);
+      console.log(`   Total Size: ${packet.length} bytes`);
+      console.log(`   Packet (hex): [${Array.from(packet).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(', ')}]`);
+
+      // Pad to multiple of 8 bytes for TEA encryption
+      const paddedSize = Math.ceil(packet.length / 8) * 8;
+      const paddedPacket = new Uint8Array(paddedSize);
+      paddedPacket.set(packet);
+      // Fill remaining bytes with zeros (this is the padding)
+      for (let i = packet.length; i < paddedSize; i++) {
+        paddedPacket[i] = 0;
+      }
+
+      if (paddedSize > packet.length) {
+        console.log(`📦 Padded Packet (for 8-byte alignment):`);
+        console.log(`   Padded Size: ${paddedSize} bytes (added ${paddedSize - packet.length} padding bytes)`);
+        console.log(`   Padded (hex): [${Array.from(paddedPacket).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(', ')}]`);
+      }
+
+      // Encrypt the packet
+      const encryptedPacket = new Uint8Array(paddedSize);
+      for (let i = 0; i < paddedSize; i += 8) {
+        const block = paddedPacket.slice(i, i + 8);
+        const encryptedBlock = tea.encrypt(block);
+        encryptedPacket.set(encryptedBlock, i);
+      }
+
+      console.log(`🔒 Encrypted Packet (what gets sent to device):`);
+      console.log(`   Encrypted Size: ${encryptedPacket.length} bytes`);
+      console.log(`   Encrypted (hex): [${Array.from(encryptedPacket).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(', ')}]`);
+
+      // Show decryption verification
+      const decryptedPacket = new Uint8Array(paddedSize);
+      for (let i = 0; i < paddedSize; i += 8) {
+        const block = encryptedPacket.slice(i, i + 8);
+        const decryptedBlock = tea.decrypt(block);
+        decryptedPacket.set(decryptedBlock, i);
+      }
+
+      console.log(`🔓 Decrypted Verification (should match original):`);
+      console.log(`   Decrypted (hex): [${Array.from(decryptedPacket).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(', ')}]`);
+      console.log(`   Matches Original: ${Array.from(paddedPacket).every((b, i) => b === decryptedPacket[i]) ? '✅ YES' : '❌ NO'}`);
+
+    } catch (error) {
+      console.error(`❌ Encryption simulation failed:`, error);
+    }
+
+    console.log(`🔍 ===== END ${commandName.toUpperCase()} ENCRYPTION DETAILS =====\n`);
   };
 
   // Monitor BLE context notifications for test logging
@@ -188,7 +279,13 @@ export default function BleTestPage() {
   const testGetTime = async () => {
     if (!connectedDevice || !encryptionKey) return;
 
-    const response = await sendBLECommand(createGetTimeRequest());
+    const timeRequest = createGetTimeRequest();
+    
+    // Log comprehensive encryption details to console
+    logCommandEncryptionDetails(timeRequest, "GET_TIME");
+    addTestResult(`📤 Get Time command encryption details logged to console`);
+
+    const response = await sendBLECommand(timeRequest);
 
     const result = parseGetTimeResponse(response.payload);
     const statusText = response.status === ResponseStatus.OK ? "OK" : "ERROR";
@@ -331,22 +428,30 @@ export default function BleTestPage() {
     const now = new Date();
     const future = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutes in the future
 
-    const response = await sendBLECommand(
-      createAddEventRequest({
-        eventIndex: 0,
-        eventName: "Test",
-        cronExpression: `${future.getMinutes()} ${future.getHours()} * * *`,
-        vibrationPattern: 1,
-        vibrationIntensity: 2,
-        ledPattern: 1,
-        ledColor: 1,
-        severityLevel: 2,
-        snoozePeriod: 5,
-        snoozeTimeout: 15,
-        retriggerDelay: 0,
-        retriggerTimeout: 0,
-      }),
-    );
+    const eventRequest = createAddEventRequest({
+      eventIndex: 0,
+      eventName: "Test",
+      cronExpression: `${future.getMinutes()} ${future.getHours()} * * *`,
+      vibrationPattern: 1,
+      vibrationIntensity: 2,
+      ledPattern: 1,
+      ledColor: 1,
+      severityLevel: 2,
+      snoozePeriod: 5,
+      snoozeTimeout: 15,
+      retriggerDelay: 0,
+      retriggerTimeout: 0,
+    });
+
+    // Log comprehensive encryption details to console
+    logCommandEncryptionDetails(eventRequest, "ADD_EVENT");
+    
+    // Also add basic info to test results UI
+    addTestResult(`📤 Add Event command encryption details logged to console`);
+    addTestResult(`🔐 Using encryption key: ${encryptionKey.substring(0, 8)}...`);
+    addTestResult(`📱 Sending to device: ${connectedDevice.id}`);
+
+    const response = await sendBLECommand(eventRequest);
 
     const result = parseAddEventResponse(
       response.payload,
@@ -388,22 +493,31 @@ export default function BleTestPage() {
 
       // Step 1: Add the event
       addTestResult("📝 Step 1: Adding event to device...");
-      const addResponse = await sendBLECommand(
-        createAddEventRequest({
-          eventIndex,
-          eventName: "Sync Test",
-          cronExpression: `${future.getMinutes()} ${future.getHours()} * * *`,
-          vibrationPattern: 1,
-          vibrationIntensity: 2,
-          ledPattern: 1,
-          ledColor: 1,
-          severityLevel: 2,
-          snoozePeriod: 5,
-          snoozeTimeout: 15,
-          retriggerDelay: 0,
-          retriggerTimeout: 0,
-        }),
-      );
+
+      const eventRequest = createAddEventRequest({
+        eventIndex,
+        eventName: "Sync Test",
+        cronExpression: `${future.getMinutes()} ${future.getHours()} * * *`,
+        vibrationPattern: 1,
+        vibrationIntensity: 2,
+        ledPattern: 1,
+        ledColor: 1,
+        severityLevel: 2,
+        snoozePeriod: 5,
+        snoozeTimeout: 15,
+        retriggerDelay: 0,
+        retriggerTimeout: 0,
+      });
+
+      // Log comprehensive encryption details to console
+      logCommandEncryptionDetails(eventRequest, "SYNC_ALARM_ADD_EVENT");
+      
+      // Also add to test results for UI visibility
+      addTestResult(`📤 Sync alarm event encryption details logged to console`);
+      addTestResult(`🔐 Using encryption key: ${encryptionKey.substring(0, 8)}...`);
+      addTestResult(`📱 Sending to device: ${connectedDevice.id}`);
+
+      const addResponse = await sendBLECommand(eventRequest);
 
       const addResult = parseAddEventResponse(
         addResponse.payload,
