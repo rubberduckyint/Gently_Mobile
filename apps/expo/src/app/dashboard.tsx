@@ -154,15 +154,11 @@ export default function DashboardPage() {
           return;
         }
 
-        // Invalidate both the legacy and TRPC query keys to ensure fresh data
+        // Invalidate queries to ensure fresh data on next mount
+        // The useQuery hook will automatically refetch due to refetchOnMount: "always"
         void queryClient.invalidateQueries({ queryKey: ["devices"] });
-        void queryClient.invalidateQueries({
-          queryKey: [["device", "getAll"]],
-        });
-        // Force refetch
-        void refetch();
       }
-    }, [session, refetch, queryClient]),
+    }, [session, queryClient]),
   );
 
   const handleAddDevice = () => {

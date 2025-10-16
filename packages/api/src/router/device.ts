@@ -92,7 +92,7 @@ export const deviceRouter = {
     .input(
       z.object({
         title: z.string().min(1),
-        description: z.string().min(1),
+        description: z.string(),
         serialNumber: z.string().optional(),
         batteryLevel: z.number().int().min(0).max(100).optional(),
         // firmwareVersion is not stored in DB, only used for initial pairing info
@@ -120,7 +120,7 @@ export const deviceRouter = {
       z.object({
         id: z.string(),
         title: z.string().min(1).optional(),
-        description: z.string().min(1).optional(),
+        description: z.string().optional(),
         serialNumber: z.string().optional(),
       }),
     )
