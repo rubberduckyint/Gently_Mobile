@@ -828,28 +828,27 @@ const AddDeviceScreen = () => {
             backgroundColor: "rgba(0, 0, 0, 0.5)",
             alignItems: "center",
             justifyContent: "center",
-            paddingHorizontal: spacing[4],
+            padding: spacing[4],
           }}
         >
-          <ScrollView
-            contentContainerStyle={{
-              flexGrow: 1,
-              justifyContent: "center",
-              alignItems: "center",
-              paddingVertical: spacing[6],
-            }}
-            showsVerticalScrollIndicator={false}
+          <View
+            style={[
+              cards.base,
+              {
+                width: "100%",
+                maxWidth: 400,
+                padding: spacing[6],
+                alignItems: "center",
+                maxHeight: "90%",
+              },
+            ]}
           >
-            <View
-              style={[
-                cards.base,
-                {
-                  width: "100%",
-                  maxWidth: 400,
-                  padding: spacing[6],
-                  alignItems: "center",
-                },
-              ]}
+            <ScrollView
+              style={{ width: "100%" }}
+              contentContainerStyle={{
+                alignItems: "center",
+              }}
+              showsVerticalScrollIndicator={false}
             >
               {/* Success Icon */}
               <View
@@ -905,7 +904,7 @@ const AddDeviceScreen = () => {
                     { color: colors.text.primary, marginBottom: spacing[2] },
                   ]}
                 >
-                  Device Name *
+                  Name *
                 </Text>
                 <TextInput
                   style={[inputs.base]}
@@ -987,8 +986,8 @@ const AddDeviceScreen = () => {
                   )}
                 </Pressable>
               </View>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       )}
     </SafeAreaView>

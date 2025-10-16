@@ -79,11 +79,16 @@ function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
             {/* Device Info */}
             <View style={[flex.flex1, { marginLeft: spacing[3] }]}>
               <Text style={typography.h6}>{device.title}</Text>
-              <Text
-                style={[typography.bodySmall, { color: colors.text.secondary }]}
-              >
-                {device.description}
-              </Text>
+              {device.description && (
+                <Text
+                  style={[
+                    typography.bodySmall,
+                    { color: colors.text.secondary },
+                  ]}
+                >
+                  {device.description}
+                </Text>
+              )}
               {device.serialNumber && (
                 <Text
                   style={[

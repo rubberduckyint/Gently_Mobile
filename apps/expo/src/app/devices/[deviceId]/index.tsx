@@ -96,9 +96,15 @@ export default function DeviceDetailPage() {
   // Animation for connecting status
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
-  // Animate the pulse when connecting
+  // Animate the pulse when connecting or showing progress
   React.useEffect(() => {
-    if (connectionState === "connecting" || connectionState === "scanning") {
+    // Animate if connecting, scanning, or if there's an active connection progress message
+    const shouldAnimate =
+      connectionState === "connecting" ||
+      connectionState === "scanning" ||
+      connectionProgress !== null;
+
+    if (shouldAnimate) {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -118,7 +124,7 @@ export default function DeviceDetailPage() {
     } else {
       pulseAnim.setValue(1);
     }
-  }, [connectionState, pulseAnim]);
+  }, [connectionState, connectionProgress, pulseAnim]);
 
   // Track the latest battery status from notifications
   const [batteryStatus, setBatteryStatus] = React.useState<{
@@ -375,6 +381,11 @@ export default function DeviceDetailPage() {
   useEffect(() => {
     const autoConnect = async () => {
       // Don't auto-connect if we don't have a valid device ID or device data
+      // Check autoConnectAttempted first to prevent re-runs
+      if (autoConnectAttempted) {
+        return;
+      }
+
       if (
         !isMountedRef.current || // Page is unmounting
         !deviceId || // No route parameter
@@ -382,7 +393,6 @@ export default function DeviceDetailPage() {
         devicesBeingDeleted.has(deviceId) || // Device is being deleted
         !device?.serialNumber || // No device data or serial number
         error || // Query has an error (device might be deleted)
-        autoConnectAttempted ||
         connectionState === "connected" ||
         connectionState === "connecting"
       ) {
@@ -395,7 +405,6 @@ export default function DeviceDetailPage() {
         return;
       }
 
-      setAutoConnectAttempted(true);
       console.log("🔄 Auto-connecting to device:", device.serialNumber);
 
       try {
@@ -423,6 +432,7 @@ export default function DeviceDetailPage() {
         console.log("✅ Auto-connect successful!");
         setConnectionProgress(null); // Clear progress on success
         setConnectionError(null); // Clear any previous errors
+        setAutoConnectAttempted(true); // Mark attempt as complete
       } catch (error) {
         console.warn("⚠️ Auto-connect failed:", error);
         const errorMessage =
@@ -430,17 +440,18 @@ export default function DeviceDetailPage() {
         setConnectionError(errorMessage);
         setConnectionProgress(null); // Clear progress on error
         setShowRetryModal(true); // Show retry modal
+        setAutoConnectAttempted(true); // Mark attempt as complete even on failure
       }
     };
 
     void autoConnect();
+    // Only depend on the serial number changing, not the entire device object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    device,
+    device?.serialNumber,
     deviceId,
     initialDeviceId,
     autoConnectAttempted,
-    connectionState,
-    connectToDevice,
     error,
   ]);
 
@@ -638,17 +649,24 @@ export default function DeviceDetailPage() {
             <Text style={[typography.h4, { marginBottom: spacing[1] }]}>
               {device.title}
             </Text>
-            <Text
-              style={[
-                typography.body,
-                { color: colors.text.secondary, marginBottom: spacing[3] },
-              ]}
-            >
-              {device.description}
-            </Text>
+            {device.description && (
+              <Text
+                style={[
+                  typography.body,
+                  { color: colors.text.secondary, marginBottom: spacing[3] },
+                ]}
+              >
+                {device.description}
+              </Text>
+            )}
 
             {/* Device Stats */}
-            <View style={{ gap: spacing[2] }}>
+            <View
+              style={{
+                gap: spacing[2],
+                marginTop: device.description ? 0 : spacing[2],
+              }}
+            >
               {device.serialNumber && (
                 <View style={[{ flexDirection: "row", alignItems: "center" }]}>
                   <Ionicons
@@ -723,6 +741,34 @@ export default function DeviceDetailPage() {
                   </Text>
                 </View>
 
+                {/* Reconnect Button - inline with status, only show when disconnected/error and not attempting connection */}
+                {autoConnectAttempted &&
+                  connectionState !== "connecting" &&
+                  connectionState !== "scanning" &&
+                  connectionState !== "connected" &&
+                  device.serialNumber && (
+                    <Pressable
+                      style={[
+                        buttons.base,
+                        buttons.primary,
+                        {
+                          paddingVertical: spacing[1],
+                          paddingHorizontal: spacing[3],
+                        },
+                      ]}
+                      onPress={handleReconnect}
+                    >
+                      <Text
+                        style={[
+                          typography.caption,
+                          { color: colors.text.inverse },
+                        ]}
+                      >
+                        {connectionState === "error" ? "Retry" : "Reconnect"}
+                      </Text>
+                    </Pressable>
+                  )}
+
                 {/* Battery Status */}
                 {batteryStatus && (
                   <View
@@ -750,34 +796,6 @@ export default function DeviceDetailPage() {
                   </View>
                 )}
               </View>
-              {/* Reconnect Button - only show after initial connection attempt completes and not currently connecting */}
-              {autoConnectAttempted &&
-                connectionState !== "connecting" &&
-                connectionState !== "scanning" &&
-                connectionState !== "connected" &&
-                device.serialNumber && (
-                  <Pressable
-                    style={[
-                      buttons.base,
-                      buttons.primary,
-                      {
-                        paddingVertical: spacing[1],
-                        paddingHorizontal: spacing[3],
-                        alignSelf: "flex-start",
-                      },
-                    ]}
-                    onPress={handleReconnect}
-                  >
-                    <Text
-                      style={[
-                        typography.caption,
-                        { color: colors.text.inverse },
-                      ]}
-                    >
-                      {connectionState === "error" ? "Retry" : "Reconnect"}
-                    </Text>
-                  </Pressable>
-                )}
             </View>
           </View>
         </View>
