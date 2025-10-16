@@ -120,6 +120,12 @@ export interface BLEContextValue {
     onProgress?: BLEConnectionCallback,
     config?: BLEConnectionConfig,
   ) => Promise<void>;
+  connectToPeripheral: (
+    peripheral: Peripheral,
+    serialNumber: string,
+    onProgress?: BLEConnectionCallback,
+    config?: BLEConnectionConfig,
+  ) => Promise<void>;
   disconnectDevice: () => Promise<void>;
   scanForDevice: (
     serialNumber: string,
@@ -806,6 +812,140 @@ export function BLEProvider({ children }: BLEProviderProps) {
         // Connect to the found device
         await connectToFoundPeripheral(
           foundPeripheral,
+          serialNumber,
+          onProgress,
+          defaultConfig,
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        onProgress?.({
+          step: "error",
+          progress: 0,
+          message: `❌ Connection failed: ${errorMessage}`,
+          isError: true,
+        });
+        setConnectionState("error");
+        throw error;
+      }
+    },
+
+    connectToPeripheral: async (
+      peripheral: Peripheral,
+      serialNumber: string,
+      onProgress?: BLEConnectionCallback,
+      config?: BLEConnectionConfig,
+    ) => {
+      console.log(
+        `🔗 [BLE Context] Starting connectToPeripheral for serial: ${serialNumber}, peripheral: ${peripheral.id}`,
+      );
+
+      const defaultConfig: Required<BLEConnectionConfig> = {
+        maxRetries: 3,
+        connectionTimeoutMs: 20000,
+        stabilizationDelayMs: 900,
+        mtuSize: 512,
+        scanTimeoutSeconds: 10,
+        ...config,
+      };
+
+      console.log(`⚙️ [BLE Context] Using connection config:`, defaultConfig);
+
+      onProgress?.({
+        step: "starting",
+        progress: 0,
+        message: "🔍 Starting connection process...",
+      });
+
+      try {
+        // Start BLE manager
+        await BleManager.start({ showAlert: false });
+
+        // Check for existing connections first
+        onProgress?.({
+          step: "checking_existing",
+          progress: 10,
+          message: "📱 Checking for existing connections...",
+        });
+
+        const connectedDevices = await BleManager.getConnectedPeripherals([]);
+
+        // Try to validate existing connections
+        for (const existingPeripheral of connectedDevices) {
+          const sanitizedDeviceId = existingPeripheral.id.replace(
+            /[^a-zA-Z0-9._-]/g,
+            "_",
+          );
+
+          try {
+            const storedKey = await SecureStore.getItemAsync(
+              `ble_device_${sanitizedDeviceId}`,
+            );
+
+            if (storedKey) {
+              onProgress?.({
+                step: "validating_existing",
+                progress: 20,
+                message: `🔐 Testing existing connection to ${existingPeripheral.id}...`,
+              });
+
+              // Configure for existing connection
+              if (Platform.OS === "android") {
+                try {
+                  await BleManager.requestMTU(
+                    existingPeripheral.id,
+                    defaultConfig.mtuSize,
+                  );
+                } catch (mtuError) {
+                  console.warn("MTU request failed:", mtuError);
+                }
+              }
+
+              await startNotifications(existingPeripheral.id);
+              console.log(
+                "🔔 [BLE Context] Notifications enabled for existing connection - device will send battery, event, and time notifications",
+              );
+
+              // Validate with device status command
+              const statusResponse = await sendCommand({
+                peripheralId: existingPeripheral.id,
+                command: createGetDeviceStatusRequest(),
+                encryptionKey: storedKey,
+              });
+
+              if (statusResponse.status === ResponseStatus.OK) {
+                onProgress?.({
+                  step: "connection_complete",
+                  progress: 100,
+                  message: "✅ Existing connection validated successfully!",
+                });
+
+                setConnectedDevice({
+                  id: existingPeripheral.id,
+                  name: existingPeripheral.name,
+                  serialNumber: serialNumber,
+                  peripheral: existingPeripheral,
+                });
+                setEncryptionKey(storedKey);
+                setConnectionState("connected");
+                return;
+              }
+            }
+          } catch (error) {
+            console.warn("Error validating existing connection:", error);
+          }
+        }
+
+        // No valid existing connection, connect to the provided peripheral
+        onProgress?.({
+          step: "connecting",
+          progress: 30,
+          message: "🔗 Connecting to discovered device...",
+        });
+
+        // Connect to the found device
+        await connectToFoundPeripheral(
+          peripheral,
           serialNumber,
           onProgress,
           defaultConfig,

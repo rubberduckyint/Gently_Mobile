@@ -49,11 +49,7 @@ interface PairingSuccess {
 
 const AddDeviceScreen = () => {
   // Use BLE context
-  const {
-    connectToDevice: connectToDeviceFromContext,
-    scanForDevices,
-    disconnectDevice,
-  } = useBLE();
+  const { connectToPeripheral, scanForDevices, disconnectDevice } = useBLE();
 
   // Responsive design hook
   const { getIconSize, getSpacing } = useResponsive();
@@ -176,8 +172,10 @@ const AddDeviceScreen = () => {
         isComplete: false,
       });
 
-      // Use BLE context's complete pairing process
-      await connectToDeviceFromContext(
+      // Use BLE context's connectToPeripheral to skip scanning
+      // since we already have the peripheral from the scan
+      await connectToPeripheral(
+        peripheral,
         advertisementData.serialNumber,
         (progress) => {
           // Map BLE context progress to pairing progress (10-80%)
@@ -190,7 +188,7 @@ const AddDeviceScreen = () => {
         },
         {
           maxRetries: 3,
-          connectionTimeoutMs: 20000,
+          connectionTimeoutMs: 30000, // 30 seconds per attempt
           stabilizationDelayMs: 900,
           mtuSize: 512,
           scanTimeoutSeconds: 30,

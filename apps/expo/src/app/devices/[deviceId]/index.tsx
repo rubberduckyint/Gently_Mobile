@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -35,6 +36,14 @@ export default function DeviceDetailPage() {
   const queryClient = useQueryClient();
   const [autoConnectAttempted, setAutoConnectAttempted] = React.useState(false);
   const isMountedRef = React.useRef(true);
+  const [connectionProgress, setConnectionProgress] = React.useState<{
+    message: string;
+    progress: number;
+  } | null>(null);
+  const [showRetryModal, setShowRetryModal] = React.useState(false);
+  const [connectionError, setConnectionError] = React.useState<string | null>(
+    null,
+  );
 
   // Store the initial device ID to prevent it from changing during navigation
   // Only set it if deviceId is actually defined
@@ -42,6 +51,31 @@ export default function DeviceDetailPage() {
     console.log("🔍 [Device Detail] Initializing with deviceId:", deviceId);
     return deviceId;
   });
+
+  // Set mounted flag on mount
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    console.log("🔍 [Device Detail] Component mounted");
+
+    // Cleanup function - only runs when component actually unmounts
+    return () => {
+      isMountedRef.current = false;
+      console.log(
+        "🧹 [Device Detail] Component unmounting for ID:",
+        initialDeviceId,
+      );
+
+      // Mark this device as being deleted to prevent auto-connect
+      if (initialDeviceId) {
+        devicesBeingDeleted.add(initialDeviceId);
+        // Clean up after a delay to allow navigation to complete
+        setTimeout(() => {
+          devicesBeingDeleted.delete(initialDeviceId);
+        }, 2000);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run on mount/unmount
 
   // Debug logging to track device ID changes
   React.useEffect(() => {
@@ -54,25 +88,6 @@ export default function DeviceDetailPage() {
         "⚠️ [Device Detail] Route deviceId is missing - page may be unmounting or route params lost",
       );
     }
-
-    // Cleanup function to prevent stale operations
-    return () => {
-      isMountedRef.current = false;
-
-      // Mark this device as being deleted to prevent auto-connect
-      if (initialDeviceId) {
-        devicesBeingDeleted.add(initialDeviceId);
-        // Clean up after a delay to allow navigation to complete
-        setTimeout(() => {
-          devicesBeingDeleted.delete(initialDeviceId);
-        }, 2000);
-      }
-
-      console.log(
-        "🧹 [Device Detail] Cleaning up device detail page for ID:",
-        initialDeviceId,
-      );
-    };
   }, [deviceId, initialDeviceId]);
 
   // Use BLE context to show connection status
@@ -384,9 +399,37 @@ export default function DeviceDetailPage() {
       console.log("🔄 Auto-connecting to device:", device.serialNumber);
 
       try {
-        await connectToDevice(device.serialNumber);
+        // Connect with proper configuration and progress tracking
+        await connectToDevice(
+          device.serialNumber,
+          (progress) => {
+            // Update connection progress for UI display
+            setConnectionProgress({
+              message: progress.message,
+              progress: progress.progress,
+            });
+            console.log(
+              `[Auto-connect Progress] ${progress.message} (${progress.progress}%)`,
+            );
+          },
+          {
+            maxRetries: 3,
+            connectionTimeoutMs: 30000, // 30 seconds per attempt
+            stabilizationDelayMs: 900,
+            mtuSize: 512,
+            scanTimeoutSeconds: 30, // 30 seconds scan timeout
+          },
+        );
+        console.log("✅ Auto-connect successful!");
+        setConnectionProgress(null); // Clear progress on success
+        setConnectionError(null); // Clear any previous errors
       } catch (error) {
         console.warn("⚠️ Auto-connect failed:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        setConnectionError(errorMessage);
+        setConnectionProgress(null); // Clear progress on error
+        setShowRetryModal(true); // Show retry modal
       }
     };
 
@@ -409,13 +452,40 @@ export default function DeviceDetailPage() {
     }
 
     try {
-      await connectToDevice(device.serialNumber);
-    } catch (error) {
-      Alert.alert(
-        "Connection Failed",
-        `Could not connect to device: ${error instanceof Error ? error.message : "Unknown error"}`,
-        [{ text: "OK" }],
+      // Reset progress and attempt reconnect with full pairing process
+      setConnectionProgress(null);
+      setConnectionError(null);
+      setShowRetryModal(false); // Close modal when retrying
+
+      await connectToDevice(
+        device.serialNumber,
+        (progress) => {
+          // Update connection progress for UI display
+          setConnectionProgress({
+            message: progress.message,
+            progress: progress.progress,
+          });
+          console.log(
+            `[Manual Reconnect Progress] ${progress.message} (${progress.progress}%)`,
+          );
+        },
+        {
+          maxRetries: 3,
+          connectionTimeoutMs: 30000, // 30 seconds per attempt
+          stabilizationDelayMs: 900,
+          mtuSize: 512,
+          scanTimeoutSeconds: 30, // 30 seconds scan timeout
+        },
       );
+      console.log("✅ Manual reconnect successful!");
+      setConnectionProgress(null); // Clear progress on success
+      setConnectionError(null); // Clear any previous errors
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      setConnectionError(errorMessage);
+      setConnectionProgress(null); // Clear progress on error
+      setShowRetryModal(true); // Show retry modal
     }
   };
 
@@ -617,9 +687,12 @@ export default function DeviceDetailPage() {
                       color={
                         connectionState === "connected"
                           ? colors.success[600]
-                          : connectionState === "connecting"
+                          : connectionState === "connecting" ||
+                              connectionState === "scanning"
                             ? colors.warning[600]
-                            : colors.gray[400]
+                            : connectionState === "error"
+                              ? colors.error[600]
+                              : colors.gray[400]
                       }
                     />
                   </Animated.View>
@@ -630,17 +703,19 @@ export default function DeviceDetailPage() {
                         color:
                           connectionState === "connected"
                             ? colors.success[600]
-                            : connectionState === "connecting"
+                            : connectionState === "connecting" ||
+                                connectionState === "scanning"
                               ? colors.warning[600]
-                              : connectionState === "scanning"
-                                ? colors.primary[600]
+                              : connectionState === "error"
+                                ? colors.error[600]
                                 : colors.gray[500],
                         fontWeight: "500",
                       },
                     ]}
                   >
-                    {connectionState.charAt(0).toUpperCase() +
-                      connectionState.slice(1)}
+                    {connectionProgress?.message ??
+                      connectionState.charAt(0).toUpperCase() +
+                        connectionState.slice(1)}
                   </Text>
                 </View>
 
@@ -672,26 +747,31 @@ export default function DeviceDetailPage() {
                 )}
               </View>
               {/* Reconnect Button */}
-              {connectionState === "disconnected" && device.serialNumber && (
-                <Pressable
-                  style={[
-                    buttons.base,
-                    buttons.primary,
-                    {
-                      paddingVertical: spacing[1],
-                      paddingHorizontal: spacing[3],
-                      alignSelf: "flex-start",
-                    },
-                  ]}
-                  onPress={handleReconnect}
-                >
-                  <Text
-                    style={[typography.caption, { color: colors.text.inverse }]}
+              {(connectionState === "disconnected" ||
+                connectionState === "error") &&
+                device.serialNumber && (
+                  <Pressable
+                    style={[
+                      buttons.base,
+                      buttons.primary,
+                      {
+                        paddingVertical: spacing[1],
+                        paddingHorizontal: spacing[3],
+                        alignSelf: "flex-start",
+                      },
+                    ]}
+                    onPress={handleReconnect}
                   >
-                    Reconnect
-                  </Text>
-                </Pressable>
-              )}
+                    <Text
+                      style={[
+                        typography.caption,
+                        { color: colors.text.inverse },
+                      ]}
+                    >
+                      {connectionState === "error" ? "Retry" : "Reconnect"}
+                    </Text>
+                  </Pressable>
+                )}
             </View>
           </View>
         </View>
@@ -807,6 +887,168 @@ export default function DeviceDetailPage() {
           )}
         </View>
       </ScrollView>
+
+      {/* Retry Connection Modal */}
+      <Modal
+        visible={showRetryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRetryModal(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: spacing[4],
+          }}
+        >
+          <View
+            style={[
+              cards.base,
+              {
+                width: "100%",
+                maxWidth: 400,
+                padding: spacing[6],
+                alignItems: "center",
+              },
+            ]}
+          >
+            {/* Error Icon */}
+            <View
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: colors.error[100],
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: spacing[4],
+              }}
+            >
+              <Ionicons
+                name="alert-circle"
+                size={48}
+                color={colors.error[600]}
+              />
+            </View>
+
+            {/* Error Title */}
+            <Text
+              style={[
+                typography.h3,
+                {
+                  color: colors.text.primary,
+                  textAlign: "center",
+                  marginBottom: spacing[2],
+                },
+              ]}
+            >
+              Connection Failed
+            </Text>
+
+            {/* Error Message */}
+            <Text
+              style={[
+                typography.body,
+                {
+                  color: colors.text.secondary,
+                  textAlign: "center",
+                  marginBottom: spacing[4],
+                },
+              ]}
+            >
+              {connectionError ?? "Unable to connect to your Gently device"}
+            </Text>
+
+            {/* Instructions */}
+            <View
+              style={[
+                {
+                  backgroundColor: colors.primary[50],
+                  borderRadius: 12,
+                  padding: spacing[4],
+                  marginBottom: spacing[6],
+                  width: "100%",
+                },
+              ]}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                  marginBottom: spacing[2],
+                }}
+              >
+                <Ionicons
+                  name="information-circle"
+                  size={20}
+                  color={colors.primary[600]}
+                  style={{ marginRight: spacing[2], marginTop: 2 }}
+                />
+                <Text
+                  style={[
+                    typography.labelLarge,
+                    {
+                      color: colors.primary[700],
+                      flex: 1,
+                    },
+                  ]}
+                >
+                  To retry connection:
+                </Text>
+              </View>
+              <Text
+                style={[
+                  typography.body,
+                  {
+                    color: colors.primary[700],
+                    marginLeft: spacing[7],
+                  },
+                ]}
+              >
+                Hold the button on your Gently device for 10 seconds until it
+                beeps to enter pairing mode, then tap Retry below.
+              </Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={{ width: "100%", gap: spacing[3] }}>
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.primary,
+                  { alignItems: "center", justifyContent: "center" },
+                ]}
+                onPress={handleReconnect}
+              >
+                <Text style={[typography.labelLarge, { color: "#ffffff" }]}>
+                  Retry Connection
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.secondary,
+                  { alignItems: "center", justifyContent: "center" },
+                ]}
+                onPress={() => setShowRetryModal(false)}
+              >
+                <Text
+                  style={[
+                    typography.labelLarge,
+                    { color: colors.primary[600] },
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
