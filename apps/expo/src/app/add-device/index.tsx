@@ -1,13 +1,15 @@
 import type { Peripheral } from "react-native-ble-manager";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from "react-native";
+import BleManager from "react-native-ble-manager";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +25,7 @@ import {
   colors,
   containers,
   emptyStates,
+  inputs,
   spacing,
   typography,
 } from "~/styles";
@@ -67,6 +70,49 @@ const AddDeviceScreen = () => {
     new Map<Peripheral["id"], DiscoveredGentlyDevice>(),
   );
 
+  // Form state for naming the device
+  const [deviceName, setDeviceName] = useState("");
+  const [isUpdatingDevice, setIsUpdatingDevice] = useState(false);
+
+  // Track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+
+  // Cleanup effect - runs when component unmounts
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      console.log(
+        "🧹 [Add Device] Component unmounting, cleaning up BLE operations...",
+      );
+
+      // Stop any ongoing scan
+      BleManager.stopScan()
+        .then(() => {
+          console.log("✅ [Add Device] Scan stopped successfully");
+        })
+        .catch((error) => {
+          console.log("ℹ️ [Add Device] No scan to stop:", error);
+        });
+
+      // If currently connecting, disconnect
+      if (isConnecting) {
+        console.log(
+          `🔌 [Add Device] Disconnecting from device: ${isConnecting}`,
+        );
+        disconnectDevice()
+          .then(() => {
+            console.log("✅ [Add Device] Device disconnected successfully");
+          })
+          .catch((error) => {
+            console.warn("⚠️ [Add Device] Error disconnecting:", error);
+          });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run on mount/unmount
+
   const startScan = async () => {
     if (isScanning) return;
 
@@ -106,6 +152,8 @@ const AddDeviceScreen = () => {
                 serialNumber: adData.serialNumber,
               })
               .then((existingDevice) => {
+                if (!isMountedRef.current) return; // Don't update state if unmounted
+
                 const discoveredDevice: DiscoveredGentlyDevice = {
                   peripheral,
                   advertisementData: adData,
@@ -149,12 +197,16 @@ const AddDeviceScreen = () => {
       console.debug("[Add Device] Scan completed successfully");
     } catch (error) {
       console.error("[Add Device] Scan error:", error);
-      Alert.alert(
-        "Scan Error",
-        "Failed to scan for devices. Please try again.",
-      );
+      if (isMountedRef.current) {
+        Alert.alert(
+          "Scan Error",
+          "Failed to scan for devices. Please try again.",
+        );
+      }
     } finally {
-      setIsScanning(false);
+      if (isMountedRef.current) {
+        setIsScanning(false);
+      }
     }
   };
 
@@ -188,7 +240,7 @@ const AddDeviceScreen = () => {
         },
         {
           maxRetries: 3,
-          connectionTimeoutMs: 30000, // 30 seconds per attempt
+          connectionTimeoutMs: 60000, // 60 seconds per attempt
           stabilizationDelayMs: 900,
           mtuSize: 512,
           scanTimeoutSeconds: 30,
@@ -203,8 +255,8 @@ const AddDeviceScreen = () => {
       });
 
       const newDevice = await trpc.device.create.mutate({
-        title: `Gently ${advertisementData.serialNumber.slice(-4)}`,
-        description: `Gently Bracelet (${advertisementData.serialNumber})`,
+        title: "My Gently",
+        description: "",
         serialNumber: advertisementData.serialNumber,
         batteryLevel: advertisementData.batteryLevel,
         firmwareVersion: "1.0.0",
@@ -219,6 +271,9 @@ const AddDeviceScreen = () => {
 
       // Show success message
       if (newDevice?.id) {
+        // Set default device name for the form
+        setDeviceName("My Gently");
+
         setPairingSuccess({
           deviceName: newDevice.title,
           deviceId: newDevice.id,
@@ -282,6 +337,9 @@ const AddDeviceScreen = () => {
     const chevronSize = getIconSize(20);
     const cardSpacing = getSpacing(spacing[3]);
 
+    // Disable clicking while scanning or connecting
+    const isDisabled = isScanning || isConnecting !== null;
+
     return (
       <Pressable
         key={peripheral.id}
@@ -289,7 +347,7 @@ const AddDeviceScreen = () => {
           cards.base,
           {
             marginBottom: cardSpacing,
-            opacity: isCurrentlyConnecting ? 0.7 : 1,
+            opacity: isDisabled ? 0.5 : 1,
             borderLeftWidth: isAlreadyPaired ? 4 : 0,
             borderLeftColor: isAlreadyPaired
               ? colors.success[500]
@@ -297,7 +355,7 @@ const AddDeviceScreen = () => {
           },
         ]}
         onPress={() => connectToDevice(device)}
-        disabled={isConnecting !== null}
+        disabled={isDisabled}
       >
         <View
           style={{ flexDirection: "row", alignItems: "center", flexShrink: 1 }}
@@ -737,14 +795,46 @@ const AddDeviceScreen = () => {
         {/* Device List */}
         {Array.from(discoveredDevices.values()).length > 0 ? (
           <View>
-            <Text
-              style={[
-                typography.subtitle,
-                { color: colors.text.primary, marginBottom: spacing[3] },
-              ]}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: spacing[3],
+              }}
             >
-              Found Devices
-            </Text>
+              <Text
+                style={[typography.subtitle, { color: colors.text.primary }]}
+              >
+                Found Devices
+              </Text>
+              {isScanning && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: colors.warning[100],
+                    paddingVertical: spacing[1],
+                    paddingHorizontal: spacing[2],
+                    borderRadius: 8,
+                  }}
+                >
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.warning[600]}
+                    style={{ marginRight: spacing[1] }}
+                  />
+                  <Text
+                    style={[
+                      typography.caption,
+                      { color: colors.warning[700], fontWeight: "500" },
+                    ]}
+                  >
+                    Scanning...
+                  </Text>
+                </View>
+              )}
+            </View>
             {Array.from(discoveredDevices.values()).map(renderDeviceCard)}
           </View>
         ) : (
@@ -767,100 +857,164 @@ const AddDeviceScreen = () => {
             paddingHorizontal: spacing[4],
           }}
         >
-          <View
-            style={[
-              cards.base,
-              {
-                width: "100%",
-                maxWidth: 400,
-                padding: spacing[6],
-                alignItems: "center",
-              },
-            ]}
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              paddingVertical: spacing[6],
+            }}
+            showsVerticalScrollIndicator={false}
           >
-            {/* Success Icon */}
             <View
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                backgroundColor: colors.success[100],
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: spacing[4],
-              }}
-            >
-              <Ionicons
-                name="checkmark-circle"
-                size={48}
-                color={colors.success[600]}
-              />
-            </View>
-
-            {/* Success Message */}
-            <Text
               style={[
-                typography.h2,
+                cards.base,
                 {
-                  color: colors.text.primary,
-                  textAlign: "center",
-                  marginBottom: spacing[2],
+                  width: "100%",
+                  maxWidth: 400,
+                  padding: spacing[6],
+                  alignItems: "center",
                 },
               ]}
             >
-              Gently Paired Successfully!
-            </Text>
-
-            <Text
-              style={[
-                typography.body,
-                {
-                  color: colors.text.secondary,
-                  textAlign: "center",
-                  marginBottom: spacing[1],
-                },
-              ]}
-            >
-              {pairingSuccess.deviceName} is now connected and ready to use.
-            </Text>
-
-            <Text
-              style={[
-                typography.caption,
-                {
-                  color: colors.text.tertiary,
-                  textAlign: "center",
-                  marginBottom: spacing[6],
-                },
-              ]}
-            >
-              Serial: {pairingSuccess.serialNumber}
-            </Text>
-
-            {/* Action Buttons */}
-            <View style={{ width: "100%", gap: spacing[3] }}>
-              <Pressable
-                style={[
-                  buttons.primary,
-                  buttons.large,
-                  { alignItems: "center", justifyContent: "center" },
-                ]}
-                onPress={() => {
-                  console.log(
-                    `🔗 [Pairing] Navigating to device: ${pairingSuccess.deviceId}`,
-                  );
-                  router.push({
-                    pathname: "/devices/[deviceId]",
-                    params: { deviceId: pairingSuccess.deviceId },
-                  });
+              {/* Success Icon */}
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: colors.success[100],
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: spacing[4],
                 }}
               >
-                <Text style={[buttonText.primary, buttonText.large]}>
-                  Go to Gently
+                <Ionicons
+                  name="checkmark-circle"
+                  size={48}
+                  color={colors.success[600]}
+                />
+              </View>
+
+              {/* Success Message */}
+              <Text
+                style={[
+                  typography.h2,
+                  {
+                    color: colors.text.primary,
+                    textAlign: "center",
+                    marginBottom: spacing[2],
+                  },
+                ]}
+              >
+                Gently Paired Successfully!
+              </Text>
+
+              <Text
+                style={[
+                  typography.body,
+                  {
+                    color: colors.text.secondary,
+                    textAlign: "center",
+                    marginBottom: spacing[6],
+                  },
+                ]}
+              >
+                Give your Gently a name to make it easier to identify.
+              </Text>
+
+              {/* Device Name Input */}
+              <View style={{ width: "100%", marginBottom: spacing[6] }}>
+                <Text
+                  style={[
+                    typography.label,
+                    { color: colors.text.primary, marginBottom: spacing[2] },
+                  ]}
+                >
+                  Device Name *
                 </Text>
-              </Pressable>
+                <TextInput
+                  style={[inputs.base]}
+                  placeholder="e.g., Mom's Gently"
+                  placeholderTextColor={colors.text.tertiary}
+                  value={deviceName}
+                  onChangeText={setDeviceName}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  maxLength={50}
+                />
+              </View>
+
+              {/* Serial Number Display */}
+              <Text
+                style={[
+                  typography.caption,
+                  {
+                    color: colors.text.tertiary,
+                    textAlign: "center",
+                    marginBottom: spacing[6],
+                  },
+                ]}
+              >
+                Serial: {pairingSuccess.serialNumber}
+              </Text>
+
+              {/* Action Buttons */}
+              <View style={{ width: "100%", gap: spacing[3] }}>
+                <Pressable
+                  style={[
+                    buttons.primary,
+                    buttons.large,
+                    { alignItems: "center", justifyContent: "center" },
+                    (!deviceName.trim() || isUpdatingDevice) && {
+                      opacity: 0.5,
+                    },
+                  ]}
+                  onPress={async () => {
+                    if (!deviceName.trim() || isUpdatingDevice) return;
+
+                    setIsUpdatingDevice(true);
+                    try {
+                      // Update the device with the user-provided name
+                      await trpc.device.update.mutate({
+                        id: pairingSuccess.deviceId,
+                        title: deviceName.trim(),
+                      });
+
+                      console.log(
+                        `✅ [Pairing] Device updated, navigating to: ${pairingSuccess.deviceId}`,
+                      );
+
+                      // Navigate to device page
+                      router.push({
+                        pathname: "/devices/[deviceId]",
+                        params: { deviceId: pairingSuccess.deviceId },
+                      });
+                    } catch (error) {
+                      console.error("Failed to update device:", error);
+                      Alert.alert(
+                        "Update Failed",
+                        "Failed to save device name. Please try again.",
+                      );
+                      setIsUpdatingDevice(false);
+                    }
+                  }}
+                  disabled={!deviceName.trim() || isUpdatingDevice}
+                >
+                  {isUpdatingDevice ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.text.inverse}
+                    />
+                  ) : (
+                    <Text style={[buttonText.primary, buttonText.large]}>
+                      Continue
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       )}
     </SafeAreaView>

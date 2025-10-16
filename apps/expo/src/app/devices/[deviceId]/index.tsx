@@ -414,7 +414,7 @@ export default function DeviceDetailPage() {
           },
           {
             maxRetries: 3,
-            connectionTimeoutMs: 30000, // 30 seconds per attempt
+            connectionTimeoutMs: 60000, // 60 seconds per attempt
             stabilizationDelayMs: 900,
             mtuSize: 512,
             scanTimeoutSeconds: 30, // 30 seconds scan timeout
@@ -471,7 +471,7 @@ export default function DeviceDetailPage() {
         },
         {
           maxRetries: 3,
-          connectionTimeoutMs: 30000, // 30 seconds per attempt
+          connectionTimeoutMs: 60000, // 60 seconds per attempt
           stabilizationDelayMs: 900,
           mtuSize: 512,
           scanTimeoutSeconds: 30, // 30 seconds scan timeout
@@ -501,10 +501,14 @@ export default function DeviceDetailPage() {
           <Text
             style={[
               typography.body,
-              { marginTop: spacing[3], color: colors.gray[500] },
+              {
+                marginTop: spacing[3],
+                color: colors.gray[500],
+                textAlign: "center",
+              },
             ]}
           >
-            Loading device...
+            Loading your Gently...
           </Text>
         </View>
       </SafeAreaView>
@@ -746,9 +750,11 @@ export default function DeviceDetailPage() {
                   </View>
                 )}
               </View>
-              {/* Reconnect Button */}
-              {(connectionState === "disconnected" ||
-                connectionState === "error") &&
+              {/* Reconnect Button - only show after initial connection attempt completes and not currently connecting */}
+              {autoConnectAttempted &&
+                connectionState !== "connecting" &&
+                connectionState !== "scanning" &&
+                connectionState !== "connected" &&
                 device.serialNumber && (
                   <Pressable
                     style={[

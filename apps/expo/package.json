@@ -28,7 +28,7 @@
     "@trpc/tanstack-react-query": "catalog:",
     "better-auth": "1.3.27",
     "cronstrue": "^3.3.0",
-    "expo": "54.0.12",
+    "expo": "54.0.13",
     "expo-apple-authentication": "~8.0.7",
     "expo-constants": "18.0.9",
     "expo-crypto": "~15.0.7",
@@ -49,7 +49,7 @@
     "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "~4.1.3",
     "react-native-safe-area-context": "~5.6.1",
-    "react-native-screens": "~4.16.0",
+    "react-native-screens": "~4.17.1",
     "react-native-worklets": "^0.6.1",
     "superjson": "2.2.2",
     "zod": "catalog:"

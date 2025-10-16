@@ -34,6 +34,7 @@ import {
   createGetUptimeRequest,
   parseGetUptimeResponse,
 } from "../services/ble/commands/getUptime";
+import { createSetTimeRequest } from "../services/ble/commands/setTime";
 import { disconnectFromBLEDevice } from "../services/ble/connection";
 import {
   extractAndDecryptAdvertisementData,
@@ -622,10 +623,26 @@ export function BLEProvider({ children }: BLEProviderProps) {
       });
 
       try {
-        setConnectionState("scanning");
+        // Ensure any ongoing scan is stopped before starting
+        console.log(
+          `🛑 [BLE Context] Stopping any ongoing scan before connection...`,
+        );
+        try {
+          await BleManager.stopScan();
+          console.log(`✅ [BLE Context] Scan stopped successfully`);
+        } catch (stopError) {
+          console.log(
+            `ℹ️ [BLE Context] No scan to stop or already stopped:`,
+            stopError,
+          );
+        }
 
-        // Start BLE manager
-        await BleManager.start({ showAlert: false });
+        // Wait 900ms to ensure scan is fully stopped
+        console.log(`⏱️ [BLE Context] Waiting 900ms for scan to fully stop...`);
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        console.log(`✅ [BLE Context] Wait complete, ready to proceed`);
+
+        setConnectionState("scanning");
 
         // Check for existing connections first
         onProgress?.({
@@ -858,8 +875,24 @@ export function BLEProvider({ children }: BLEProviderProps) {
       });
 
       try {
-        // Start BLE manager
-        await BleManager.start({ showAlert: false });
+        // Ensure any ongoing scan is stopped before connecting
+        console.log(
+          `🛑 [BLE Context] Stopping any ongoing scan before connection...`,
+        );
+        try {
+          await BleManager.stopScan();
+          console.log(`✅ [BLE Context] Scan stopped successfully`);
+        } catch (stopError) {
+          console.log(
+            `ℹ️ [BLE Context] No scan to stop or already stopped:`,
+            stopError,
+          );
+        }
+
+        // Wait 900ms to ensure scan is fully stopped
+        console.log(`⏱️ [BLE Context] Waiting 900ms for scan to fully stop...`);
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        console.log(`✅ [BLE Context] Wait complete, ready to connect`);
 
         // Check for existing connections first
         onProgress?.({
@@ -1353,6 +1386,10 @@ export function BLEProvider({ children }: BLEProviderProps) {
       attempt <= config.maxRetries && !connected;
       attempt++
     ) {
+      console.log(
+        `🔄 [BLE Context] Starting connection attempt ${attempt}/${config.maxRetries} to ${peripheral.id}`,
+      );
+
       onProgress?.({
         step: "connecting",
         progress: 60 + (attempt - 1) * 10,
@@ -1360,6 +1397,10 @@ export function BLEProvider({ children }: BLEProviderProps) {
       });
 
       try {
+        console.log(
+          `📞 [BLE Context] Calling BleManager.connect() for ${peripheral.id}...`,
+        );
+
         // Connect with timeout
         const connectPromise = BleManager.connect(peripheral.id);
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -1376,12 +1417,22 @@ export function BLEProvider({ children }: BLEProviderProps) {
 
         await Promise.race([connectPromise, timeoutPromise]);
 
+        console.log(
+          `✅ [BLE Context] BleManager.connect() succeeded for ${peripheral.id}`,
+        );
+
         // Stabilization delay
+        console.log(
+          `⏱️ [BLE Context] Waiting ${config.stabilizationDelayMs}ms for connection to stabilize...`,
+        );
         await new Promise((resolve) =>
           setTimeout(resolve, config.stabilizationDelayMs),
         );
 
         // Verify connection
+        console.log(
+          `🔍 [BLE Context] Verifying connection to ${peripheral.id}...`,
+        );
         const isNowConnected = await BleManager.isPeripheralConnected(
           peripheral.id,
         );
@@ -1389,17 +1440,39 @@ export function BLEProvider({ children }: BLEProviderProps) {
           throw new Error("Connection verification failed");
         }
 
+        console.log(
+          `✅ [BLE Context] Connection verified for ${peripheral.id}`,
+        );
+
+        console.log(
+          `✅ [BLE Context] Connection verified for ${peripheral.id}`,
+        );
+
         // Configure MTU for Android
         if (Platform.OS === "android") {
           try {
+            console.log(
+              `📏 [BLE Context] Requesting MTU ${config.mtuSize} for ${peripheral.id}...`,
+            );
             await BleManager.requestMTU(peripheral.id, config.mtuSize);
+            console.log(
+              `✅ [BLE Context] MTU configured successfully for ${peripheral.id}`,
+            );
           } catch (mtuError) {
             console.warn("MTU configuration failed:", mtuError);
           }
         }
 
         // Retrieve services and start notifications
+        console.log(
+          `🔍 [BLE Context] Retrieving services for ${peripheral.id}...`,
+        );
         await BleManager.retrieveServices(peripheral.id);
+        console.log(`✅ [BLE Context] Services retrieved for ${peripheral.id}`);
+
+        console.log(
+          `🔔 [BLE Context] Starting notifications for ${peripheral.id}...`,
+        );
         await startNotifications(peripheral.id);
         console.log(
           "🔔 [BLE Context] Notifications enabled for new connection - device will send battery, event, and time notifications",
@@ -1417,6 +1490,11 @@ export function BLEProvider({ children }: BLEProviderProps) {
           attemptError instanceof Error
             ? attemptError
             : new Error(String(attemptError));
+
+        console.error(
+          `❌ [BLE Context] Connection attempt ${attempt} failed:`,
+          lastError.message,
+        );
 
         if (attempt < config.maxRetries) {
           const retryDelay = 2000;
@@ -1465,6 +1543,24 @@ export function BLEProvider({ children }: BLEProviderProps) {
       throw new Error(
         `Device info validation failed: Status=0x${deviceInfoResponse.status.toString(16)}`,
       );
+    }
+
+    // Set device time to current time
+    console.log(`⏰ [BLE Context] Syncing device time for ${peripheral.id}...`);
+    try {
+      await sendCommand({
+        peripheralId: peripheral.id,
+        command: createSetTimeRequest(new Date()),
+        encryptionKey: foundEncryptionKey,
+        timeoutMs: 10000,
+      });
+      console.log(`✅ [BLE Context] Device time synced successfully`);
+    } catch (timeError) {
+      console.warn(
+        `⚠️ [BLE Context] Failed to sync device time (non-critical):`,
+        timeError,
+      );
+      // Don't throw - time sync failure shouldn't prevent connection
     }
 
     // Store the encryption key
