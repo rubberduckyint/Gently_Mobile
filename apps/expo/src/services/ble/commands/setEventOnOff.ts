@@ -14,6 +14,10 @@ export function createSetEventOnOffRequest(
     throw new Error("Event index must be between 0 and 49");
   }
 
+  console.log(
+    `🔧 Creating SET_EVENT_ON_OFF: index ${eventIndex}, enabled: ${isEnabled} (byte value: ${isEnabled ? "0x01" : "0x00"})`,
+  );
+
   const payload = new Uint8Array(8);
   payload[0] = eventIndex;
   payload[1] = isEnabled ? 0x01 : 0x00;

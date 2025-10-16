@@ -82,6 +82,8 @@ export async function syncAlarmsToDevice(
 
     // Sync each alarm
     const totalAlarms = alarms.length;
+    let actualDeviceIndex = 0; // Track the actual index on device (firmware bug workaround)
+
     for (let i = 0; i < totalAlarms; i++) {
       const alarm = alarms[i];
       if (!alarm) continue;
@@ -97,7 +99,12 @@ export async function syncAlarmsToDevice(
       console.log(`📝 Syncing alarm ${i + 1}/${totalAlarms}: ${alarm.title}`);
 
       // Convert alarm to BLE parameters
-      const bleParameters = alarmDatabaseToBleParameters(alarm, i);
+      // Note: Device firmware incorrectly returns index 0 for all ADD_EVENT responses
+      // but actually stores at sequential indices. We use actualDeviceIndex to track this.
+      const bleParameters = alarmDatabaseToBleParameters(
+        alarm,
+        actualDeviceIndex,
+      );
       const addEventCommand = createAddEventRequest(bleParameters);
 
       // Add alarm to device
@@ -121,19 +128,20 @@ export async function syncAlarmsToDevice(
       }
 
       console.log(
-        `✅ Added alarm ${alarm.title} at index ${result.eventIndex}`,
+        `✅ Added alarm ${alarm.title} at device index ${actualDeviceIndex} (device reported: ${result.eventIndex})`,
       );
 
       // Set the alarm on/off state based on isActive
+      // Use actualDeviceIndex instead of result.eventIndex due to firmware bug
       const onOffResponse = await sendCommand({
         peripheralId,
-        command: createSetEventOnOffRequest(result.eventIndex, alarm.isActive),
+        command: createSetEventOnOffRequest(actualDeviceIndex, alarm.isActive),
         encryptionKey,
       });
 
       if (onOffResponse.status === ResponseStatus.OK) {
         console.log(
-          `✅ ${alarm.isActive ? "Enabled" : "Disabled"} alarm ${alarm.title}`,
+          `✅ ${alarm.isActive ? "Enabled" : "Disabled"} alarm ${alarm.title} at index ${actualDeviceIndex}`,
         );
       } else {
         console.warn(
@@ -143,6 +151,9 @@ export async function syncAlarmsToDevice(
 
       // Update sync status to SYNCED in database
       await onStatusUpdate?.(alarm.id, "SYNCED");
+
+      // Increment actual device index for next alarm
+      actualDeviceIndex++;
     }
 
     onProgress?.({
