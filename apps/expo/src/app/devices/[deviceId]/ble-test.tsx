@@ -27,6 +27,10 @@ import {
 } from "~/services/ble/commands/addEvent";
 // Custom header - not using expo navigation
 import {
+  createEnterDfuModeRequest,
+  parseEnterDfuModeResponse,
+} from "~/services/ble/commands/enterDfuMode";
+import {
   createFindMeRequest,
   parseFindMeResponse,
 } from "~/services/ble/commands/findMe";
@@ -412,6 +416,61 @@ export default function BleTestPage() {
         .map((b) => "0x" + b.toString(16).padStart(2, "0"))
         .join(", ")}]`,
     );
+  };
+
+  const testEnterDfuMode = async () => {
+    if (!connectedDevice || !encryptionKey) return;
+
+    // Show warning dialog before entering DFU mode
+    return new Promise<void>((resolve) => {
+      Alert.alert(
+        "Enter DFU Mode",
+        "This will reboot the device into firmware update mode. The device will advertise as 'Gently-DFU' and disconnect. Continue?",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => resolve(),
+          },
+          {
+            text: "Enter DFU Mode",
+            style: "destructive",
+            onPress: () => {
+              void (async () => {
+                try {
+                  const response = await sendBLECommand(
+                    createEnterDfuModeRequest(),
+                  );
+
+                  parseEnterDfuModeResponse(response.payload);
+                  const statusText =
+                    response.status === ResponseStatus.OK ? "OK" : "ERROR";
+                  addTestResult(
+                    `✅ Enter DFU Mode: Command sent - device will reboot into DFU mode`,
+                  );
+                  addTestResult(
+                    `📊 Enter DFU Mode Response: Status=${statusText} (0x${response.status.toString(16)}), Command=0x${response.commandCode.toString(16)}, Raw=[${Array.from(
+                      response.payload,
+                    )
+                      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+                      .join(", ")}]`,
+                  );
+                  addTestResult(
+                    `🔄 Device will reboot as 'Gently-DFU' and wait 1 minute for firmware update`,
+                  );
+                } catch (error) {
+                  addTestResult(
+                    `❌ Enter DFU Mode failed: ${error instanceof Error ? error.message : String(error)}`,
+                  );
+                } finally {
+                  resolve();
+                }
+              })();
+            },
+          },
+        ],
+      );
+    });
   };
 
   const testGetAllEvents = async () => {
@@ -882,6 +941,11 @@ export default function BleTestPage() {
                   name: "Sync Alarm (Add + Enable)",
                   test: testSyncAlarm,
                   icon: "sync",
+                },
+                {
+                  name: "Enter DFU Mode",
+                  test: testEnterDfuMode,
+                  icon: "cloud-upload-outline",
                 },
               ].map((command) => (
                 <Pressable
