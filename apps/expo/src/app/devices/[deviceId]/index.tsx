@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -12,11 +11,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useGlobalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { AlarmForSync } from "~/utils/alarmSync";
 import { AlarmCard } from "~/components/device";
+import { QuickReminderModal } from "~/components/QuickReminderModal";
+import { RetryConnectionModal } from "~/components/RetryConnectionModal";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { Header } from "~/components/ui/Header";
 import { HelpModal } from "~/components/ui/HelpModal";
@@ -50,10 +49,6 @@ export default function DeviceDetailPage() {
   );
   const [showQuickReminderModal, setShowQuickReminderModal] =
     React.useState(false);
-  const [selectedReminderTime, setSelectedReminderTime] =
-    React.useState<Date | null>(null);
-  const [showDateTimePicker, setShowDateTimePicker] = React.useState(false);
-  const [pickerMode, setPickerMode] = React.useState<"date" | "time">("date");
   const [showHelpModal, setShowHelpModal] = React.useState(false);
   const [showExpiredAlarms, setShowExpiredAlarms] = React.useState(false);
 
@@ -98,7 +93,13 @@ export default function DeviceDetailPage() {
   }, [deviceId, initialDeviceId]);
 
   // Use BLE context to show connection status
-  const { connectionState, connectToDevice, notifications } = useBLE();
+  const {
+    connectionState,
+    connectToDevice,
+    notifications,
+    connectedDevice,
+    encryptionKey,
+  } = useBLE();
 
   // Animation for connecting status
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
@@ -256,131 +257,158 @@ export default function DeviceDetailPage() {
     deviceSerialNumber: device?.serialNumber ?? undefined,
     enabled: !!deviceId && !!initialDeviceId && !!device?.serialNumber, // Only enable when we have valid device data
     onSyncComplete: () => {
-      // Reset the auto-sync flag so future changes can trigger new syncs
-      autoSyncedRef.current = false;
       void queryClient.invalidateQueries({
         queryKey: ["device", "getById", { id: initialDeviceId }],
       });
     },
   });
 
-  // Track if we've already auto-synced to prevent infinite loops
-  const autoSyncedRef = React.useRef(false);
-  // Track the previous alarm count to detect deletions
+  // Track if we've synced alarms for this connection
+  const initialSyncCompletedRef = React.useRef(false);
+
+  // Track alarm count to detect when alarms are added/updated/deleted
   const previousAlarmCountRef = React.useRef<number | null>(null);
-  // Track the previous alarm data to detect updates
-  const previousAlarmsRef = React.useRef<string | null>(null);
 
-  // Auto-sync unsynced alarms when connected
-  React.useEffect(() => {
-    if (
-      device?.alarms &&
-      connectionState === "connected" &&
-      !alarmSync.isSyncing
-    ) {
-      // Filter out expired/completed alarms before syncing
-      const activeAlarms = device.alarms.filter((alarm) => {
-        const scheduleInfo = calculateNextAlarmOccurrence({
-          isActive: alarm.isActive,
-          startDate: alarm.startDate,
-          endDate: alarm.endDate,
-          repeat: alarm.repeat,
-          cronExpression: alarm.cronExpression,
-        });
-
-        // Only include alarms that have future occurrences (not completed/expired)
-        return (
-          scheduleInfo.status !== "completed" &&
-          scheduleInfo.status !== "overdue"
-        );
+  // Helper to check if an alarm is expired/completed
+  const isAlarmExpired = React.useCallback(
+    (alarm: {
+      isActive: boolean;
+      startDate: Date;
+      endDate: Date | null;
+      repeat: boolean;
+      cronExpression: string;
+    }) => {
+      const scheduleInfo = calculateNextAlarmOccurrence({
+        isActive: alarm.isActive,
+        startDate: alarm.startDate,
+        endDate: alarm.endDate,
+        repeat: alarm.repeat,
+        cronExpression: alarm.cronExpression,
       });
+      return (
+        scheduleInfo.status === "completed" || scheduleInfo.status === "overdue"
+      );
+    },
+    [],
+  );
+
+  // Watch for alarm changes and trigger re-sync if connected
+  React.useEffect(() => {
+    const currentAlarmCount = device?.alarms.length ?? 0;
+
+    // If this is the first load, just store the count
+    if (previousAlarmCountRef.current === null) {
+      previousAlarmCountRef.current = currentAlarmCount;
+      return;
+    }
+
+    // If alarm count changed and we're connected, trigger re-sync
+    if (
+      currentAlarmCount !== previousAlarmCountRef.current &&
+      connectionState === "connected" &&
+      !alarmSync.isSyncing &&
+      initialSyncCompletedRef.current
+    ) {
+      console.log(
+        `📊 Alarm count changed from ${previousAlarmCountRef.current} to ${currentAlarmCount}, triggering re-sync`,
+      );
+      initialSyncCompletedRef.current = false;
+    }
+
+    previousAlarmCountRef.current = currentAlarmCount;
+  }, [device?.alarms.length, connectionState, alarmSync.isSyncing]);
+
+  // Sync alarms when connected: clear all events and re-add only active alarms
+  // This runs ONCE per connection after the device data is loaded
+  React.useEffect(() => {
+    const performInitialSync = async () => {
+      if (
+        !device?.alarms ||
+        connectionState !== "connected" ||
+        alarmSync.isSyncing ||
+        !connectedDevice ||
+        !encryptionKey ||
+        initialSyncCompletedRef.current // Don't sync again if already completed for this connection
+      ) {
+        return;
+      }
+
+      console.log("🔄 Starting initial sync on connection");
+
+      // Filter out expired/completed alarms before syncing
+      const activeAlarms = device.alarms.filter(
+        (alarm) => !isAlarmExpired(alarm),
+      );
 
       console.log(
         `📊 Alarm sync filter - Total: ${device.alarms.length}, Active: ${activeAlarms.length}, Filtered out: ${device.alarms.length - activeAlarms.length}`,
       );
 
-      // Map to the format expected by incremental sync (with deviceIndex)
-      const alarmsForSync = activeAlarms.map((alarm) => ({
-        id: alarm.id,
-        title: alarm.title,
-        peripheralId: alarm.peripheralId,
-        cronExpression: alarm.cronExpression,
-        isActive: alarm.isActive,
-        severityLevel: alarm.severityLevel,
-        ledPattern: alarm.ledPattern,
-        ledColor: alarm.ledColor,
-        vibrationPattern: alarm.vibrationPattern,
-        vibrationIntensity: alarm.vibrationIntensity,
-        snoozePeriod: alarm.snoozePeriod,
-        snoozeTimeout: alarm.snoozeTimeout,
-        retriggerDelay: alarm.retriggerDelay,
-        retriggerTimeout: alarm.retriggerTimeout,
-        syncStatus: alarm.syncStatus,
-        deviceIndex: alarm.deviceIndex,
-        startDate: alarm.startDate,
-        endDate: alarm.endDate,
-        repeat: alarm.repeat,
-      }));
+      try {
+        // Perform full sync: clear all events and re-add only active alarms
+        await alarmSync.performSync(activeAlarms);
 
-      const currentAlarmCount = activeAlarms.length;
-      const previousAlarmCount = previousAlarmCountRef.current;
+        console.log("✅ Initial sync completed successfully");
 
-      // Create a hash of the current alarms to detect changes
-      // Include key properties that would indicate the alarm needs re-syncing
-      const currentAlarmsHash = JSON.stringify(
-        alarmsForSync.map((a) => ({
-          id: a.id,
-          title: a.title,
-          cronExpression: a.cronExpression,
-          isActive: a.isActive,
-          severityLevel: a.severityLevel,
-          ledPattern: a.ledPattern,
-          ledColor: a.ledColor,
-          vibrationPattern: a.vibrationPattern,
-          vibrationIntensity: a.vibrationIntensity,
-        })),
-      );
-      const alarmsChanged = previousAlarmsRef.current !== currentAlarmsHash;
+        // Clear deviceIndex for expired alarms that weren't synced
+        const expiredAlarmIds = device.alarms
+          .filter((alarm) => {
+            const scheduleInfo = calculateNextAlarmOccurrence({
+              isActive: alarm.isActive,
+              startDate: alarm.startDate,
+              endDate: alarm.endDate,
+              repeat: alarm.repeat,
+              cronExpression: alarm.cronExpression,
+            });
+            // Alarm is expired if it has no future occurrences
+            return (
+              scheduleInfo.status === "completed" ||
+              scheduleInfo.status === "overdue"
+            );
+          })
+          .filter((alarm) => alarm.deviceIndex !== null) // Only update alarms that have a deviceIndex
+          .map((alarm) => alarm.id);
 
-      // Reset the auto-sync flag if alarms have changed
-      if (alarmsChanged) {
-        console.log("📝 Alarms changed, triggering incremental sync");
-        autoSyncedRef.current = false;
-      }
-
-      // Trigger sync if we haven't already synced these alarms
-      // We sync whenever alarms change or there's a deletion
-      if (!autoSyncedRef.current) {
-        const alarmWasDeleted =
-          previousAlarmCount !== null && currentAlarmCount < previousAlarmCount;
-
-        // Always sync if alarms changed or were deleted
-        if (alarmsChanged || alarmWasDeleted) {
-          // Set the flag IMMEDIATELY to prevent race conditions
-          autoSyncedRef.current = true;
-
+        if (expiredAlarmIds.length > 0) {
           console.log(
-            `🔄 Triggering incremental sync - changed: ${alarmsChanged}, deleted: ${alarmWasDeleted}`,
+            `🧹 Clearing deviceIndex for ${expiredAlarmIds.length} expired alarms that weren't synced`,
           );
 
-          // Use incremental sync instead of blanket delete-and-recreate
-          void alarmSync.performIncrementalSync(alarmsForSync, true);
-        }
-      }
+          // Update each expired alarm to clear its deviceIndex
+          for (const alarmId of expiredAlarmIds) {
+            try {
+              await trpc.alarm.update.mutate({
+                id: alarmId,
+                deviceIndex: null,
+              });
+            } catch (error) {
+              console.error(
+                `❌ Failed to clear deviceIndex for alarm ${alarmId}:`,
+                error,
+              );
+            }
+          }
 
-      // Update the alarm count and hash for next comparison
-      previousAlarmCountRef.current = currentAlarmCount;
-      previousAlarmsRef.current = currentAlarmsHash;
-    }
+          // Refresh device data to reflect the cleared deviceIndex values
+          await queryClient.invalidateQueries({
+            queryKey: ["device", "getById", { id: initialDeviceId }],
+          });
+        }
+
+        initialSyncCompletedRef.current = true; // Mark sync as completed
+      } catch (error) {
+        console.error("❌ Initial sync failed:", error);
+      }
+    };
+
+    void performInitialSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device?.alarms, connectionState]);
 
-  // Reset auto-sync flag when disconnected
+  // Reset sync flag when disconnected
   React.useEffect(() => {
     if (connectionState === "disconnected") {
-      autoSyncedRef.current = false;
-      previousAlarmCountRef.current = null;
-      previousAlarmsRef.current = null;
+      initialSyncCompletedRef.current = false;
     }
   }, [connectionState]);
 
@@ -1099,572 +1127,24 @@ export default function DeviceDetailPage() {
       </ScrollView>
 
       {/* Retry Connection Modal */}
-      <Modal
+      <RetryConnectionModal
         visible={showRetryModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowRetryModal(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-            paddingHorizontal: spacing[4],
-          }}
-        >
-          <View
-            style={[
-              cards.base,
-              {
-                width: "100%",
-                maxWidth: 400,
-                padding: spacing[6],
-                alignItems: "center",
-              },
-            ]}
-          >
-            {/* Error Icon */}
-            <View
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                backgroundColor: colors.error[100],
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: spacing[4],
-              }}
-            >
-              <Ionicons
-                name="alert-circle"
-                size={48}
-                color={colors.error[600]}
-              />
-            </View>
-
-            {/* Error Title */}
-            <Text
-              style={[
-                typography.h3,
-                {
-                  color: colors.text.primary,
-                  textAlign: "center",
-                  marginBottom: spacing[2],
-                },
-              ]}
-            >
-              Connection Failed
-            </Text>
-
-            {/* Error Message */}
-            <Text
-              style={[
-                typography.body,
-                {
-                  color: colors.text.secondary,
-                  textAlign: "center",
-                  marginBottom: spacing[4],
-                },
-              ]}
-            >
-              {connectionError ?? "Unable to connect to your Gently device"}
-            </Text>
-
-            {/* Instructions */}
-            <View
-              style={[
-                {
-                  backgroundColor: colors.primary[50],
-                  borderRadius: 12,
-                  padding: spacing[4],
-                  marginBottom: spacing[6],
-                  width: "100%",
-                },
-              ]}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  marginBottom: spacing[2],
-                }}
-              >
-                <Ionicons
-                  name="information-circle"
-                  size={20}
-                  color={colors.primary[600]}
-                  style={{ marginRight: spacing[2], marginTop: 2 }}
-                />
-                <Text
-                  style={[
-                    typography.labelLarge,
-                    {
-                      color: colors.primary[700],
-                      flex: 1,
-                    },
-                  ]}
-                >
-                  To retry connection:
-                </Text>
-              </View>
-              <Text
-                style={[
-                  typography.body,
-                  {
-                    color: colors.primary[700],
-                    marginLeft: spacing[7],
-                  },
-                ]}
-              >
-                Hold the button on your Gently device for 10 seconds until it
-                beeps to enter pairing mode, then tap Retry below.
-              </Text>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={{ width: "100%", gap: spacing[3] }}>
-              <Pressable
-                style={[
-                  buttons.base,
-                  buttons.primary,
-                  { alignItems: "center", justifyContent: "center" },
-                ]}
-                onPress={handleReconnect}
-              >
-                <Text style={[typography.labelLarge, { color: "#ffffff" }]}>
-                  Retry Connection
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  buttons.base,
-                  buttons.secondary,
-                  { alignItems: "center", justifyContent: "center" },
-                ]}
-                onPress={() => setShowRetryModal(false)}
-              >
-                <Text
-                  style={[
-                    typography.labelLarge,
-                    { color: colors.primary[600] },
-                  ]}
-                >
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        connectionError={connectionError}
+        onRetry={handleReconnect}
+        onClose={() => setShowRetryModal(false)}
+      />
 
       {/* Quick Reminder Modal */}
-      <Modal
+      <QuickReminderModal
         visible={showQuickReminderModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowQuickReminderModal(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <View
-            style={[
-              cards.base,
-              {
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                borderBottomLeftRadius: 0,
-                borderBottomRightRadius: 0,
-                padding: spacing[6],
-                paddingBottom: spacing[8],
-              },
-            ]}
-          >
-            {/* Header */}
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: spacing[2],
-              }}
-            >
-              <Text style={[typography.h4, { color: colors.text.primary }]}>
-                Quick Reminder
-              </Text>
-              <Pressable
-                onPress={() => setShowQuickReminderModal(false)}
-                style={{
-                  padding: spacing[1],
-                }}
-              >
-                <Ionicons
-                  name="close"
-                  size={24}
-                  color={colors.text.secondary}
-                />
-              </Pressable>
-            </View>
-
-            <Text
-              style={[
-                typography.body,
-                {
-                  color: colors.text.secondary,
-                  marginBottom: spacing[5],
-                },
-              ]}
-            >
-              Create a one-time reminder that will alert you at the selected
-              time
-            </Text>
-
-            {/* Quick Time Options */}
-            <View style={{ marginBottom: spacing[5] }}>
-              <Text
-                style={[
-                  typography.label,
-                  { marginBottom: spacing[3], color: colors.text.primary },
-                ]}
-              >
-                Quick Options
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                  gap: spacing[2],
-                }}
-              >
-                {[
-                  { label: "15 min", minutes: 15 },
-                  { label: "30 min", minutes: 30 },
-                  { label: "45 min", minutes: 45 },
-                  { label: "1 hour", minutes: 60 },
-                ].map((option) => (
-                  <Pressable
-                    key={option.minutes}
-                    style={[
-                      buttons.base,
-                      buttons.secondary,
-                      {
-                        flex: 1,
-                        minWidth: "45%",
-                        paddingVertical: spacing[3],
-                      },
-                    ]}
-                    onPress={() => {
-                      const reminderTime = new Date(
-                        Date.now() + option.minutes * 60000,
-                      );
-                      setSelectedReminderTime(reminderTime);
-                    }}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={16}
-                      color={colors.primary[600]}
-                      style={{ marginRight: spacing[1] }}
-                    />
-                    <Text
-                      style={[typography.label, { color: colors.primary[600] }]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* Custom Date/Time Picker */}
-            <View style={{ marginBottom: spacing[5] }}>
-              <Text
-                style={[
-                  typography.label,
-                  { marginBottom: spacing[3], color: colors.text.primary },
-                ]}
-              >
-                Or Pick Custom Time
-              </Text>
-              <Pressable
-                style={[
-                  buttons.base,
-                  buttons.secondary,
-                  {
-                    paddingVertical: spacing[3],
-                    paddingHorizontal: spacing[4],
-                  },
-                ]}
-                onPress={() => {
-                  setPickerMode("date");
-                  setShowDateTimePicker(true);
-                }}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={18}
-                  color={colors.primary[600]}
-                  style={{ marginRight: spacing[2] }}
-                />
-                <Text
-                  style={[typography.label, { color: colors.primary[600] }]}
-                >
-                  {selectedReminderTime
-                    ? selectedReminderTime.toLocaleString()
-                    : "Select Date & Time"}
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* Date/Time Picker Modal */}
-            {showDateTimePicker && (
-              <Modal
-                visible={showDateTimePicker}
-                transparent={true}
-                animationType="fade"
-              >
-                <View
-                  style={{
-                    flex: 1,
-                    backgroundColor: "rgba(0, 0, 0, 0.5)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    paddingHorizontal: spacing[4],
-                  }}
-                >
-                  <View
-                    style={[
-                      cards.base,
-                      {
-                        width: "100%",
-                        maxWidth: 400,
-                        padding: spacing[4],
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        typography.h6,
-                        {
-                          color: colors.text.primary,
-                          marginBottom: spacing[4],
-                          textAlign: "center",
-                        },
-                      ]}
-                    >
-                      {pickerMode === "date" ? "Select Date" : "Select Time"}
-                    </Text>
-                    <DateTimePicker
-                      value={selectedReminderTime ?? new Date()}
-                      mode={pickerMode}
-                      display="spinner"
-                      onChange={(event, selectedDate) => {
-                        if (selectedDate) {
-                          setSelectedReminderTime(selectedDate);
-                        }
-                      }}
-                      minimumDate={new Date()}
-                      style={{
-                        backgroundColor: colors.background.primary,
-                        height: 200,
-                      }}
-                      textColor={colors.text.primary}
-                    />
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        gap: spacing[3],
-                        paddingTop: spacing[4],
-                        borderTopWidth: 1,
-                        borderTopColor: colors.border.light,
-                        marginTop: spacing[4],
-                      }}
-                    >
-                      <Pressable
-                        style={[buttons.base, buttons.secondary, { flex: 1 }]}
-                        onPress={() => {
-                          setShowDateTimePicker(false);
-                          setSelectedReminderTime(null);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            typography.label,
-                            { color: colors.primary[600] },
-                          ]}
-                        >
-                          Cancel
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        style={[buttons.base, buttons.primary, { flex: 1 }]}
-                        onPress={() => {
-                          if (pickerMode === "date") {
-                            // After selecting date, show time picker
-                            setPickerMode("time");
-                          } else {
-                            // After selecting time, close picker
-                            setShowDateTimePicker(false);
-                          }
-                        }}
-                      >
-                        <Text
-                          style={[
-                            typography.label,
-                            { color: colors.text.inverse },
-                          ]}
-                        >
-                          {pickerMode === "date" ? "Next" : "Done"}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-              </Modal>
-            )}
-
-            {/* Selected Time Display */}
-            {selectedReminderTime && (
-              <View
-                style={{
-                  backgroundColor: colors.primary[50],
-                  padding: spacing[3],
-                  borderRadius: 12,
-                  marginBottom: spacing[5],
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color={colors.primary[600]}
-                  style={{ marginRight: spacing[2] }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[typography.caption, { color: colors.primary[700] }]}
-                  >
-                    Reminder set for:
-                  </Text>
-                  <Text
-                    style={[
-                      typography.labelLarge,
-                      { color: colors.primary[700] },
-                    ]}
-                  >
-                    {selectedReminderTime.toLocaleString()}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Action Buttons */}
-            <View style={{ gap: spacing[2] }}>
-              <Pressable
-                style={[
-                  buttons.base,
-                  selectedReminderTime ? buttons.success : buttons.disabled,
-                  { alignItems: "center", justifyContent: "center" },
-                ]}
-                onPress={async () => {
-                  if (!selectedReminderTime) {
-                    Alert.alert("Error", "Please select a reminder time");
-                    return;
-                  }
-
-                  if (!deviceId) {
-                    Alert.alert("Error", "Device ID is missing");
-                    return;
-                  }
-
-                  try {
-                    // Create the quick reminder alarm
-                    await trpc.alarm.create.mutate({
-                      title: "Quick Reminder",
-                      description: `Set for ${selectedReminderTime.toLocaleString()}`,
-                      isActive: true,
-                      startDate: selectedReminderTime.toISOString(),
-                      endDate: undefined,
-                      repeat: false,
-                      cronExpression: `${selectedReminderTime.getMinutes()} ${selectedReminderTime.getHours()} ${selectedReminderTime.getDate()} ${selectedReminderTime.getMonth() + 1} *`,
-                      severityLevel: "INFORMATIONAL",
-                      ledPattern: "BLINK_SLOW",
-                      ledColor: "BLUE",
-                      vibrationPattern: 1, // Pattern 1 (valid range: 1-63)
-                      vibrationIntensity: "MEDIUM",
-                      snoozePeriod: 5,
-                      snoozeTimeout: 120,
-                      retriggerDelay: 5,
-                      retriggerTimeout: 120,
-                      deviceId: deviceId,
-                    });
-
-                    // Invalidate queries to refresh the alarm list
-                    void queryClient.invalidateQueries({
-                      queryKey: ["device", "getById", { id: deviceId }],
-                    });
-
-                    setShowQuickReminderModal(false);
-                    setSelectedReminderTime(null);
-
-                    Alert.alert(
-                      "Success",
-                      "Quick reminder created successfully!",
-                    );
-                  } catch (error) {
-                    console.error("❌ Failed to create quick reminder:", error);
-                    Alert.alert(
-                      "Error",
-                      `Failed to create reminder: ${error instanceof Error ? error.message : "Unknown error"}`,
-                    );
-                  }
-                }}
-                disabled={!selectedReminderTime}
-              >
-                <Ionicons
-                  name="checkmark"
-                  size={18}
-                  color={colors.text.inverse}
-                  style={{ marginRight: spacing[1] }}
-                />
-                <Text style={[typography.labelLarge, { color: "#ffffff" }]}>
-                  Create Reminder
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  buttons.base,
-                  buttons.secondary,
-                  { alignItems: "center", justifyContent: "center" },
-                ]}
-                onPress={() => {
-                  setShowQuickReminderModal(false);
-                  setSelectedReminderTime(null);
-                }}
-              >
-                <Text
-                  style={[
-                    typography.labelLarge,
-                    { color: colors.primary[600] },
-                  ]}
-                >
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        deviceId={deviceId}
+        onClose={() => setShowQuickReminderModal(false)}
+        onSuccess={() => {
+          void queryClient.invalidateQueries({
+            queryKey: ["device", "getById", { id: initialDeviceId }],
+          });
+        }}
+      />
 
       {/* Help Modal */}
       <HelpModal

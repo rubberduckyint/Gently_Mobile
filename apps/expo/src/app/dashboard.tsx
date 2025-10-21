@@ -37,6 +37,7 @@ import {
   spacing,
   typography,
 } from "~/styles";
+import { calculateNextAlarmOccurrence } from "~/utils/alarmUtils";
 import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
 import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
@@ -48,7 +49,99 @@ import {
 
 type DeviceWithAlarmsCount = RouterOutputs["device"]["getAll"][number];
 
-function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
+interface Alarm {
+  id: string;
+  title: string;
+  isActive: boolean;
+  startDate: Date;
+  endDate: Date | null;
+  repeat: boolean;
+  cronExpression: string | null;
+  deviceId: string | null;
+}
+
+function DeviceCard({
+  device,
+  alarms,
+}: {
+  device: DeviceWithAlarmsCount;
+  alarms: Alarm[];
+}) {
+  // Filter alarms for this device
+  const deviceAlarms = React.useMemo(() => {
+    return alarms.filter((alarm) => alarm.deviceId === device.id);
+  }, [alarms, device.id]);
+
+  // Calculate next alarm
+  const nextAlarm = React.useMemo(() => {
+    if (deviceAlarms.length === 0) return null;
+
+    // Filter active alarms and calculate next occurrence for each
+    const activeAlarms = deviceAlarms
+      .filter(
+        (alarm): alarm is Alarm & { cronExpression: string } =>
+          alarm.isActive && alarm.cronExpression !== null,
+      )
+      .map((alarm) => {
+        const scheduleInfo = calculateNextAlarmOccurrence({
+          isActive: alarm.isActive,
+          startDate: alarm.startDate,
+          endDate: alarm.endDate,
+          repeat: alarm.repeat,
+          cronExpression: alarm.cronExpression,
+        });
+        return {
+          alarm,
+          scheduleInfo,
+        };
+      })
+      .filter(
+        ({ scheduleInfo }) =>
+          scheduleInfo.status === "active" && scheduleInfo.nextOccurrence,
+      )
+      .sort((a, b) => {
+        if (!a.scheduleInfo.nextOccurrence || !b.scheduleInfo.nextOccurrence)
+          return 0;
+        return (
+          a.scheduleInfo.nextOccurrence.getTime() -
+          b.scheduleInfo.nextOccurrence.getTime()
+        );
+      });
+
+    return activeAlarms[0] ?? null;
+  }, [deviceAlarms]);
+
+  // Format next alarm time
+  const formatNextAlarmTime = (date: Date) => {
+    const now = new Date();
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    const isTomorrow =
+      date.getDate() === now.getDate() + 1 &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    if (isToday) return `Today at ${timeStr}`;
+    if (isTomorrow) return `Tomorrow at ${timeStr}`;
+
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
   return (
     <View style={{ marginBottom: spacing[4] }}>
       <Link
@@ -62,50 +155,38 @@ function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
           style={({ pressed }) => [
             cards.base,
             cards.interactive,
+            { minHeight: 140 },
             pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
           ]}
         >
           {/* Device Header */}
           <View
-            style={[flex.row, flex.itemsCenter, { marginBottom: spacing[3] }]}
+            style={[flex.row, flex.itemsCenter, { marginBottom: spacing[4] }]}
           >
             {/* Device Avatar */}
             <View
               style={[
                 avatars.base,
-                avatars.medium,
+                avatars.large,
                 { backgroundColor: colors.primary[500] },
               ]}
             >
-              <Text style={[avatars.text, avatars.textMedium]}>
+              <Text style={[avatars.text, avatars.textLarge]}>
                 {device.title.slice(0, 2).toUpperCase()}
               </Text>
             </View>
 
             {/* Device Info */}
-            <View style={[flex.flex1, { marginLeft: spacing[3] }]}>
-              <Text style={typography.h6}>{device.title}</Text>
+            <View style={[flex.flex1, { marginLeft: spacing[4] }]}>
+              <Text style={typography.h5}>{device.title}</Text>
               {device.description && (
                 <Text
                   style={[
                     typography.bodySmall,
-                    { color: colors.text.secondary },
+                    { color: colors.text.secondary, marginTop: spacing[1] },
                   ]}
                 >
                   {device.description}
-                </Text>
-              )}
-              {device.serialNumber && (
-                <Text
-                  style={[
-                    typography.caption,
-                    {
-                      color: colors.primary[600],
-                      marginTop: spacing[1],
-                    },
-                  ]}
-                >
-                  Serial: {device.serialNumber}
                 </Text>
               )}
             </View>
@@ -114,11 +195,96 @@ function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
             <View style={{ marginLeft: spacing[2] }}>
               <Ionicons
                 name="chevron-forward"
-                size={20}
+                size={24}
                 color={colors.text.secondary}
               />
             </View>
           </View>
+
+          {/* Alarm Count */}
+          <View
+            style={[
+              flex.row,
+              flex.itemsCenter,
+              { marginBottom: nextAlarm ? spacing[3] : 0 },
+            ]}
+          >
+            <Ionicons
+              name="alarm-outline"
+              size={18}
+              color={colors.text.secondary}
+            />
+            <Text
+              style={[
+                typography.body,
+                { color: colors.text.secondary, marginLeft: spacing[2] },
+              ]}
+            >
+              {device._count.alarms === 0
+                ? "No alarms"
+                : device._count.alarms === 1
+                  ? "1 alarm"
+                  : `${device._count.alarms} alarms`}
+            </Text>
+          </View>
+
+          {/* Next Alarm */}
+          {nextAlarm?.scheduleInfo.nextOccurrence && (
+            <View
+              style={[
+                {
+                  backgroundColor: colors.primary[50],
+                  padding: spacing[3],
+                  borderRadius: 8,
+                  borderLeftWidth: 3,
+                  borderLeftColor: colors.primary[500],
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  typography.caption,
+                  {
+                    color: colors.text.secondary,
+                    marginBottom: spacing[1],
+                    textTransform: "uppercase",
+                  },
+                ]}
+              >
+                Next Alarm
+              </Text>
+              <Text
+                style={[
+                  typography.h6,
+                  {
+                    color: colors.text.primary,
+                    marginBottom: spacing[1],
+                  },
+                ]}
+              >
+                {nextAlarm.alarm.title}
+              </Text>
+              <View style={[flex.row, flex.itemsCenter]}>
+                <Ionicons
+                  name="time-outline"
+                  size={14}
+                  color={colors.primary[600]}
+                />
+                <Text
+                  style={[
+                    typography.bodySmall,
+                    {
+                      color: colors.primary[600],
+                      marginLeft: spacing[1],
+                      fontWeight: "600",
+                    },
+                  ]}
+                >
+                  {formatNextAlarmTime(nextAlarm.scheduleInfo.nextOccurrence)}
+                </Text>
+              </View>
+            </View>
+          )}
         </Pressable>
       </Link>
     </View>
@@ -155,6 +321,17 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true, // Refetch when app comes to foreground
     staleTime: 0, // Consider data stale immediately
     gcTime: 0, // No garbage collection time - data removed immediately
+  });
+
+  // Fetch all alarms for the user
+  const { data: allAlarms = [] } = useQuery({
+    queryKey: ["alarms"],
+    queryFn: () => trpc.alarm.getAll.query({}),
+    enabled: !!session?.user,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const signOutMutation = useMutation({
@@ -323,7 +500,9 @@ export default function DashboardPage() {
             <FlatList
               data={devices}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <DeviceCard device={item} />}
+              renderItem={({ item }) => (
+                <DeviceCard device={item} alarms={allAlarms} />
+              )}
               showsVerticalScrollIndicator={false}
               ListFooterComponent={() => (
                 <Pressable
