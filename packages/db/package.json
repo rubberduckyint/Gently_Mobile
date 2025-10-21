@@ -24,7 +24,7 @@
     "dev": "tsc",
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
-    "push": "pnpm with-env drizzle-kit push force",
+    "push": "pnpm with-env drizzle-kit push --force",
     "studio": "pnpm with-env drizzle-kit studio",
     "seed": "pnpm with-env tsx src/seed.ts",
     "seed:quick": "pnpm with-env tsx src/seed-quick.ts",
