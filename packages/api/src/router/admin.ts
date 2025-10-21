@@ -225,7 +225,7 @@ export const adminRouter = {
                 "WHITE",
               ]),
               vibrationPattern: z.number(),
-              vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH"]),
+              vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH", "MAXIMUM"]),
               snoozePeriod: z.number(),
               snoozeTimeout: z.number(),
               retriggerDelay: z.number(),

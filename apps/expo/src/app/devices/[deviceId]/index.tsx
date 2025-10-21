@@ -632,6 +632,11 @@ export default function DeviceDetailPage() {
                 icon: "help-circle",
               },
               {
+                label: "User Settings",
+                onPress: () => router.push("/settings"),
+                icon: "settings",
+              },
+              {
                 label: "Edit Device",
                 onPress: () => router.push(`/devices/${deviceId}/edit`),
                 icon: "pencil",
