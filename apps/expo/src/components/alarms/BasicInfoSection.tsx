@@ -7,7 +7,6 @@
 
 import React from "react";
 import { Text, TextInput, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 import { cards, colors, inputs, spacing, typography } from "~/styles";
 
@@ -27,7 +26,7 @@ export interface AlarmFormData {
   ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
   ledColor: "RED" | "GREEN" | "BLUE" | "YELLOW" | "MAGENTA" | "CYAN" | "WHITE";
   vibrationPattern: "QUICK" | "HEARTBEAT" | "RAPID" | "SYMPHONY"; // 0-3: quick, heartbeat, rapid, symphony
-  vibrationIntensity: "LOW" | "MEDIUM" | "HIGH";
+  vibrationIntensity: "LOW" | "MEDIUM" | "HIGH" | "MAXIMUM";
   snoozePeriod: number; // minutes
   snoozeTimeout: number; // minutes
   retriggerDelay: number; // minutes
@@ -51,34 +50,6 @@ export function BasicInfoSection({
   const showTitleError = showValidationErrors && isTitleEmpty;
   return (
     <View style={[cards.base, { marginBottom: spacing[4] }]}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing[2],
-          marginBottom: spacing[2],
-        }}
-      >
-        <Ionicons
-          name="information-circle"
-          size={20}
-          color={colors.primary[500]}
-        />
-        <Text style={[typography.h4]}>Alarm Details</Text>
-      </View>
-      <Text
-        style={[
-          typography.caption,
-          {
-            color: colors.text.secondary,
-            marginBottom: spacing[5],
-            lineHeight: 18,
-          },
-        ]}
-      >
-        Give your alarm a name to help you remember its purpose.
-      </Text>
-
       {/* Title Input */}
       <View style={{ marginBottom: spacing[2] }}>
         <Text
@@ -103,7 +74,7 @@ export function BasicInfoSection({
           placeholder="e.g., Take Medication, Morning Reminder"
           placeholderTextColor={colors.text.secondary}
         />
-        {showTitleError ? (
+        {showTitleError && (
           <Text
             style={[
               typography.caption,
@@ -111,15 +82,6 @@ export function BasicInfoSection({
             ]}
           >
             Alarm name is required
-          </Text>
-        ) : (
-          <Text
-            style={[
-              typography.caption,
-              { color: colors.text.tertiary, marginTop: spacing[1] },
-            ]}
-          >
-            The device will show the first 10 characters
           </Text>
         )}
       </View>

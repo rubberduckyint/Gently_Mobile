@@ -39,9 +39,9 @@ const getDefaultFormData = (): AlarmFormData => {
     vibrationPattern: "QUICK",
     vibrationIntensity: "MEDIUM",
     snoozePeriod: 5,
-    snoozeTimeout: 15,
-    retriggerDelay: 1,
-    retriggerTimeout: 5,
+    snoozeTimeout: 120,
+    retriggerDelay: 5, // Same as snooze period
+    retriggerTimeout: 120,
   };
 };
 
@@ -128,6 +128,7 @@ export default function AddAlarmPage() {
       ]);
     },
     onError: (error) => {
+      console.error("❌ Failed to create alarm:", error);
       Alert.alert("Error", `Failed to create alarm: ${error.message}`);
     },
   });

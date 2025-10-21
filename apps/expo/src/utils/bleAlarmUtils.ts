@@ -37,6 +37,8 @@ export function mapVibrationIntensityToNumber(
       return 1; // MEDIUM
     case "HIGH":
       return 2; // HIGH
+    case "MAXIMUM":
+      return 3; // MAXIMUM
     default:
       return 1; // Default to MEDIUM
   }
@@ -231,7 +233,7 @@ export function alarmDatabaseToBleParameters(
       | "CYAN"
       | "WHITE";
     vibrationPattern: number;
-    vibrationIntensity: "LOW" | "MEDIUM" | "HIGH";
+    vibrationIntensity: "LOW" | "MEDIUM" | "HIGH" | "MAXIMUM";
     snoozePeriod: number;
     snoozeTimeout: number;
     retriggerDelay: number;

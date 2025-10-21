@@ -169,6 +169,265 @@ function calculateNextCronOccurrence(
 
   const [minute, hour, day, month, dayOfWeek] = parts;
 
+  // For minute-based alarms (e.g., "*/45 * * * *" for every 45 minutes)
+  if (minute && minute.startsWith("*/") && hour === "*" && day === "*" && month === "*" && dayOfWeek === "*") {
+    try {
+      const minuteInterval = parseInt(minute.substring(2), 10);
+
+      // Validate interval
+      if (isNaN(minuteInterval) || minuteInterval <= 0 || minuteInterval > 59) {
+        console.warn("Invalid minute interval in cron expression:", minute);
+        return null;
+      }
+
+      // Start from current time
+      const checkDate = new Date();
+      const currentMinutes = checkDate.getHours() * 60 + checkDate.getMinutes();
+      
+      // Calculate minutes since midnight
+      const nextIntervalMinutes = Math.ceil(currentMinutes / minuteInterval) * minuteInterval;
+      
+      // Convert back to hours and minutes
+      const nextHour = Math.floor(nextIntervalMinutes / 60);
+      const nextMinute = nextIntervalMinutes % 60;
+      
+      // Handle day overflow
+      if (nextHour >= 24) {
+        const daysToAdd = Math.floor(nextHour / 24);
+        const adjustedHour = nextHour % 24;
+        checkDate.setHours(adjustedHour, nextMinute, 0, 0);
+        const result = addDays(checkDate, daysToAdd);
+        
+        // Validate the constructed date
+        if (isNaN(result.getTime())) {
+          console.warn("Invalid constructed minute-based alarm date:", result);
+          return null;
+        }
+        
+        // Respect start date
+        if (isBefore(result, startDate)) {
+          // Calculate next occurrence from startDate
+          const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+          const nextFromStart = Math.ceil(startMinutes / minuteInterval) * minuteInterval;
+          const hourFromStart = Math.floor(nextFromStart / 60);
+          const minFromStart = nextFromStart % 60;
+          
+          const fromStartDate = new Date(startDate);
+          fromStartDate.setHours(hourFromStart, minFromStart, 0, 0);
+          
+          if (hourFromStart >= 24) {
+            const daysFromStart = Math.floor(hourFromStart / 24);
+            fromStartDate.setHours(hourFromStart % 24, minFromStart, 0, 0);
+            return addDays(fromStartDate, daysFromStart);
+          }
+          
+          return fromStartDate;
+        }
+        
+        // Check if within end date range
+        if (!endDate || isBefore(result, endDate)) {
+          return result;
+        }
+      } else {
+        checkDate.setHours(nextHour, nextMinute, 0, 0);
+        
+        // Validate the constructed date
+        if (isNaN(checkDate.getTime())) {
+          console.warn("Invalid constructed minute-based alarm date:", checkDate);
+          return null;
+        }
+        
+        // Respect start date
+        if (isBefore(checkDate, startDate)) {
+          return startDate;
+        }
+        
+        // Check if within end date range
+        if (!endDate || isBefore(checkDate, endDate)) {
+          return checkDate;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.warn("Error calculating minute-based alarm occurrence:", error);
+      return null;
+    }
+  }
+
+  // For hourly alarms (e.g., "0 */12 * * *" for every 12 hours)
+  if (hour && hour.startsWith("*/") && day === "*" && month === "*" && dayOfWeek === "*") {
+    try {
+      const hourInterval = parseInt(hour.substring(2), 10);
+      const minuteNum = minute && minute !== "*" ? parseInt(minute, 10) : 0;
+
+      // Validate interval and minute
+      if (isNaN(hourInterval) || hourInterval <= 0 || hourInterval > 24) {
+        console.warn("Invalid hour interval in cron expression:", hour);
+        return null;
+      }
+      if (isNaN(minuteNum) || minuteNum < 0 || minuteNum > 59) {
+        console.warn("Invalid minute in cron expression:", minute);
+        return null;
+      }
+
+      // Start from current time
+      let checkDate = new Date();
+      
+      // Round up to the next interval
+      const currentHour = checkDate.getHours();
+      const currentMinute = checkDate.getMinutes();
+      
+      // Calculate the next occurrence based on the interval
+      // For example, if interval is 12 and current hour is 10:
+      // Next occurrences would be at 12:00, 0:00, 12:00, etc.
+      let nextHour = Math.ceil(currentHour / hourInterval) * hourInterval;
+      
+      // If we're past the minute mark in the current interval, move to next interval
+      if (nextHour === currentHour && currentMinute >= minuteNum) {
+        nextHour += hourInterval;
+      }
+      
+      // Handle day overflow
+      let daysToAdd = 0;
+      while (nextHour >= 24) {
+        nextHour -= 24;
+        daysToAdd++;
+      }
+      
+      checkDate.setHours(nextHour, minuteNum, 0, 0);
+      if (daysToAdd > 0) {
+        checkDate = addDays(checkDate, daysToAdd);
+      }
+
+      // Validate the constructed date
+      if (isNaN(checkDate.getTime())) {
+        console.warn("Invalid constructed hourly alarm date:", checkDate);
+        return null;
+      }
+
+      // Respect start date - if checkDate is before startDate, use startDate as base
+      if (isBefore(checkDate, startDate)) {
+        checkDate = new Date(startDate);
+        const startHour = checkDate.getHours();
+        
+        // Find next interval from start date
+        nextHour = Math.ceil(startHour / hourInterval) * hourInterval;
+        if (nextHour === startHour && checkDate.getMinutes() >= minuteNum) {
+          nextHour += hourInterval;
+        }
+        
+        daysToAdd = 0;
+        while (nextHour >= 24) {
+          nextHour -= 24;
+          daysToAdd++;
+        }
+        
+        checkDate.setHours(nextHour, minuteNum, 0, 0);
+        if (daysToAdd > 0) {
+          checkDate = addDays(checkDate, daysToAdd);
+        }
+      }
+
+      // Check if within end date range
+      if (!endDate || isBefore(checkDate, endDate)) {
+        return checkDate;
+      }
+
+      return null;
+    } catch (error) {
+      console.warn("Error calculating hourly alarm occurrence:", error);
+      return null;
+    }
+  }
+
+  // For day interval alarms (e.g., "0 12 */3 * *" for every 3 days at 12:00)
+  if (day && day.startsWith("*/") && month === "*" && dayOfWeek === "*") {
+    try {
+      const dayInterval = parseInt(day.substring(2), 10);
+      const hourNum = hour && hour !== "*" ? parseInt(hour, 10) : 0;
+      const minuteNum = minute && minute !== "*" ? parseInt(minute, 10) : 0;
+
+      // Validate interval, hour, and minute
+      if (isNaN(dayInterval) || dayInterval <= 0 || dayInterval > 31) {
+        console.warn("Invalid day interval in cron expression:", day);
+        return null;
+      }
+      if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
+        console.warn("Invalid hour in cron expression:", hour);
+        return null;
+      }
+      if (isNaN(minuteNum) || minuteNum < 0 || minuteNum > 59) {
+        console.warn("Invalid minute in cron expression:", minute);
+        return null;
+      }
+
+      // Calculate days since a reference point (using startDate as reference)
+      const referenceDate = new Date(startDate);
+      referenceDate.setHours(hourNum, minuteNum, 0, 0);
+      
+      // If the reference time today hasn't passed yet and it's after or equal to startDate, use it
+      const todayOccurrence = new Date();
+      todayOccurrence.setHours(hourNum, minuteNum, 0, 0);
+      
+      if (isAfter(todayOccurrence, now) && !isBefore(todayOccurrence, startDate)) {
+        // Check if today is on the interval from startDate
+        const daysDiff = Math.floor((todayOccurrence.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff % dayInterval === 0) {
+          if (!endDate || isBefore(todayOccurrence, endDate)) {
+            return todayOccurrence;
+          }
+        }
+      }
+      
+      // Find the next occurrence
+      let checkDate = new Date(todayOccurrence <= now ? addDays(todayOccurrence, 1) : todayOccurrence);
+      checkDate.setHours(hourNum, minuteNum, 0, 0);
+      
+      // Ensure we don't go before startDate
+      if (isBefore(checkDate, startDate)) {
+        checkDate = new Date(startDate);
+        checkDate.setHours(hourNum, minuteNum, 0, 0);
+        
+        // If time has passed on start date, move to next day
+        if (isBefore(checkDate, startDate)) {
+          checkDate = addDays(checkDate, 1);
+          checkDate.setHours(hourNum, minuteNum, 0, 0);
+        }
+      }
+      
+      // Find the next date that matches the interval
+      const maxSearchDays = dayInterval * 2; // Search up to 2 intervals ahead
+      for (let i = 0; i < maxSearchDays; i++) {
+        const daysDiff = Math.floor((checkDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff >= 0 && daysDiff % dayInterval === 0) {
+          // Validate the found date
+          if (isNaN(checkDate.getTime())) {
+            console.warn("Invalid check date for day interval:", checkDate);
+            return null;
+          }
+          
+          // Check if within end date range
+          if (!endDate || isBefore(checkDate, endDate)) {
+            return checkDate;
+          }
+          
+          return null;
+        }
+        
+        checkDate = addDays(checkDate, 1);
+      }
+
+      console.warn("Could not find matching day interval occurrence");
+      return null;
+    } catch (error) {
+      console.warn("Error calculating day interval alarm occurrence:", error);
+      return null;
+    }
+  }
+
   // For daily alarms (most common case)
   if (day === "*" && month === "*" && dayOfWeek === "*") {
     const todayAlarm = new Date();
@@ -222,18 +481,77 @@ function calculateNextCronOccurrence(
   }
 
   // For weekly alarms
-  if (day === "*" && month === "*" && dayOfWeek !== "*") {
+  if (day === "*" && month === "*" && dayOfWeek !== "*" && dayOfWeek) {
     try {
-      // Implementation for weekly recurrence would go here
-      // For now, return a simple next day calculation
-      const nextWeek = addDays(startDate, 7);
-      if (isNaN(nextWeek.getTime())) {
-        console.warn("Invalid next week date:", nextWeek);
+      // Parse the allowed days of week (0 = Sunday, 1 = Monday, etc.)
+      const allowedDays = dayOfWeek.split(",").map((d) => parseInt(d.trim(), 10));
+      
+      // Validate parsed days
+      if (allowedDays.some((d) => isNaN(d) || d < 0 || d > 6)) {
+        console.warn("Invalid day of week in cron expression:", dayOfWeek);
         return null;
       }
-      if (!endDate || isBefore(nextWeek, endDate)) {
-        return nextWeek;
+
+      // Parse hour and minute from cron
+      const hourNum = hour && hour !== "*" ? parseInt(hour, 10) : 0;
+      const minuteNum = minute && minute !== "*" ? parseInt(minute, 10) : 0;
+
+      // Validate parsed hour and minute
+      if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
+        console.warn("Invalid hour in cron expression:", hour, cronExpression);
+        return null;
       }
+      if (isNaN(minuteNum) || minuteNum < 0 || minuteNum > 59) {
+        console.warn("Invalid minute in cron expression:", minute, cronExpression);
+        return null;
+      }
+
+      // Start checking from today
+      let checkDate = new Date();
+      checkDate.setHours(hourNum, minuteNum, 0, 0);
+
+      // If today's alarm time has passed, start checking from tomorrow
+      if (checkDate <= now) {
+        checkDate = addDays(checkDate, 1);
+      }
+
+      // Also respect the startDate - don't return a date before it
+      if (isBefore(checkDate, startDate)) {
+        checkDate = new Date(startDate);
+        checkDate.setHours(hourNum, minuteNum, 0, 0);
+        
+        // If this time has passed on the start date, move to next day
+        if (checkDate < startDate) {
+          checkDate = addDays(checkDate, 1);
+        }
+      }
+
+      // Search for the next matching day (up to 7 days ahead)
+      for (let i = 0; i < 7; i++) {
+        const currentDay = checkDate.getDay();
+        
+        if (allowedDays.includes(currentDay)) {
+          // Validate the found date
+          if (isNaN(checkDate.getTime())) {
+            console.warn("Invalid check date:", checkDate);
+            return null;
+          }
+          
+          // Check if within end date range
+          if (!endDate || isBefore(checkDate, endDate)) {
+            return checkDate;
+          }
+          
+          // If we're past the end date, no more occurrences
+          return null;
+        }
+        
+        checkDate = addDays(checkDate, 1);
+      }
+
+      // Should never reach here, but just in case
+      console.warn("Could not find matching day in next 7 days");
+      return null;
     } catch (error) {
       console.warn("Error calculating weekly alarm occurrence:", error);
       return null;

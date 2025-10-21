@@ -77,6 +77,7 @@ export default function EditDevicePage() {
       ]);
     },
     onError: (error) => {
+      console.error("❌ Failed to update device:", error);
       Alert.alert("Error", `Failed to update device: ${error.message}`);
     },
   });

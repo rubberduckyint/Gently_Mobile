@@ -281,6 +281,7 @@ const AddDeviceScreen = () => {
         });
       }
     } catch (error) {
+      console.error("❌ Device pairing failed:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 

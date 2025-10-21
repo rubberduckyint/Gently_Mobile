@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RouterOutputs } from "~/utils/api";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { Header } from "~/components/ui/Header";
+import { HelpModal } from "~/components/ui/HelpModal";
 // Import the new design system
 import {
   avatars,
@@ -39,6 +40,11 @@ import {
 import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
 import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
+import {
+  hasSeenOnboarding,
+  markOnboardingComplete,
+  resetOnboarding,
+} from "~/utils/userPreferences";
 
 type DeviceWithAlarmsCount = RouterOutputs["device"]["getAll"][number];
 
@@ -122,6 +128,19 @@ function DeviceCard({ device }: { device: DeviceWithAlarmsCount }) {
 export default function DashboardPage() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
+  const [showHelpModal, setShowHelpModal] = React.useState(false);
+
+  // Check if user has seen onboarding on mount
+  React.useEffect(() => {
+    const checkOnboarding = async () => {
+      const hasSeen = await hasSeenOnboarding();
+      if (!hasSeen) {
+        // Show help modal on first login
+        setShowHelpModal(true);
+      }
+    };
+    void checkOnboarding();
+  }, []);
 
   const {
     data: devices,
@@ -140,10 +159,16 @@ export default function DashboardPage() {
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
+      // Reset user preferences on logout
+      await resetOnboarding();
       await authClient.signOut();
     },
     onSuccess: () => {
       router.replace("/");
+    },
+    onError: (error) => {
+      console.error("❌ Failed to sign out:", error);
+      Alert.alert("Error", "Failed to sign out. Please try again.");
     },
   });
 
@@ -244,6 +269,11 @@ export default function DashboardPage() {
           <HamburgerMenu
             options={[
               {
+                label: "Help",
+                onPress: () => setShowHelpModal(true),
+                icon: "help-circle",
+              },
+              {
                 label: "Settings",
                 onPress: handleUserProfile,
                 icon: "settings",
@@ -312,6 +342,15 @@ export default function DashboardPage() {
           </View>
         )}
       </View>
+
+      {/* Help Modal */}
+      <HelpModal
+        visible={showHelpModal}
+        onClose={async () => {
+          setShowHelpModal(false);
+          await markOnboardingComplete();
+        }}
+      />
     </SafeAreaView>
   );
 }

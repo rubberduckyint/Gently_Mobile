@@ -48,6 +48,67 @@ const generateCronExpression = (formData: AlarmFormData): string => {
   }
 };
 
+// Parse cron expression to extract repeat settings
+const parseCronExpression = (
+  cronExpression: string,
+): {
+  repeatType: "minutes" | "hours" | "days" | "weeks";
+  repeatEvery: number;
+  daysOfWeek: string[];
+} => {
+  const parts = cronExpression.split(" ");
+  const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
+
+  // Check for weekly pattern (specific days of week)
+  if (dayOfWeek && dayOfWeek !== "*") {
+    return {
+      repeatType: "weeks",
+      repeatEvery: 1,
+      daysOfWeek: dayOfWeek.split(","),
+    };
+  }
+
+  // Check for daily pattern
+  if (dayOfMonth?.includes("/")) {
+    const regex = /\*\/(\d+)/;
+    const match = regex.exec(dayOfMonth);
+    return {
+      repeatType: "days",
+      repeatEvery: match?.[1] ? parseInt(match[1], 10) : 1,
+      daysOfWeek: [],
+    };
+  }
+
+  // Check for hourly pattern
+  if (hour?.includes("/")) {
+    const regex = /\*\/(\d+)/;
+    const match = regex.exec(hour);
+    return {
+      repeatType: "hours",
+      repeatEvery: match?.[1] ? parseInt(match[1], 10) : 1,
+      daysOfWeek: [],
+    };
+  }
+
+  // Check for minute pattern
+  if (minute?.includes("/")) {
+    const regex = /\*\/(\d+)/;
+    const match = regex.exec(minute);
+    return {
+      repeatType: "minutes",
+      repeatEvery: match?.[1] ? parseInt(match[1], 10) : 1,
+      daysOfWeek: [],
+    };
+  }
+
+  // Default to daily
+  return {
+    repeatType: "days",
+    repeatEvery: 1,
+    daysOfWeek: [],
+  };
+};
+
 export default function EditAlarmPage() {
   const { deviceId, alarmId } = useLocalSearchParams<{
     deviceId: string;
@@ -76,6 +137,7 @@ export default function EditAlarmPage() {
     startDate: string | Date;
     endDate?: string | Date | null;
     repeat: boolean;
+    cronExpression: string;
     severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
     ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
     ledColor:
@@ -87,7 +149,7 @@ export default function EditAlarmPage() {
       | "CYAN"
       | "WHITE";
     vibrationPattern: number;
-    vibrationIntensity: "LOW" | "MEDIUM" | "HIGH";
+    vibrationIntensity: "LOW" | "MEDIUM" | "HIGH" | "MAXIMUM";
     snoozePeriod: number;
     snoozeTimeout: number;
     retriggerDelay: number;
@@ -119,14 +181,19 @@ export default function EditAlarmPage() {
       }
     }
 
+    // Parse cron expression to get repeat settings
+    const { repeatType, repeatEvery, daysOfWeek } = alarm.repeat
+      ? parseCronExpression(alarm.cronExpression)
+      : { repeatType: "days" as const, repeatEvery: 1, daysOfWeek: [] };
+
     return {
       title: alarm.title,
       description: alarm.description ?? "",
       startDate,
       repeat: alarm.repeat,
-      repeatType: "days",
-      repeatEvery: 1,
-      daysOfWeek: [],
+      repeatType,
+      repeatEvery,
+      daysOfWeek,
       ends: endsOnDate ? "on" : "never",
       endsOnDate,
       endsAfter: undefined,
@@ -209,6 +276,7 @@ export default function EditAlarmPage() {
       ]);
     },
     onError: (error) => {
+      console.error("❌ Failed to update alarm:", error);
       Alert.alert("Error", `Failed to update alarm: ${error.message}`);
     },
   });
@@ -228,6 +296,10 @@ export default function EditAlarmPage() {
         queryKey: ["device", "getById", { id: deviceId }],
       });
       router.back();
+    },
+    onError: (error) => {
+      console.error("❌ Failed to delete alarm:", error);
+      Alert.alert("Error", `Failed to delete alarm: ${error.message}`);
     },
   });
 

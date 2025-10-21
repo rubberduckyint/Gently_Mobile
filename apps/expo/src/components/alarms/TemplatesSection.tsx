@@ -234,6 +234,27 @@ export function TemplatesSection({ onSelectTemplate }: TemplatesSectionProps) {
                   ...template.data,
                   startDate: date,
                 });
+              } else if (template.id === "medication") {
+                // Set start date to 8:00 AM today, or 8:00 PM today if it's past 8 AM
+                const now = new Date();
+                const date = new Date();
+                date.setHours(8, 0, 0, 0);
+
+                // If 8am today has already passed, set it to 8pm today
+                if (date <= now) {
+                  date.setHours(20, 0, 0, 0);
+                  
+                  // If 8pm has also passed, set to 8am tomorrow
+                  if (date <= now) {
+                    date.setDate(date.getDate() + 1);
+                    date.setHours(8, 0, 0, 0);
+                  }
+                }
+
+                onSelectTemplate({
+                  ...template.data,
+                  startDate: date,
+                });
               } else if (template.id === "once-45min") {
                 // Set start date to 45 minutes from now
                 const now = new Date();

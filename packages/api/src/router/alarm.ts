@@ -11,6 +11,7 @@ import {
   CreateAlarmSchema,
   Device,
   UpdateAlarmSchema,
+  UserPreferences,
 } from "@gently/db/schema";
 
 import { protectedProcedure } from "../trpc";
@@ -73,14 +74,32 @@ export const alarmRouter = {
         }
       }
 
+      // Get user preferences for default values
+      const userPreferences = await ctx.db.query.UserPreferences.findFirst({
+        where: eq(UserPreferences.userId, ctx.session.user.id),
+      });
+
+      // Merge input with user preferences (input takes precedence)
+      const alarmData = {
+        ...input,
+        userId: ctx.session.user.id,
+        startDate: input.startDate ? new Date(input.startDate) : undefined,
+        endDate: input.endDate ? new Date(input.endDate) : undefined,
+        // Apply user preferences as defaults if values not provided in input
+        severityLevel: input.severityLevel ?? userPreferences?.defaultSeverityLevel,
+        ledPattern: input.ledPattern ?? userPreferences?.defaultLedPattern,
+        ledColor: input.ledColor ?? userPreferences?.defaultLedColor,
+        vibrationPattern: input.vibrationPattern ?? userPreferences?.defaultVibrationPattern,
+        vibrationIntensity: input.vibrationIntensity ?? userPreferences?.defaultVibrationIntensity,
+        snoozePeriod: input.snoozePeriod ?? userPreferences?.defaultSnoozePeriod,
+        snoozeTimeout: input.snoozeTimeout ?? userPreferences?.defaultSnoozeTimeout,
+        retriggerDelay: input.retriggerDelay ?? userPreferences?.defaultRetriggerDelay,
+        retriggerTimeout: input.retriggerTimeout ?? userPreferences?.defaultRetriggerTimeout,
+      };
+
       const result = await ctx.db
         .insert(Alarm)
-        .values({
-          ...input,
-          userId: ctx.session.user.id,
-          startDate: input.startDate ? new Date(input.startDate) : undefined,
-          endDate: input.endDate ? new Date(input.endDate) : undefined,
-        })
+        .values(alarmData)
         .returning();
 
       if (!result[0]) {
@@ -220,5 +239,80 @@ export const alarmRouter = {
           device: true,
         },
       });
+    }),
+
+  // Update device index for an alarm (for incremental sync)
+  updateDeviceIndex: protectedProcedure
+    .input(
+      z.object({
+        alarmId: z.string(),
+        deviceIndex: z.number().int().min(0).max(49).nullable(),
+      }),
+    )
+    .output(z.object({ success: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      // Check if alarm exists and belongs to current user
+      const existingAlarm = await ctx.db.query.Alarm.findFirst({
+        where: and(
+          eq(Alarm.id, input.alarmId),
+          eq(Alarm.userId, ctx.session.user.id),
+        ),
+      });
+
+      if (!existingAlarm) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "Alarm not found or you don't have permission to update it",
+        });
+      }
+
+      await ctx.db
+        .update(Alarm)
+        .set({ deviceIndex: input.deviceIndex })
+        .where(eq(Alarm.id, input.alarmId));
+
+      return { success: true };
+    }),
+
+  // Batch update device indices (for incremental sync)
+  batchUpdateDeviceIndices: protectedProcedure
+    .input(
+      z.object({
+        updates: z.array(
+          z.object({
+            alarmId: z.string(),
+            deviceIndex: z.number().int().min(0).max(49).nullable(),
+          }),
+        ),
+      }),
+    )
+    .output(z.object({ success: z.boolean(), updatedCount: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      // Verify all alarms belong to the current user
+      const alarms = await ctx.db.query.Alarm.findMany({
+        where: eq(Alarm.userId, ctx.session.user.id),
+      });
+
+      const userAlarmIds = new Set(alarms.map((a) => a.id));
+      const validUpdates = input.updates.filter((u) =>
+        userAlarmIds.has(u.alarmId),
+      );
+
+      if (validUpdates.length === 0) {
+        return { success: true, updatedCount: 0 };
+      }
+
+      // Update device indices for all valid alarms
+      let updatedCount = 0;
+      for (const update of validUpdates) {
+        await ctx.db
+          .update(Alarm)
+          .set({ deviceIndex: update.deviceIndex })
+          .where(eq(Alarm.id, update.alarmId));
+        updatedCount++;
+      }
+
+      return { success: true, updatedCount };
     }),
 } satisfies TRPCRouterRecord;

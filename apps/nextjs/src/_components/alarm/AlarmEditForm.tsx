@@ -96,6 +96,10 @@ const getVibrationIntensityOptions = (
     value: "HIGH" as VibrationIntensity,
     label: t("alarms.vibration.high") || "High",
   },
+  {
+    value: "MAXIMUM" as VibrationIntensity,
+    label: t("alarms.vibration.maximum") || "Maximum",
+  },
 ];
 
 const getSeverityLevelOptions = (t: ReturnType<typeof useTranslations>) => [
@@ -178,7 +182,7 @@ const alarmFormSchema = z
       "WHITE",
     ]),
     vibrationPattern: z.number().min(1).max(10),
-    vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH"]),
+    vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH", "MAXIMUM"]),
     snoozePeriod: z.number().min(1).max(60),
     snoozeTimeout: z.number().min(1).max(120),
     retriggerDelay: z.number().min(0).max(60), // 0 = disabled

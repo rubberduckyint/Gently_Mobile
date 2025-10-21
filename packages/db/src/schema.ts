@@ -45,7 +45,36 @@ export const vibrationIntensityEnum = pgEnum("VibrationIntensity", [
   "LOW",
   "MEDIUM",
   "HIGH",
+  "MAXIMUM",
 ]);
+
+// User Preferences table for alarm defaults
+export const UserPreferences = pgTable("UserPreferences", (t) => ({
+  id: pgCuid2("id").defaultRandom().primaryKey(),
+  userId: t
+    .text()
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  
+  // Default alarm settings
+  defaultSeverityLevel: severityLevelEnum().default("INFORMATIONAL").notNull(),
+  defaultLedPattern: ledPatternEnum().default("BLINK_SLOW").notNull(),
+  defaultLedColor: ledColorEnum().default("BLUE").notNull(),
+  defaultVibrationPattern: t.integer().default(1).notNull(),
+  defaultVibrationIntensity: vibrationIntensityEnum().default("MEDIUM").notNull(),
+  defaultSnoozePeriod: t.integer().default(5).notNull(), // minutes
+  defaultSnoozeTimeout: t.integer().default(15).notNull(), // minutes
+  defaultRetriggerDelay: t.integer().default(1).notNull(), // minutes
+  defaultRetriggerTimeout: t.integer().default(5).notNull(), // minutes
+  
+  createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ withTimezone: true, mode: "string" })
+    .$onUpdate(() => sql`NOW()`)
+    .notNull(),
+}));
+
 export const Device = pgTable("Device", (t) => ({
   id: pgCuid2("id").defaultRandom().primaryKey(),
   title: t.text().notNull(),
@@ -81,6 +110,7 @@ export const Alarm = pgTable("Alarm", (t) => ({
     .notNull(),
   syncStatus: syncStatusEnum().default("NOT_SYNCED").notNull(),
   lastSync: t.timestamp(),
+  deviceIndex: t.integer(), // The slot index on the physical device (0-49), null if not synced
   // BLE Protocol fields (consolidated - these replace legacy color, priority, hapticChoice)
   severityLevel: severityLevelEnum().default("INFORMATIONAL").notNull(),
   ledPattern: ledPatternEnum().default("BLINK_SLOW").notNull(),
@@ -166,7 +196,8 @@ export const CreateAlarmSchema = createInsertSchema(Alarm, {
     .enum(["RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"])
     .optional(),
   vibrationPattern: z.number().int().min(1).max(63).optional(),
-  vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH", "MAXIMUM"]).optional(),
+  deviceIndex: z.number().int().min(0).max(49).nullable().optional(), // Device slot 0-49
   snoozePeriod: z.number().int().min(1).max(60).optional(),
   snoozeTimeout: z.number().int().min(1).max(120).optional(),
   retriggerDelay: z.number().int().min(0).max(60).optional(), // 0 = disabled
@@ -197,10 +228,32 @@ export const AlarmWithDeviceSchema = AlarmSelectSchema.extend({
 
 export const AlarmListSchema = z.array(AlarmWithDeviceSchema);
 
+// UserPreferences schemas
+export const CreateUserPreferencesSchema = createInsertSchema(UserPreferences, {
+  defaultVibrationPattern: z.number().int().min(0).max(63), // 6-bit value as per BLE protocol
+  defaultSnoozePeriod: z.number().int().min(0).max(255),
+  defaultSnoozeTimeout: z.number().int().min(0).max(255),
+  defaultRetriggerDelay: z.number().int().min(0).max(255),
+  defaultRetriggerTimeout: z.number().int().min(0).max(255),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  userId: true, // This will be set from the session
+});
+
+export const UpdateUserPreferencesSchema = CreateUserPreferencesSchema.partial();
+
+export const UserPreferencesSelectSchema = createSelectSchema(UserPreferences);
+
 // Relations
-export const userRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ many, one }) => ({
   devices: many(Device),
   alarms: many(Alarm),
+  preferences: one(UserPreferences, {
+    fields: [user.id],
+    references: [UserPreferences.userId],
+  }),
 }));
 
 export const deviceRelations = relations(Device, ({ one, many }) => ({
@@ -219,6 +272,13 @@ export const alarmRelations = relations(Alarm, ({ one }) => ({
   device: one(Device, {
     fields: [Alarm.deviceId],
     references: [Device.id],
+  }),
+}));
+
+export const userPreferencesRelations = relations(UserPreferences, ({ one }) => ({
+  user: one(user, {
+    fields: [UserPreferences.userId],
+    references: [user.id],
   }),
 }));
 

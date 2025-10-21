@@ -32,6 +32,19 @@ export const trpc = createTRPCProxyClient<AppRouter>({
         process.env.NODE_ENV === "development" ||
         (opts.direction === "down" && opts.result instanceof Error),
       colorMode: "ansi",
+      logger: (opts) => {
+        // Log all errors with more detail
+        if (opts.direction === "down" && opts.result instanceof Error) {
+          console.error(
+            `❌ [tRPC Error] ${opts.path}:`,
+            opts.result,
+          );
+        } else if (process.env.NODE_ENV === "development") {
+          console.log(
+            `[tRPC ${opts.direction}] ${opts.path}`,
+          );
+        }
+      },
     }),
     httpBatchLink({
       transformer: superjson,

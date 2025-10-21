@@ -12,12 +12,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useGlobalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { AlarmForSync } from "~/utils/alarmSync";
 import { AlarmCard } from "~/components/device";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { Header } from "~/components/ui/Header";
+import { HelpModal } from "~/components/ui/HelpModal";
 import { useBLE } from "~/contexts/BLEContext";
 import { useAlarmSync } from "~/hooks/useAlarmSync";
 import {
@@ -28,8 +30,10 @@ import {
   spacing,
   typography,
 } from "~/styles";
+import { calculateNextAlarmOccurrence } from "~/utils/alarmUtils";
 import { trpc } from "~/utils/api";
 import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
+import { markOnboardingComplete } from "~/utils/userPreferences";
 
 export default function DeviceDetailPage() {
   const { deviceId } = useGlobalSearchParams<{ deviceId: string }>();
@@ -44,6 +48,14 @@ export default function DeviceDetailPage() {
   const [connectionError, setConnectionError] = React.useState<string | null>(
     null,
   );
+  const [showQuickReminderModal, setShowQuickReminderModal] =
+    React.useState(false);
+  const [selectedReminderTime, setSelectedReminderTime] =
+    React.useState<Date | null>(null);
+  const [showDateTimePicker, setShowDateTimePicker] = React.useState(false);
+  const [pickerMode, setPickerMode] = React.useState<"date" | "time">("date");
+  const [showHelpModal, setShowHelpModal] = React.useState(false);
+  const [showExpiredAlarms, setShowExpiredAlarms] = React.useState(false);
 
   // Store the initial device ID to prevent it from changing during navigation
   // Only set it if deviceId is actually defined
@@ -65,14 +77,9 @@ export default function DeviceDetailPage() {
         initialDeviceId,
       );
 
-      // Mark this device as being deleted to prevent auto-connect
-      if (initialDeviceId) {
-        devicesBeingDeleted.add(initialDeviceId);
-        // Clean up after a delay to allow navigation to complete
-        setTimeout(() => {
-          devicesBeingDeleted.delete(initialDeviceId);
-        }, 2000);
-      }
+      // Note: We don't add the device to devicesBeingDeleted here
+      // because unmounting happens during normal navigation too.
+      // The device is only added to the set in the delete page.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run on mount/unmount
@@ -620,6 +627,11 @@ export default function DeviceDetailPage() {
           <HamburgerMenu
             options={[
               {
+                label: "Help",
+                onPress: () => setShowHelpModal(true),
+                icon: "help-circle",
+              },
+              {
                 label: "Edit Device",
                 onPress: () => router.push(`/devices/${deviceId}/edit`),
                 icon: "pencil",
@@ -789,8 +801,7 @@ export default function DeviceDetailPage() {
                         },
                       ]}
                     >
-                      {getBatteryInfo(batteryStatus).text} (
-                      {batteryStatus.voltage}mV)
+                      {getBatteryInfo(batteryStatus).text}
                       {batteryStatus.isCharging && " ⚡"}
                     </Text>
                   </View>
@@ -826,17 +837,53 @@ export default function DeviceDetailPage() {
                 style={{ marginRight: spacing[2] }}
               />
               <Text style={[typography.h5, { color: colors.text.primary }]}>
-                Alarms ({device.alarms.length})
+                Alarms (
+                {
+                  device.alarms.filter((alarm) => {
+                    const scheduleInfo = calculateNextAlarmOccurrence({
+                      isActive: alarm.isActive,
+                      startDate: new Date(alarm.startDate),
+                      endDate: alarm.endDate ? new Date(alarm.endDate) : null,
+                      repeat: alarm.repeat,
+                      cronExpression: alarm.cronExpression,
+                    });
+                    return scheduleInfo.nextOccurrence !== null;
+                  }).length
+                }
+                )
               </Text>
             </View>
-            <View>
+            <View style={{ flexDirection: "row", gap: spacing[2] }}>
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.primary,
+                  {
+                    paddingVertical: spacing[2],
+                    paddingHorizontal: spacing[3],
+                  },
+                ]}
+                onPress={() => setShowQuickReminderModal(true)}
+              >
+                <Ionicons
+                  name="time"
+                  size={16}
+                  color={colors.text.inverse}
+                  style={{ marginRight: spacing[1] }}
+                />
+                <Text
+                  style={[typography.label, { color: colors.text.inverse }]}
+                >
+                  Remind
+                </Text>
+              </Pressable>
               <Pressable
                 style={[
                   buttons.base,
                   buttons.success,
                   {
                     paddingVertical: spacing[2],
-                    paddingHorizontal: spacing[4],
+                    paddingHorizontal: spacing[3],
                   },
                 ]}
                 onPress={() => router.push(`/devices/${deviceId}/alarms/add`)}
@@ -850,7 +897,7 @@ export default function DeviceDetailPage() {
                 <Text
                   style={[typography.label, { color: colors.text.inverse }]}
                 >
-                  Add Alarm
+                  Alarm
                 </Text>
               </Pressable>
             </View>
@@ -888,25 +935,130 @@ export default function DeviceDetailPage() {
             </View>
           ) : (
             <View style={[{ gap: spacing[3] }]}>
-              {device.alarms.map((alarm) => {
+              {(() => {
+                // Separate alarms into active and expired
+                const sortedAlarms = device.alarms.slice().map((alarm) => {
+                  const scheduleInfo = calculateNextAlarmOccurrence({
+                    isActive: alarm.isActive,
+                    startDate: new Date(alarm.startDate),
+                    endDate: alarm.endDate ? new Date(alarm.endDate) : null,
+                    repeat: alarm.repeat,
+                    cronExpression: alarm.cronExpression,
+                  });
+                  return { alarm, scheduleInfo };
+                });
+
+                const activeAlarms = sortedAlarms
+                  .filter(({ scheduleInfo }) => scheduleInfo.nextOccurrence)
+                  .sort((a, b) => {
+                    const timeA = a.scheduleInfo.nextOccurrence?.getTime() ?? 0;
+                    const timeB = b.scheduleInfo.nextOccurrence?.getTime() ?? 0;
+                    return timeA - timeB;
+                  });
+
+                const expiredAlarms = sortedAlarms
+                  .filter(({ scheduleInfo }) => !scheduleInfo.nextOccurrence)
+                  .sort((a, b) => {
+                    return (
+                      new Date(b.alarm.createdAt).getTime() -
+                      new Date(a.alarm.createdAt).getTime()
+                    );
+                  });
+
                 return (
-                  <AlarmCard
-                    key={alarm.id}
-                    alarm={alarm}
-                    onPress={() => {
-                      console.log(
-                        "🚨 Navigating to alarm edit:",
-                        alarm.id,
-                        "from device:",
-                        deviceId,
-                      );
-                      router.push(
-                        `/devices/${deviceId}/alarms/edit/${alarm.id}`,
-                      );
-                    }}
-                  />
+                  <>
+                    {/* Active Alarms */}
+                    {activeAlarms.map(({ alarm }) => (
+                      <AlarmCard
+                        key={alarm.id}
+                        alarm={alarm}
+                        onPress={() => {
+                          console.log(
+                            "🚨 Navigating to alarm edit:",
+                            alarm.id,
+                            "from device:",
+                            deviceId,
+                          );
+                          router.push(
+                            `/devices/${deviceId}/alarms/edit/${alarm.id}`,
+                          );
+                        }}
+                      />
+                    ))}
+
+                    {/* Expired Alarms Section */}
+                    {expiredAlarms.length > 0 && (
+                      <View style={{ marginTop: spacing[2] }}>
+                        <Pressable
+                          onPress={() => setShowExpiredAlarms(!showExpiredAlarms)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            paddingVertical: spacing[2],
+                            paddingHorizontal: spacing[3],
+                            backgroundColor: colors.background.secondary,
+                            borderRadius: spacing[2],
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: spacing[2],
+                            }}
+                          >
+                            <Ionicons
+                              name="archive-outline"
+                              size={18}
+                              color={colors.text.secondary}
+                            />
+                            <Text
+                              style={[
+                                typography.labelLarge,
+                                { color: colors.text.secondary },
+                              ]}
+                            >
+                              Expired Alarms ({expiredAlarms.length})
+                            </Text>
+                          </View>
+                          <Ionicons
+                            name={
+                              showExpiredAlarms
+                                ? "chevron-up"
+                                : "chevron-down"
+                            }
+                            size={20}
+                            color={colors.text.secondary}
+                          />
+                        </Pressable>
+
+                        {showExpiredAlarms && (
+                          <View style={{ gap: spacing[3], marginTop: spacing[3] }}>
+                            {expiredAlarms.map(({ alarm }) => (
+                              <AlarmCard
+                                key={alarm.id}
+                                alarm={alarm}
+                                onPress={() => {
+                                  console.log(
+                                    "🚨 Navigating to alarm edit:",
+                                    alarm.id,
+                                    "from device:",
+                                    deviceId,
+                                  );
+                                  router.push(
+                                    `/devices/${deviceId}/alarms/edit/${alarm.id}`,
+                                  );
+                                }}
+                              />
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </>
                 );
-              })}
+              })()}
             </View>
           )}
         </View>
@@ -1073,6 +1225,421 @@ export default function DeviceDetailPage() {
           </View>
         </View>
       </Modal>
+
+      {/* Quick Reminder Modal */}
+      <Modal
+        visible={showQuickReminderModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowQuickReminderModal(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "flex-end",
+          }}
+        >
+          <View
+            style={[
+              cards.base,
+              {
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                padding: spacing[6],
+                paddingBottom: spacing[8],
+              },
+            ]}
+          >
+            {/* Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: spacing[2],
+              }}
+            >
+              <Text style={[typography.h4, { color: colors.text.primary }]}>
+                Quick Reminder
+              </Text>
+              <Pressable
+                onPress={() => setShowQuickReminderModal(false)}
+                style={{
+                  padding: spacing[1],
+                }}
+              >
+                <Ionicons
+                  name="close"
+                  size={24}
+                  color={colors.text.secondary}
+                />
+              </Pressable>
+            </View>
+
+            <Text
+              style={[
+                typography.body,
+                {
+                  color: colors.text.secondary,
+                  marginBottom: spacing[5],
+                },
+              ]}
+            >
+              Create a one-time reminder that will alert you at the selected
+              time
+            </Text>
+
+            {/* Quick Time Options */}
+            <View style={{ marginBottom: spacing[5] }}>
+              <Text
+                style={[
+                  typography.label,
+                  { marginBottom: spacing[3], color: colors.text.primary },
+                ]}
+              >
+                Quick Options
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: spacing[2],
+                }}
+              >
+                {[
+                  { label: "15 min", minutes: 15 },
+                  { label: "30 min", minutes: 30 },
+                  { label: "45 min", minutes: 45 },
+                  { label: "1 hour", minutes: 60 },
+                ].map((option) => (
+                  <Pressable
+                    key={option.minutes}
+                    style={[
+                      buttons.base,
+                      buttons.secondary,
+                      {
+                        flex: 1,
+                        minWidth: "45%",
+                        paddingVertical: spacing[3],
+                      },
+                    ]}
+                    onPress={() => {
+                      const reminderTime = new Date(
+                        Date.now() + option.minutes * 60000,
+                      );
+                      setSelectedReminderTime(reminderTime);
+                    }}
+                  >
+                    <Ionicons
+                      name="time-outline"
+                      size={16}
+                      color={colors.primary[600]}
+                      style={{ marginRight: spacing[1] }}
+                    />
+                    <Text
+                      style={[typography.label, { color: colors.primary[600] }]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Custom Date/Time Picker */}
+            <View style={{ marginBottom: spacing[5] }}>
+              <Text
+                style={[
+                  typography.label,
+                  { marginBottom: spacing[3], color: colors.text.primary },
+                ]}
+              >
+                Or Pick Custom Time
+              </Text>
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.secondary,
+                  {
+                    paddingVertical: spacing[3],
+                    paddingHorizontal: spacing[4],
+                  },
+                ]}
+                onPress={() => {
+                  setPickerMode("date");
+                  setShowDateTimePicker(true);
+                }}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={18}
+                  color={colors.primary[600]}
+                  style={{ marginRight: spacing[2] }}
+                />
+                <Text
+                  style={[typography.label, { color: colors.primary[600] }]}
+                >
+                  {selectedReminderTime
+                    ? selectedReminderTime.toLocaleString()
+                    : "Select Date & Time"}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Date/Time Picker Modal */}
+            {showDateTimePicker && (
+              <Modal
+                visible={showDateTimePicker}
+                transparent={true}
+                animationType="fade"
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    paddingHorizontal: spacing[4],
+                  }}
+                >
+                  <View
+                    style={[
+                      cards.base,
+                      {
+                        width: "100%",
+                        maxWidth: 400,
+                        padding: spacing[4],
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        typography.h6,
+                        {
+                          color: colors.text.primary,
+                          marginBottom: spacing[4],
+                          textAlign: "center",
+                        },
+                      ]}
+                    >
+                      {pickerMode === "date" ? "Select Date" : "Select Time"}
+                    </Text>
+                    <DateTimePicker
+                      value={selectedReminderTime ?? new Date()}
+                      mode={pickerMode}
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          setSelectedReminderTime(selectedDate);
+                        }
+                      }}
+                      minimumDate={new Date()}
+                      style={{
+                        backgroundColor: colors.background.primary,
+                        height: 200,
+                      }}
+                      textColor={colors.text.primary}
+                    />
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        gap: spacing[3],
+                        paddingTop: spacing[4],
+                        borderTopWidth: 1,
+                        borderTopColor: colors.border.light,
+                        marginTop: spacing[4],
+                      }}
+                    >
+                      <Pressable
+                        style={[buttons.base, buttons.secondary, { flex: 1 }]}
+                        onPress={() => {
+                          setShowDateTimePicker(false);
+                          setSelectedReminderTime(null);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            typography.label,
+                            { color: colors.primary[600] },
+                          ]}
+                        >
+                          Cancel
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[buttons.base, buttons.primary, { flex: 1 }]}
+                        onPress={() => {
+                          if (pickerMode === "date") {
+                            // After selecting date, show time picker
+                            setPickerMode("time");
+                          } else {
+                            // After selecting time, close picker
+                            setShowDateTimePicker(false);
+                          }
+                        }}
+                      >
+                        <Text
+                          style={[
+                            typography.label,
+                            { color: colors.text.inverse },
+                          ]}
+                        >
+                          {pickerMode === "date" ? "Next" : "Done"}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              </Modal>
+            )}
+
+            {/* Selected Time Display */}
+            {selectedReminderTime && (
+              <View
+                style={{
+                  backgroundColor: colors.primary[50],
+                  padding: spacing[3],
+                  borderRadius: 12,
+                  marginBottom: spacing[5],
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={colors.primary[600]}
+                  style={{ marginRight: spacing[2] }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[typography.caption, { color: colors.primary[700] }]}
+                  >
+                    Reminder set for:
+                  </Text>
+                  <Text
+                    style={[
+                      typography.labelLarge,
+                      { color: colors.primary[700] },
+                    ]}
+                  >
+                    {selectedReminderTime.toLocaleString()}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Action Buttons */}
+            <View style={{ gap: spacing[2] }}>
+              <Pressable
+                style={[
+                  buttons.base,
+                  selectedReminderTime ? buttons.success : buttons.disabled,
+                  { alignItems: "center", justifyContent: "center" },
+                ]}
+                onPress={async () => {
+                  if (!selectedReminderTime) {
+                    Alert.alert("Error", "Please select a reminder time");
+                    return;
+                  }
+
+                  if (!deviceId) {
+                    Alert.alert("Error", "Device ID is missing");
+                    return;
+                  }
+
+                  try {
+                    // Create the quick reminder alarm
+                    await trpc.alarm.create.mutate({
+                      title: "Quick Reminder",
+                      description: `Set for ${selectedReminderTime.toLocaleString()}`,
+                      isActive: true,
+                      startDate: selectedReminderTime.toISOString(),
+                      endDate: undefined,
+                      repeat: false,
+                      cronExpression: `${selectedReminderTime.getMinutes()} ${selectedReminderTime.getHours()} ${selectedReminderTime.getDate()} ${selectedReminderTime.getMonth() + 1} *`,
+                      severityLevel: "INFORMATIONAL",
+                      ledPattern: "BLINK_SLOW",
+                      ledColor: "BLUE",
+                      vibrationPattern: 1, // Pattern 1 (valid range: 1-63)
+                      vibrationIntensity: "MEDIUM",
+                      snoozePeriod: 5,
+                      snoozeTimeout: 120,
+                      retriggerDelay: 5,
+                      retriggerTimeout: 120,
+                      deviceId: deviceId,
+                    });
+
+                    // Invalidate queries to refresh the alarm list
+                    void queryClient.invalidateQueries({
+                      queryKey: ["device", "getById", { id: deviceId }],
+                    });
+
+                    setShowQuickReminderModal(false);
+                    setSelectedReminderTime(null);
+
+                    Alert.alert(
+                      "Success",
+                      "Quick reminder created successfully!",
+                    );
+                  } catch (error) {
+                    console.error("❌ Failed to create quick reminder:", error);
+                    Alert.alert(
+                      "Error",
+                      `Failed to create reminder: ${error instanceof Error ? error.message : "Unknown error"}`,
+                    );
+                  }
+                }}
+                disabled={!selectedReminderTime}
+              >
+                <Ionicons
+                  name="checkmark"
+                  size={18}
+                  color={colors.text.inverse}
+                  style={{ marginRight: spacing[1] }}
+                />
+                <Text style={[typography.labelLarge, { color: "#ffffff" }]}>
+                  Create Reminder
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.secondary,
+                  { alignItems: "center", justifyContent: "center" },
+                ]}
+                onPress={() => {
+                  setShowQuickReminderModal(false);
+                  setSelectedReminderTime(null);
+                }}
+              >
+                <Text
+                  style={[
+                    typography.labelLarge,
+                    { color: colors.primary[600] },
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Help Modal */}
+      <HelpModal
+        visible={showHelpModal}
+        onClose={async () => {
+          setShowHelpModal(false);
+          await markOnboardingComplete();
+        }}
+      />
     </SafeAreaView>
   );
 }
