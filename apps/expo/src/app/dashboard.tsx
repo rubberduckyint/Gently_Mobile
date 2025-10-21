@@ -274,7 +274,7 @@ export default function DashboardPage() {
                 icon: "help-circle",
               },
               {
-                label: "Settings",
+                label: "User Settings",
                 onPress: handleUserProfile,
                 icon: "settings",
               },

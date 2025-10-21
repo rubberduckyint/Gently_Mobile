@@ -1,21 +1,23 @@
 /**
  * Incremental Alarm Sync
- * 
+ *
  * Syncs only changed alarms to the device instead of full re-sync.
  * Manages device index slots and enforces 50 alarm limit.
  */
 
+import type { AlarmWithIndex } from "./alarmManager";
 import {
   createAddEventRequest,
   parseAddEventResponse,
 } from "~/services/ble/commands/addEvent";
-import { createRemoveEventRequest } from "../services/ble/commands/removeEvent";
-import { parseRemoveEventResponse } from "../services/ble/commands/removeEvent";
 import { createSetEventOnOffRequest } from "~/services/ble/commands/setEventOnOff";
 import { sendCommand } from "~/services/ble/manager";
 import { ResponseStatus } from "~/services/ble/types";
 import { alarmDatabaseToBleParameters } from "~/utils/bleAlarmUtils";
-import type { AlarmWithIndex } from "./alarmManager";
+import {
+  createRemoveEventRequest,
+  parseRemoveEventResponse,
+} from "../services/ble/commands/removeEvent";
 import {
   assignDeviceIndices,
   createSyncPlan,
@@ -161,14 +163,14 @@ export async function incrementalSyncAlarms(
         message: "All alarms are up to date",
         progress: 100,
       });
-      
+
       // Build final index map from current state
       for (const alarm of activeAlarms) {
         if (alarm.deviceIndex !== null) {
           result.finalDeviceIndexMap.set(alarm.id, alarm.deviceIndex);
         }
       }
-      
+
       result.success = true;
       return result;
     }
@@ -254,7 +256,10 @@ export async function incrementalSyncAlarms(
         addResponse.commandCode,
       );
 
-      if (addResponse.status !== ResponseStatus.OK || addResult.status === "ERROR") {
+      if (
+        addResponse.status !== ResponseStatus.OK ||
+        addResult.status === "ERROR"
+      ) {
         console.warn(`⚠️ Failed to add alarm: ${alarm.title}`);
         await onSyncStatusUpdate?.(alarm.id, "ERROR");
         continue;
@@ -339,10 +344,7 @@ export async function incrementalSyncAlarms(
       // Set alarm active/inactive state
       const onOffResponse = await sendCommand({
         peripheralId,
-        command: createSetEventOnOffRequest(
-          alarm.deviceIndex,
-          alarm.isActive,
-        ),
+        command: createSetEventOnOffRequest(alarm.deviceIndex, alarm.isActive),
         encryptionKey,
       });
 

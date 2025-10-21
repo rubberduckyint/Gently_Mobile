@@ -990,7 +990,9 @@ export default function DeviceDetailPage() {
                     {expiredAlarms.length > 0 && (
                       <View style={{ marginTop: spacing[2] }}>
                         <Pressable
-                          onPress={() => setShowExpiredAlarms(!showExpiredAlarms)}
+                          onPress={() =>
+                            setShowExpiredAlarms(!showExpiredAlarms)
+                          }
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
@@ -1024,9 +1026,7 @@ export default function DeviceDetailPage() {
                           </View>
                           <Ionicons
                             name={
-                              showExpiredAlarms
-                                ? "chevron-up"
-                                : "chevron-down"
+                              showExpiredAlarms ? "chevron-up" : "chevron-down"
                             }
                             size={20}
                             color={colors.text.secondary}
@@ -1034,7 +1034,9 @@ export default function DeviceDetailPage() {
                         </Pressable>
 
                         {showExpiredAlarms && (
-                          <View style={{ gap: spacing[3], marginTop: spacing[3] }}>
+                          <View
+                            style={{ gap: spacing[3], marginTop: spacing[3] }}
+                          >
                             {expiredAlarms.map(({ alarm }) => (
                               <AlarmCard
                                 key={alarm.id}

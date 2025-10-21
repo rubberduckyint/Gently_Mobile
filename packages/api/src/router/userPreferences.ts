@@ -49,11 +49,9 @@ export const userPreferencesRouter = {
     .output(UserPreferencesSelectSchema)
     .mutation(async ({ input, ctx }) => {
       // Check if preferences exist
-      const existingPreferences = await ctx.db.query.UserPreferences.findFirst(
-        {
-          where: eq(UserPreferences.userId, ctx.session.user.id),
-        },
-      );
+      const existingPreferences = await ctx.db.query.UserPreferences.findFirst({
+        where: eq(UserPreferences.userId, ctx.session.user.id),
+      });
 
       if (!existingPreferences) {
         // Create new preferences with the provided values

@@ -86,21 +86,26 @@ export const alarmRouter = {
         startDate: input.startDate ? new Date(input.startDate) : undefined,
         endDate: input.endDate ? new Date(input.endDate) : undefined,
         // Apply user preferences as defaults if values not provided in input
-        severityLevel: input.severityLevel ?? userPreferences?.defaultSeverityLevel,
+        severityLevel:
+          input.severityLevel ?? userPreferences?.defaultSeverityLevel,
         ledPattern: input.ledPattern ?? userPreferences?.defaultLedPattern,
         ledColor: input.ledColor ?? userPreferences?.defaultLedColor,
-        vibrationPattern: input.vibrationPattern ?? userPreferences?.defaultVibrationPattern,
-        vibrationIntensity: input.vibrationIntensity ?? userPreferences?.defaultVibrationIntensity,
-        snoozePeriod: input.snoozePeriod ?? userPreferences?.defaultSnoozePeriod,
-        snoozeTimeout: input.snoozeTimeout ?? userPreferences?.defaultSnoozeTimeout,
-        retriggerDelay: input.retriggerDelay ?? userPreferences?.defaultRetriggerDelay,
-        retriggerTimeout: input.retriggerTimeout ?? userPreferences?.defaultRetriggerTimeout,
+        vibrationPattern:
+          input.vibrationPattern ?? userPreferences?.defaultVibrationPattern,
+        vibrationIntensity:
+          input.vibrationIntensity ??
+          userPreferences?.defaultVibrationIntensity,
+        snoozePeriod:
+          input.snoozePeriod ?? userPreferences?.defaultSnoozePeriod,
+        snoozeTimeout:
+          input.snoozeTimeout ?? userPreferences?.defaultSnoozeTimeout,
+        retriggerDelay:
+          input.retriggerDelay ?? userPreferences?.defaultRetriggerDelay,
+        retriggerTimeout:
+          input.retriggerTimeout ?? userPreferences?.defaultRetriggerTimeout,
       };
 
-      const result = await ctx.db
-        .insert(Alarm)
-        .values(alarmData)
-        .returning();
+      const result = await ctx.db.insert(Alarm).values(alarmData).returning();
 
       if (!result[0]) {
         throw new TRPCError({
@@ -262,8 +267,7 @@ export const alarmRouter = {
       if (!existingAlarm) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Alarm not found or you don't have permission to update it",
+          message: "Alarm not found or you don't have permission to update it",
         });
       }
 

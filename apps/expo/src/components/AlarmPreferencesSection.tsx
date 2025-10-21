@@ -23,9 +23,7 @@ import {
 
 interface AlarmPreferencesSectionProps {
   severityLevel: "INFORMATIONAL" | "WARNING" | "CRITICAL";
-  setSeverityLevel: (
-    value: "INFORMATIONAL" | "WARNING" | "CRITICAL",
-  ) => void;
+  setSeverityLevel: (value: "INFORMATIONAL" | "WARNING" | "CRITICAL") => void;
   ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
   setLedPattern: (
     value: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE",
@@ -213,7 +211,15 @@ export function AlarmPreferencesSection({
         </Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
           {(
-            ["RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"] as const
+            [
+              "RED",
+              "GREEN",
+              "BLUE",
+              "YELLOW",
+              "MAGENTA",
+              "CYAN",
+              "WHITE",
+            ] as const
           ).map((color) => (
             <OptionButton
               key={color}
@@ -257,7 +263,12 @@ export function AlarmPreferencesSection({
 
       {/* Time Settings */}
       <View style={{ marginBottom: spacing[6] }}>
-        <Text style={[typography.body, { marginBottom: spacing[4], fontWeight: "600" }]}>
+        <Text
+          style={[
+            typography.body,
+            { marginBottom: spacing[4], fontWeight: "600" },
+          ]}
+        >
           Time Settings (minutes)
         </Text>
 

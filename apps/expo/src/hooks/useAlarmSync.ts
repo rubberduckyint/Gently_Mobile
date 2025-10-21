@@ -6,12 +6,12 @@
 
 import { useRef, useState } from "react";
 
+import type { AlarmWithIndex } from "~/utils/alarmManager";
 import type { AlarmForSync } from "~/utils/alarmSync";
 import { useBLE } from "~/contexts/BLEContext";
 import { syncAlarmsToDevice } from "~/utils/alarmSync";
-import { incrementalSyncAlarms } from "~/utils/incrementalAlarmSync";
-import type { AlarmWithIndex } from "~/utils/alarmManager";
 import { trpc } from "~/utils/api";
+import { incrementalSyncAlarms } from "~/utils/incrementalAlarmSync";
 
 interface UseAlarmSyncOptions {
   deviceSerialNumber?: string;

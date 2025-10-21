@@ -35,14 +35,9 @@ export const trpc = createTRPCProxyClient<AppRouter>({
       logger: (opts) => {
         // Log all errors with more detail
         if (opts.direction === "down" && opts.result instanceof Error) {
-          console.error(
-            `❌ [tRPC Error] ${opts.path}:`,
-            opts.result,
-          );
+          console.error(`❌ [tRPC Error] ${opts.path}:`, opts.result);
         } else if (process.env.NODE_ENV === "development") {
-          console.log(
-            `[tRPC ${opts.direction}] ${opts.path}`,
-          );
+          console.log(`[tRPC ${opts.direction}] ${opts.path}`);
         }
       },
     }),

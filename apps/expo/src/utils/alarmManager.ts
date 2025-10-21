@@ -1,6 +1,6 @@
 /**
  * Alarm Manager
- * 
+ *
  * Handles intelligent alarm management for BLE devices with these capabilities:
  * - Max 50 alarms per device enforcement
  * - Incremental sync (only sync changes, not full re-sync)
@@ -26,14 +26,7 @@ export interface AlarmWithIndex {
   title: string;
   severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
   ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
-  ledColor:
-    | "RED"
-    | "GREEN"
-    | "BLUE"
-    | "YELLOW"
-    | "MAGENTA"
-    | "CYAN"
-    | "WHITE";
+  ledColor: "RED" | "GREEN" | "BLUE" | "YELLOW" | "MAGENTA" | "CYAN" | "WHITE";
   vibrationPattern: number;
   vibrationIntensity: "LOW" | "MEDIUM" | "HIGH" | "MAXIMUM";
   snoozePeriod: number;
@@ -91,7 +84,7 @@ export function isAlarmExpired(alarm: {
   }
 
   const scheduleInfo = calculateNextAlarmOccurrence(alarm);
-  
+
   // If there's no next occurrence, the alarm is expired
   return scheduleInfo.nextOccurrence === null;
 }
@@ -99,9 +92,7 @@ export function isAlarmExpired(alarm: {
 /**
  * Find all expired alarms that should be cleaned up
  */
-export function findExpiredAlarms(
-  alarms: AlarmWithIndex[],
-): AlarmWithIndex[] {
+export function findExpiredAlarms(alarms: AlarmWithIndex[]): AlarmWithIndex[] {
   return alarms.filter((alarm) => {
     try {
       return isAlarmExpired(alarm);
@@ -128,11 +119,12 @@ export function validateAlarmWillTrigger(alarm: {
 
   try {
     const scheduleInfo = calculateNextAlarmOccurrence(alarm);
-    
+
     if (scheduleInfo.nextOccurrence === null) {
       return {
         valid: false,
-        error: "This alarm will never trigger. Please check the start date, end date, and schedule settings.",
+        error:
+          "This alarm will never trigger. Please check the start date, end date, and schedule settings.",
       };
     }
 
@@ -158,9 +150,7 @@ export interface AlarmSyncPlan {
 /**
  * Create a sync plan by comparing current database state with last synced state
  */
-export function createSyncPlan(
-  alarms: AlarmWithIndex[],
-): AlarmSyncPlan {
+export function createSyncPlan(alarms: AlarmWithIndex[]): AlarmSyncPlan {
   const toAdd: AlarmWithIndex[] = [];
   const toUpdate: AlarmWithIndex[] = [];
   const unchanged: AlarmWithIndex[] = [];
@@ -212,16 +202,14 @@ export function assignDeviceIndices(
 
   for (const alarm of newAlarms) {
     const nextIndex = findNextAvailableIndex(allAlarms);
-    
+
     if (nextIndex === -1) {
-      console.error(
-        `Cannot assign index to alarm ${alarm.id}: device is full`,
-      );
+      console.error(`Cannot assign index to alarm ${alarm.id}: device is full`);
       continue;
     }
 
     assignments.set(alarm.id, nextIndex);
-    
+
     // Add to temporary tracking to reserve this index
     allAlarms.push({ ...alarm, deviceIndex: nextIndex });
   }

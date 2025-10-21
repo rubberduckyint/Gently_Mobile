@@ -243,7 +243,7 @@ export function TemplatesSection({ onSelectTemplate }: TemplatesSectionProps) {
                 // If 8am today has already passed, set it to 8pm today
                 if (date <= now) {
                   date.setHours(20, 0, 0, 0);
-                  
+
                   // If 8pm has also passed, set to 8am tomorrow
                   if (date <= now) {
                     date.setDate(date.getDate() + 1);

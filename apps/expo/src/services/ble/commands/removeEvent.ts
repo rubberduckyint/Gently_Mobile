@@ -4,7 +4,7 @@
  */
 
 import type { BLECommandRequest } from "../types";
-import { CommandCode, API_VERSION } from "../types";
+import { API_VERSION, CommandCode } from "../types";
 
 /**
  * Create a Remove Event command request.

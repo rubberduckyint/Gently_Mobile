@@ -56,18 +56,20 @@ export const UserPreferences = pgTable("UserPreferences", (t) => ({
     .notNull()
     .unique()
     .references(() => user.id, { onDelete: "cascade" }),
-  
+
   // Default alarm settings
   defaultSeverityLevel: severityLevelEnum().default("INFORMATIONAL").notNull(),
   defaultLedPattern: ledPatternEnum().default("BLINK_SLOW").notNull(),
   defaultLedColor: ledColorEnum().default("BLUE").notNull(),
   defaultVibrationPattern: t.integer().default(1).notNull(),
-  defaultVibrationIntensity: vibrationIntensityEnum().default("MEDIUM").notNull(),
+  defaultVibrationIntensity: vibrationIntensityEnum()
+    .default("MEDIUM")
+    .notNull(),
   defaultSnoozePeriod: t.integer().default(5).notNull(), // minutes
   defaultSnoozeTimeout: t.integer().default(15).notNull(), // minutes
   defaultRetriggerDelay: t.integer().default(1).notNull(), // minutes
   defaultRetriggerTimeout: t.integer().default(5).notNull(), // minutes
-  
+
   createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
   updatedAt: t
     .timestamp({ withTimezone: true, mode: "string" })
@@ -242,7 +244,8 @@ export const CreateUserPreferencesSchema = createInsertSchema(UserPreferences, {
   userId: true, // This will be set from the session
 });
 
-export const UpdateUserPreferencesSchema = CreateUserPreferencesSchema.partial();
+export const UpdateUserPreferencesSchema =
+  CreateUserPreferencesSchema.partial();
 
 export const UserPreferencesSelectSchema = createSelectSchema(UserPreferences);
 
@@ -275,11 +278,14 @@ export const alarmRelations = relations(Alarm, ({ one }) => ({
   }),
 }));
 
-export const userPreferencesRelations = relations(UserPreferences, ({ one }) => ({
-  user: one(user, {
-    fields: [UserPreferences.userId],
-    references: [user.id],
+export const userPreferencesRelations = relations(
+  UserPreferences,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [UserPreferences.userId],
+      references: [user.id],
+    }),
   }),
-}));
+);
 
 export * from "./auth-schema";

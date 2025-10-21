@@ -29,8 +29,8 @@ import {
   spacing,
   typography,
 } from "~/styles";
-import { authClient } from "~/utils/auth";
 import { trpc } from "~/utils/api";
+import { authClient } from "~/utils/auth";
 
 export default function SettingsPage() {
   const { data: session } = authClient.useSession();
@@ -136,10 +136,7 @@ export default function SettingsPage() {
       retriggerT < 0 ||
       retriggerT > 255
     ) {
-      Alert.alert(
-        "Error",
-        "All time values must be between 0 and 255 minutes",
-      );
+      Alert.alert("Error", "All time values must be between 0 and 255 minutes");
       return;
     }
 
