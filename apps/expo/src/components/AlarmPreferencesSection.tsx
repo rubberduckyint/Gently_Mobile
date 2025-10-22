@@ -5,23 +5,10 @@
  */
 
 import React from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import {
-  buttons,
-  buttonText,
-  colors,
-  inputs,
-  spacing,
-  typography,
-} from "~/styles";
+import { buttons, buttonText, colors, spacing, typography } from "~/styles";
 
 interface AlarmPreferencesSectionProps {
   ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
@@ -128,8 +115,63 @@ export function AlarmPreferencesSection({
     (v) => v.key === vibrationIntensity,
   );
 
+  const SNOOZE_OPTIONS = [1, 3, 5, 10, 15] as const;
+
   return (
     <View>
+      {/* Snooze Settings - Button Options */}
+      <View style={{ marginBottom: spacing[4] }}>
+        <Text style={[typography.label, { marginBottom: spacing[2] }]}>
+          Snooze Period
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: spacing[2],
+          }}
+        >
+          {SNOOZE_OPTIONS.map((minutes) => {
+            const currentSnooze = parseInt(snoozePeriod);
+            const isSelected = currentSnooze === minutes;
+
+            return (
+              <Pressable
+                key={minutes}
+                onPress={() => setSnoozePeriod(minutes.toString())}
+                style={{
+                  flex: 1,
+                  paddingVertical: spacing[3],
+                  paddingHorizontal: spacing[2],
+                  borderRadius: 8,
+                  backgroundColor: isSelected
+                    ? colors.primary[500]
+                    : colors.background.secondary,
+                  borderWidth: 1,
+                  borderColor: isSelected
+                    ? colors.primary[500]
+                    : colors.border.light,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={[
+                    typography.caption,
+                    {
+                      color: isSelected
+                        ? colors.background.primary
+                        : colors.text.primary,
+                      fontWeight: isSelected ? "600" : "400",
+                    },
+                  ]}
+                >
+                  {minutes}m
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
       {/* Light Pattern */}
       <View style={{ marginBottom: spacing[4] }}>
         <Text style={[typography.label, { marginBottom: spacing[2] }]}>
@@ -250,18 +292,8 @@ export function AlarmPreferencesSection({
                     ? colors.primary[500]
                     : colors.border.light,
                 alignItems: "center",
-                gap: spacing[1],
               }}
             >
-              <Ionicons
-                name={intensity.icon}
-                size={20}
-                color={
-                  vibrationIntensity === intensity.key
-                    ? colors.background.primary
-                    : colors.text.secondary
-                }
-              />
               <Text
                 style={[
                   typography.caption,
@@ -271,7 +303,7 @@ export function AlarmPreferencesSection({
                         ? colors.background.primary
                         : colors.text.primary,
                     fontWeight:
-                      vibrationIntensity === intensity.key ? "600" : "normal",
+                      vibrationIntensity === intensity.key ? "600" : "400",
                   },
                 ]}
               >
@@ -290,33 +322,6 @@ export function AlarmPreferencesSection({
         </Text>
       </View>
 
-      {/* Time Settings */}
-      <View style={{ marginBottom: spacing[6] }}>
-        <Text style={[typography.label, { marginBottom: spacing[3] }]}>
-          Time Settings
-        </Text>
-
-        <View style={inputs.container}>
-          <Text style={inputs.label}>Snooze Period (minutes)</Text>
-          <TextInput
-            style={inputs.base}
-            value={snoozePeriod}
-            onChangeText={setSnoozePeriod}
-            placeholder="5"
-            keyboardType="numeric"
-            placeholderTextColor={colors.text.tertiary}
-          />
-          <Text
-            style={[
-              typography.caption,
-              { color: colors.text.secondary, marginTop: spacing[1] },
-            ]}
-          >
-            How long the alarm snoozes when dismissed (1-60 minutes)
-          </Text>
-        </View>
-      </View>
-
       {/* Save Button */}
       <Pressable
         style={[
@@ -324,6 +329,7 @@ export function AlarmPreferencesSection({
           buttons.large,
           buttons.primary,
           isSaving && buttons.disabled,
+          { marginTop: spacing[2] },
         ]}
         onPress={onSave}
         disabled={isSaving}

@@ -23,6 +23,7 @@ import type { RouterOutputs } from "~/utils/api";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { Header } from "~/components/ui/Header";
 import { HelpModal } from "~/components/ui/HelpModal";
+import { YearOfBirthModal } from "~/components/ui/YearOfBirthModal";
 // Import the new design system
 import {
   avatars,
@@ -42,8 +43,10 @@ import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
 import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
 import {
+  hasProvidedYearOfBirth,
   hasSeenOnboarding,
   markOnboardingComplete,
+  markYearOfBirthProvided,
   resetOnboarding,
 } from "~/utils/userPreferences";
 
@@ -294,18 +297,25 @@ function DeviceCard({
 export default function DashboardPage() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
+  const [showYearOfBirthModal, setShowYearOfBirthModal] = React.useState(false);
   const [showHelpModal, setShowHelpModal] = React.useState(false);
 
-  // Check if user has seen onboarding on mount
+  // Check if user needs to provide year of birth and/or see onboarding
   React.useEffect(() => {
-    const checkOnboarding = async () => {
-      const hasSeen = await hasSeenOnboarding();
-      if (!hasSeen) {
-        // Show help modal on first login
+    const checkUserStatus = async () => {
+      const hasProvidedYob = await hasProvidedYearOfBirth();
+      const hasSeenHelp = await hasSeenOnboarding();
+
+      // First check: show year of birth modal if not provided
+      if (!hasProvidedYob) {
+        setShowYearOfBirthModal(true);
+      }
+      // Second check: show help modal if year of birth provided but haven't seen help
+      else if (!hasSeenHelp) {
         setShowHelpModal(true);
       }
     };
-    void checkOnboarding();
+    void checkUserStatus();
   }, []);
 
   const {
@@ -348,6 +358,42 @@ export default function DashboardPage() {
       Alert.alert("Error", "Failed to sign out. Please try again.");
     },
   });
+
+  const updateYearOfBirthMutation = useMutation({
+    mutationFn: async (yearOfBirth: number) => {
+      // Update user's year of birth via API
+      return await trpc.auth.update.mutate({ yearOfBirth });
+    },
+    onSuccess: async () => {
+      await markYearOfBirthProvided();
+      setShowYearOfBirthModal(false);
+
+      // Check if user needs to see help modal
+      const hasSeenHelp = await hasSeenOnboarding();
+      if (!hasSeenHelp) {
+        setShowHelpModal(true);
+      }
+    },
+    onError: (error) => {
+      console.error("❌ Failed to update year of birth:", error);
+      Alert.alert("Error", "Failed to save year of birth. Please try again.");
+    },
+  });
+
+  const handleYearOfBirthComplete = (yearOfBirth: number) => {
+    updateYearOfBirthMutation.mutate(yearOfBirth);
+  };
+
+  const handleYearOfBirthSkip = async () => {
+    await markYearOfBirthProvided();
+    setShowYearOfBirthModal(false);
+
+    // Check if user needs to see help modal
+    const hasSeenHelp = await hasSeenOnboarding();
+    if (!hasSeenHelp) {
+      setShowHelpModal(true);
+    }
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -521,6 +567,14 @@ export default function DashboardPage() {
           </View>
         )}
       </View>
+
+      {/* Year of Birth Modal */}
+      <YearOfBirthModal
+        visible={showYearOfBirthModal}
+        onComplete={handleYearOfBirthComplete}
+        onSkip={handleYearOfBirthSkip}
+        isLoading={updateYearOfBirthMutation.isPending}
+      />
 
       {/* Help Modal */}
       <HelpModal

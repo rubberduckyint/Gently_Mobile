@@ -11,6 +11,7 @@ const PREFS_KEY = "gently_user_preferences";
 
 interface UserPreferences {
   hasSeenOnboarding?: boolean;
+  hasProvidedYearOfBirth?: boolean;
 }
 
 /**
@@ -64,4 +65,19 @@ export async function hasSeenOnboarding(): Promise<boolean> {
  */
 export async function resetOnboarding(): Promise<void> {
   await saveUserPreferences({ hasSeenOnboarding: false });
+}
+
+/**
+ * Mark year of birth as provided
+ */
+export async function markYearOfBirthProvided(): Promise<void> {
+  await saveUserPreferences({ hasProvidedYearOfBirth: true });
+}
+
+/**
+ * Check if user has provided year of birth
+ */
+export async function hasProvidedYearOfBirth(): Promise<boolean> {
+  const prefs = await getUserPreferences();
+  return prefs.hasProvidedYearOfBirth ?? false;
 }

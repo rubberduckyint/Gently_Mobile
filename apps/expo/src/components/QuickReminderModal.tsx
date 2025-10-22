@@ -3,6 +3,7 @@ import React from "react";
 import { Alert, Modal, Platform, Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useQuery } from "@tanstack/react-query";
 
 import { buttons, cards, colors, spacing, typography } from "~/styles";
 import { trpc } from "~/utils/api";
@@ -26,6 +27,14 @@ export function QuickReminderModal({
   const [pickerMode, setPickerMode] = React.useState<"date" | "time">("date");
   const [isCreating, setIsCreating] = React.useState(false);
 
+  // Fetch user preferences
+  const { data: userPreferences } = useQuery({
+    queryKey: ["userPreferences", "get"],
+    queryFn: async () => {
+      return await trpc.userPreferences.get.query({});
+    },
+  });
+
   const handleCreateReminder = async () => {
     if (!selectedReminderTime) {
       Alert.alert("Error", "Please select a time for the reminder");
@@ -47,15 +56,17 @@ export function QuickReminderModal({
         startDate: selectedReminderTime.toISOString(),
         endDate: selectedReminderTime.toISOString(),
         cronExpression,
-        severityLevel: "INFORMATIONAL",
-        ledPattern: "BLINK_SLOW",
-        ledColor: "BLUE",
-        vibrationPattern: 1, // Quick pulse pattern
-        vibrationIntensity: "MEDIUM",
-        snoozePeriod: 5,
-        snoozeTimeout: 120,
-        retriggerDelay: 5,
-        retriggerTimeout: 120,
+        // Use user preferences if available, otherwise use defaults
+        severityLevel: userPreferences?.defaultSeverityLevel ?? "INFORMATIONAL",
+        ledPattern: userPreferences?.defaultLedPattern ?? "BLINK_SLOW",
+        ledColor: userPreferences?.defaultLedColor ?? "BLUE",
+        vibrationPattern: userPreferences?.defaultVibrationPattern ?? 1,
+        vibrationIntensity:
+          userPreferences?.defaultVibrationIntensity ?? "MEDIUM",
+        snoozePeriod: userPreferences?.defaultSnoozePeriod ?? 5,
+        snoozeTimeout: userPreferences?.defaultSnoozeTimeout ?? 15,
+        retriggerDelay: userPreferences?.defaultRetriggerDelay ?? 1,
+        retriggerTimeout: userPreferences?.defaultRetriggerTimeout ?? 5,
       });
 
       Alert.alert(

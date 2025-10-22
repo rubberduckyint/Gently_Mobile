@@ -45,6 +45,21 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState(session?.user.name ?? "");
   const [_email] = useState(session?.user.email ?? "");
+  const [yearOfBirth, setYearOfBirth] = useState("");
+
+  // Fetch user profile to get year of birth
+  const { data: userProfile, isLoading: isLoadingProfile } = useQuery({
+    queryKey: ["userProfile"],
+    queryFn: () => trpc.auth.getProfile.query(),
+    enabled: !!session?.user,
+  });
+
+  // Update local state when user profile loads
+  React.useEffect(() => {
+    if (userProfile) {
+      setYearOfBirth(userProfile.yearOfBirth?.toString() ?? "");
+    }
+  }, [userProfile]);
 
   // Fetch user preferences using React Query
   const { data: preferences, isLoading: isLoadingPreferences } = useQuery({
@@ -92,14 +107,11 @@ export default function SettingsPage() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (_data: { name: string }) => {
-      // Implement the actual update profile API call here
-      // This is a placeholder for the actual implementation
-      return await new Promise((resolve) => {
-        setTimeout(() => resolve({ success: true }), 1000);
-      });
+    mutationFn: async (data: { name: string; yearOfBirth?: number }) => {
+      return await trpc.auth.update.mutate(data);
     },
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["userProfile"] });
       Alert.alert("Success", "Profile updated successfully!");
     },
     onError: (error: Error) => {
@@ -114,7 +126,31 @@ export default function SettingsPage() {
       return;
     }
 
-    updateProfileMutation.mutate({ name: name.trim() });
+    const data: { name: string; yearOfBirth?: number } = {
+      name: name.trim(),
+    };
+
+    // Add year of birth if provided
+    if (yearOfBirth.trim()) {
+      const year = parseInt(yearOfBirth);
+      if (isNaN(year)) {
+        Alert.alert("Error", "Please enter a valid year of birth");
+        return;
+      }
+
+      const currentYear = new Date().getFullYear();
+      if (year < 1900 || year > currentYear) {
+        Alert.alert(
+          "Error",
+          `Please enter a year between 1900 and ${currentYear}`,
+        );
+        return;
+      }
+
+      data.yearOfBirth = year;
+    }
+
+    updateProfileMutation.mutate(data);
   };
 
   const handleSavePreferences = () => {
@@ -139,7 +175,7 @@ export default function SettingsPage() {
   };
 
   // Show loading state while preferences are being fetched
-  if (isLoadingPreferences) {
+  if (isLoadingPreferences || isLoadingProfile) {
     return (
       <SafeAreaView style={containers.safeArea}>
         <Header
@@ -214,6 +250,28 @@ export default function SettingsPage() {
                 placeholderTextColor={colors.text.tertiary}
                 editable={!updateProfileMutation.isPending}
               />
+            </View>
+
+            <View style={inputs.container}>
+              <Text style={inputs.label}>Year of Birth</Text>
+              <TextInput
+                style={inputs.base}
+                value={yearOfBirth}
+                onChangeText={setYearOfBirth}
+                placeholder="YYYY"
+                keyboardType="numeric"
+                maxLength={4}
+                placeholderTextColor={colors.text.tertiary}
+                editable={!updateProfileMutation.isPending}
+              />
+              <Text
+                style={[
+                  typography.caption,
+                  { color: colors.text.tertiary, marginTop: spacing[1] },
+                ]}
+              >
+                We use this to personalize your experience (optional)
+              </Text>
             </View>
 
             <View style={inputs.container}>

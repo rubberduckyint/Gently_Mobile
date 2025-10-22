@@ -29,6 +29,12 @@ export const authRouter = {
     .input(
       z.object({
         name: z.string().min(1).optional(),
+        yearOfBirth: z
+          .number()
+          .int()
+          .min(1900)
+          .max(new Date().getFullYear())
+          .optional(),
         isAdmin: z.boolean().optional(),
       }),
     )

@@ -269,6 +269,9 @@ export default function DeviceDetailPage() {
   // Track alarm count to detect when alarms are added/updated/deleted
   const previousAlarmCountRef = React.useRef<number | null>(null);
 
+  // Track alarm content hash to detect modifications
+  const previousAlarmHashRef = React.useRef<string | null>(null);
+
   // Helper to check if an alarm is expired/completed
   const isAlarmExpired = React.useCallback(
     (alarm: {
@@ -296,27 +299,84 @@ export default function DeviceDetailPage() {
   React.useEffect(() => {
     const currentAlarmCount = device?.alarms.length ?? 0;
 
-    // If this is the first load, just store the count
-    if (previousAlarmCountRef.current === null) {
+    // Create a hash of alarm data to detect modifications (not just count changes)
+    // Only include fields that matter for BLE sync
+    const currentAlarmHash = device?.alarms
+      ? JSON.stringify(
+          device.alarms.map((a) => ({
+            id: a.id,
+            isActive: a.isActive,
+            startDate: a.startDate,
+            endDate: a.endDate,
+            cronExpression: a.cronExpression,
+            severityLevel: a.severityLevel,
+            ledPattern: a.ledPattern,
+            ledColor: a.ledColor,
+            vibrationPattern: a.vibrationPattern,
+            vibrationIntensity: a.vibrationIntensity,
+            snoozePeriod: a.snoozePeriod,
+            snoozeTimeout: a.snoozeTimeout,
+            retriggerDelay: a.retriggerDelay,
+            retriggerTimeout: a.retriggerTimeout,
+          })),
+        )
+      : null;
+
+    // If this is the first load, just store the count and hash
+    if (
+      previousAlarmCountRef.current === null ||
+      previousAlarmHashRef.current === null
+    ) {
       previousAlarmCountRef.current = currentAlarmCount;
+      previousAlarmHashRef.current = currentAlarmHash;
       return;
     }
 
-    // If alarm count changed and we're connected, trigger re-sync
+    // Check if alarms changed (count or content)
+    const countChanged = currentAlarmCount !== previousAlarmCountRef.current;
+    const contentChanged = currentAlarmHash !== previousAlarmHashRef.current;
+
+    // If alarms changed and we're connected, trigger re-sync
     if (
-      currentAlarmCount !== previousAlarmCountRef.current &&
+      (countChanged || contentChanged) &&
       connectionState === "connected" &&
       !alarmSync.isSyncing &&
       initialSyncCompletedRef.current
     ) {
-      console.log(
-        `📊 Alarm count changed from ${previousAlarmCountRef.current} to ${currentAlarmCount}, triggering re-sync`,
-      );
+      if (countChanged) {
+        console.log(
+          `📊 Alarm count changed from ${previousAlarmCountRef.current} to ${currentAlarmCount}, triggering re-sync`,
+        );
+      } else {
+        console.log(
+          `✏️ Alarm content modified (count unchanged at ${currentAlarmCount}), triggering re-sync`,
+        );
+      }
+
       initialSyncCompletedRef.current = false;
+
+      // Trigger immediate re-sync by filtering and syncing active alarms
+      const activeAlarms =
+        device?.alarms.filter((alarm) => !isAlarmExpired(alarm)) ?? [];
+
+      console.log(
+        `🔄 Syncing ${activeAlarms.length} active alarms after alarm change`,
+      );
+
+      void alarmSync.performSync(activeAlarms).then(() => {
+        initialSyncCompletedRef.current = true;
+      });
     }
 
     previousAlarmCountRef.current = currentAlarmCount;
-  }, [device?.alarms.length, connectionState, alarmSync.isSyncing]);
+    previousAlarmHashRef.current = currentAlarmHash;
+  }, [
+    device?.alarms,
+    connectionState,
+    alarmSync.isSyncing,
+    alarmSync,
+    isAlarmExpired,
+  ]);
 
   // Sync alarms when connected: clear all events and re-add only active alarms
   // This runs ONCE per connection after the device data is loaded
@@ -963,166 +1023,161 @@ export default function DeviceDetailPage() {
             </View>
           </View>
 
-          {device.alarms.length === 0 ? (
-            <View
-              style={[
-                cards.base,
-                { alignItems: "center", paddingVertical: spacing[8] },
-              ]}
-            >
-              <Ionicons
-                name="alarm-outline"
-                size={48}
-                color={colors.gray[400]}
-                style={{ marginBottom: spacing[3] }}
-              />
-              <Text
-                style={[
-                  typography.h6,
-                  { color: colors.text.primary, marginBottom: spacing[1] },
-                ]}
-              >
-                No alarms configured
-              </Text>
-              <Text
-                style={[
-                  typography.body,
-                  { color: colors.text.secondary, textAlign: "center" },
-                ]}
-              >
-                Add your first alarm to get started
-              </Text>
-            </View>
-          ) : (
-            <View style={[{ gap: spacing[3] }]}>
-              {(() => {
-                // Separate alarms into active and expired
-                const sortedAlarms = device.alarms.slice().map((alarm) => {
-                  const scheduleInfo = calculateNextAlarmOccurrence({
-                    isActive: alarm.isActive,
-                    startDate: new Date(alarm.startDate),
-                    endDate: alarm.endDate ? new Date(alarm.endDate) : null,
-                    repeat: alarm.repeat,
-                    cronExpression: alarm.cronExpression,
-                  });
-                  return { alarm, scheduleInfo };
-                });
+          {(() => {
+            // Separate alarms into active and expired to determine what to show
+            const sortedAlarms = device.alarms.slice().map((alarm) => {
+              const scheduleInfo = calculateNextAlarmOccurrence({
+                isActive: alarm.isActive,
+                startDate: new Date(alarm.startDate),
+                endDate: alarm.endDate ? new Date(alarm.endDate) : null,
+                repeat: alarm.repeat,
+                cronExpression: alarm.cronExpression,
+              });
+              return { alarm, scheduleInfo };
+            });
 
-                const activeAlarms = sortedAlarms
-                  .filter(({ scheduleInfo }) => scheduleInfo.nextOccurrence)
-                  .sort((a, b) => {
-                    const timeA = a.scheduleInfo.nextOccurrence?.getTime() ?? 0;
-                    const timeB = b.scheduleInfo.nextOccurrence?.getTime() ?? 0;
-                    return timeA - timeB;
-                  });
+            const activeAlarms = sortedAlarms
+              .filter(({ scheduleInfo }) => scheduleInfo.nextOccurrence)
+              .sort((a, b) => {
+                const timeA = a.scheduleInfo.nextOccurrence?.getTime() ?? 0;
+                const timeB = b.scheduleInfo.nextOccurrence?.getTime() ?? 0;
+                return timeA - timeB;
+              });
 
-                const expiredAlarms = sortedAlarms
-                  .filter(({ scheduleInfo }) => !scheduleInfo.nextOccurrence)
-                  .sort((a, b) => {
-                    return (
-                      new Date(b.alarm.createdAt).getTime() -
-                      new Date(a.alarm.createdAt).getTime()
-                    );
-                  });
-
+            const expiredAlarms = sortedAlarms
+              .filter(({ scheduleInfo }) => !scheduleInfo.nextOccurrence)
+              .sort((a, b) => {
                 return (
-                  <>
-                    {/* Active Alarms */}
-                    {activeAlarms.map(({ alarm }) => (
-                      <AlarmCard
-                        key={alarm.id}
-                        alarm={alarm}
-                        onPress={() => {
-                          console.log(
-                            "🚨 Navigating to alarm edit:",
-                            alarm.id,
-                            "from device:",
-                            deviceId,
-                          );
-                          router.push(
-                            `/devices/${deviceId}/alarms/edit/${alarm.id}`,
-                          );
+                  new Date(b.alarm.createdAt).getTime() -
+                  new Date(a.alarm.createdAt).getTime()
+                );
+              });
+
+            // Show "No alarms configured" if there are no active alarms
+            if (activeAlarms.length === 0) {
+              return (
+                <View
+                  style={[
+                    cards.base,
+                    { alignItems: "center", paddingVertical: spacing[8] },
+                  ]}
+                >
+                  <Ionicons
+                    name="alarm-outline"
+                    size={48}
+                    color={colors.gray[400]}
+                    style={{ marginBottom: spacing[3] }}
+                  />
+                  <Text
+                    style={[
+                      typography.h6,
+                      { color: colors.text.primary, marginBottom: spacing[1] },
+                    ]}
+                  >
+                    No alarms configured
+                  </Text>
+                  <Text
+                    style={[
+                      typography.body,
+                      { color: colors.text.secondary, textAlign: "center" },
+                    ]}
+                  >
+                    Add your first alarm to get started
+                  </Text>
+                </View>
+              );
+            }
+
+            return (
+              <View style={[{ gap: spacing[3] }]}>
+                {/* Active Alarms */}
+                {activeAlarms.map(({ alarm }) => (
+                  <AlarmCard
+                    key={alarm.id}
+                    alarm={alarm}
+                    onPress={() => {
+                      console.log(
+                        "🚨 Navigating to alarm edit:",
+                        alarm.id,
+                        "from device:",
+                        deviceId,
+                      );
+                      router.push(
+                        `/devices/${deviceId}/alarms/edit/${alarm.id}`,
+                      );
+                    }}
+                  />
+                ))}
+
+                {/* Expired Alarms Section */}
+                {expiredAlarms.length > 0 && (
+                  <View style={{ marginTop: spacing[2] }}>
+                    <Pressable
+                      onPress={() => setShowExpiredAlarms(!showExpiredAlarms)}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingVertical: spacing[2],
+                        paddingHorizontal: spacing[3],
+                        backgroundColor: colors.background.secondary,
+                        borderRadius: spacing[2],
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: spacing[2],
                         }}
-                      />
-                    ))}
-
-                    {/* Expired Alarms Section */}
-                    {expiredAlarms.length > 0 && (
-                      <View style={{ marginTop: spacing[2] }}>
-                        <Pressable
-                          onPress={() =>
-                            setShowExpiredAlarms(!showExpiredAlarms)
-                          }
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            paddingVertical: spacing[2],
-                            paddingHorizontal: spacing[3],
-                            backgroundColor: colors.background.secondary,
-                            borderRadius: spacing[2],
-                          }}
+                      >
+                        <Ionicons
+                          name="archive-outline"
+                          size={18}
+                          color={colors.text.secondary}
+                        />
+                        <Text
+                          style={[
+                            typography.labelLarge,
+                            { color: colors.text.secondary },
+                          ]}
                         >
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: spacing[2],
-                            }}
-                          >
-                            <Ionicons
-                              name="archive-outline"
-                              size={18}
-                              color={colors.text.secondary}
-                            />
-                            <Text
-                              style={[
-                                typography.labelLarge,
-                                { color: colors.text.secondary },
-                              ]}
-                            >
-                              Expired Alarms ({expiredAlarms.length})
-                            </Text>
-                          </View>
-                          <Ionicons
-                            name={
-                              showExpiredAlarms ? "chevron-up" : "chevron-down"
-                            }
-                            size={20}
-                            color={colors.text.secondary}
-                          />
-                        </Pressable>
+                          Expired Alarms ({expiredAlarms.length})
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={showExpiredAlarms ? "chevron-up" : "chevron-down"}
+                        size={20}
+                        color={colors.text.secondary}
+                      />
+                    </Pressable>
 
-                        {showExpiredAlarms && (
-                          <View
-                            style={{ gap: spacing[3], marginTop: spacing[3] }}
-                          >
-                            {expiredAlarms.map(({ alarm }) => (
-                              <AlarmCard
-                                key={alarm.id}
-                                alarm={alarm}
-                                onPress={() => {
-                                  console.log(
-                                    "🚨 Navigating to alarm edit:",
-                                    alarm.id,
-                                    "from device:",
-                                    deviceId,
-                                  );
-                                  router.push(
-                                    `/devices/${deviceId}/alarms/edit/${alarm.id}`,
-                                  );
-                                }}
-                              />
-                            ))}
-                          </View>
-                        )}
+                    {showExpiredAlarms && (
+                      <View style={{ gap: spacing[3], marginTop: spacing[3] }}>
+                        {expiredAlarms.map(({ alarm }) => (
+                          <AlarmCard
+                            key={alarm.id}
+                            alarm={alarm}
+                            onPress={() => {
+                              console.log(
+                                "🚨 Navigating to alarm edit:",
+                                alarm.id,
+                                "from device:",
+                                deviceId,
+                              );
+                              router.push(
+                                `/devices/${deviceId}/alarms/edit/${alarm.id}`,
+                              );
+                            }}
+                          />
+                        ))}
                       </View>
                     )}
-                  </>
-                );
-              })()}
-            </View>
-          )}
+                  </View>
+                )}
+              </View>
+            );
+          })()}
         </View>
       </ScrollView>
 

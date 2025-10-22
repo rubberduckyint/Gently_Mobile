@@ -328,49 +328,25 @@ export function ScheduleSection({
               onPress={() => onUpdateFormData({ repeat: false })}
               style={{
                 flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                paddingVertical: spacing[3],
+                paddingVertical: spacing[2],
                 paddingHorizontal: spacing[4],
                 borderRadius: 8,
-                borderWidth: 2,
+                backgroundColor: !formData.repeat
+                  ? colors.primary[500]
+                  : colors.background.secondary,
+                borderWidth: 1,
                 borderColor: !formData.repeat
                   ? colors.primary[500]
                   : colors.border.light,
-                backgroundColor: !formData.repeat
-                  ? `${colors.primary[500]}15`
-                  : colors.background.secondary,
+                alignItems: "center",
               }}
             >
-              <View
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  borderWidth: 2,
-                  borderColor: colors.primary[500],
-                  marginRight: spacing[2],
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {!formData.repeat && (
-                  <View
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 5,
-                      backgroundColor: colors.primary[500],
-                    }}
-                  />
-                )}
-              </View>
               <Text
                 style={[
                   typography.body,
                   {
                     color: !formData.repeat
-                      ? colors.primary[500]
+                      ? colors.background.primary
                       : colors.text.primary,
                     fontWeight: !formData.repeat ? "600" : "400",
                   },
@@ -384,49 +360,25 @@ export function ScheduleSection({
               onPress={() => onUpdateFormData({ repeat: true })}
               style={{
                 flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                paddingVertical: spacing[3],
+                paddingVertical: spacing[2],
                 paddingHorizontal: spacing[4],
                 borderRadius: 8,
-                borderWidth: 2,
+                backgroundColor: formData.repeat
+                  ? colors.primary[500]
+                  : colors.background.secondary,
+                borderWidth: 1,
                 borderColor: formData.repeat
                   ? colors.primary[500]
                   : colors.border.light,
-                backgroundColor: formData.repeat
-                  ? `${colors.primary[500]}15`
-                  : colors.background.secondary,
+                alignItems: "center",
               }}
             >
-              <View
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  borderWidth: 2,
-                  borderColor: colors.primary[500],
-                  marginRight: spacing[2],
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {formData.repeat && (
-                  <View
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 5,
-                      backgroundColor: colors.primary[500],
-                    }}
-                  />
-                )}
-              </View>
               <Text
                 style={[
                   typography.body,
                   {
                     color: formData.repeat
-                      ? colors.primary[500]
+                      ? colors.background.primary
                       : colors.text.primary,
                     fontWeight: formData.repeat ? "600" : "400",
                   },
