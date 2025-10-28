@@ -474,11 +474,18 @@ export function parseAdvertisementData(
   const batteryVoltage = (decrypted[20] ?? 0) | ((decrypted[21] ?? 0) << 8);
 
   // Parse status flags from byte 22
+  // Protocol bit numbering: Bit #0 = MSB (bit 7), Bit #7 = LSB (bit 0)
+  // Byte 22 layout:
+  // - Bits #0-1 (protocol) = bits 7-6 (standard): RESERVED
+  // - Bit #2 (protocol) = bit 5 (standard): Charging
+  // - Bits #3-5 (protocol) = bits 4-2 (standard): Battery Level
+  // - Bit #6 (protocol) = bit 1 (standard): Bracelet Key Type
+  // - Bit #7 (protocol) = bit 0 (standard): Any Event Active
   const statusByte = decrypted[22] ?? 0;
-  const chargingStatus = !!(statusByte & 0x04); // Bit 2
-  const batteryLevel = (statusByte >> 3) & 0x07; // Bits 3-5
-  const braceletKeyType = statusByte & 0x40 ? "custom" : "factory"; // Bit 6
-  const anyEventActive = !!(statusByte & 0x80); // Bit 7
+  const chargingStatus = !!(statusByte & 0x20); // Bit 5 (protocol bit #2)
+  const batteryLevel = (statusByte >> 2) & 0x07; // Bits 4-2 (protocol bits #3-5)
+  const braceletKeyType = statusByte & 0x02 ? "custom" : "factory"; // Bit 1 (protocol bit #6)
+  const anyEventActive = !!(statusByte & 0x01); // Bit 0 (protocol bit #7)
 
   // Validate parsed data ranges
   const warnings: string[] = [];

@@ -735,7 +735,13 @@ export default function DeviceDetailPage() {
   return (
     <SafeAreaView style={containers.safeArea}>
       <Header
-        title={device.title ? (device.title.length > 20 ? `${device.title.slice(0, 20)}...` : device.title) : "Gently Device"}
+        title={
+          device.title
+            ? device.title.length > 20
+              ? `${device.title.slice(0, 20)}...`
+              : device.title
+            : "Gently Device"
+        }
         showBackButton={true}
         onBackPress={() => router.push("/")}
         rightComponent={
@@ -771,7 +777,7 @@ export default function DeviceDetailPage() {
           />
         }
       />
-      
+
       {/* Device Status Bar */}
       <View
         style={{
@@ -905,12 +911,11 @@ export default function DeviceDetailPage() {
             </Pressable>
           )}
       </View>
-      
+
       <ScrollView
         style={containers.content}
         showsVerticalScrollIndicator={false}
       >
-
         {/* Alarms Section */}
         <View style={[containers.section, { paddingTop: spacing[3] }]}>
           <View
@@ -1036,34 +1041,110 @@ export default function DeviceDetailPage() {
             // Show "No alarms configured" if there are no active alarms
             if (activeAlarms.length === 0) {
               return (
-                <View
-                  style={[
-                    cards.base,
-                    { alignItems: "center", paddingVertical: spacing[8] },
-                  ]}
-                >
-                  <Ionicons
-                    name="alarm-outline"
-                    size={48}
-                    color={colors.gray[400]}
-                    style={{ marginBottom: spacing[3] }}
-                  />
-                  <Text
+                <View>
+                  <View
                     style={[
-                      typography.h6,
-                      { color: colors.text.primary, marginBottom: spacing[1] },
+                      cards.base,
+                      { alignItems: "center", paddingVertical: spacing[8] },
                     ]}
                   >
-                    No alarms configured
-                  </Text>
-                  <Text
-                    style={[
-                      typography.body,
-                      { color: colors.text.secondary, textAlign: "center" },
-                    ]}
-                  >
-                    Add your first alarm to get started
-                  </Text>
+                    <Ionicons
+                      name="alarm-outline"
+                      size={48}
+                      color={colors.gray[400]}
+                      style={{ marginBottom: spacing[3] }}
+                    />
+                    <Text
+                      style={[
+                        typography.h6,
+                        {
+                          color: colors.text.primary,
+                          marginBottom: spacing[1],
+                        },
+                      ]}
+                    >
+                      No active alarms
+                    </Text>
+                    <Text
+                      style={[
+                        typography.body,
+                        { color: colors.text.secondary, textAlign: "center" },
+                      ]}
+                    >
+                      Add your first alarm to get started
+                    </Text>
+                  </View>
+
+                  {/* Show expired alarms even when there are no active alarms */}
+                  {expiredAlarms.length > 0 && (
+                    <View style={{ marginTop: spacing[4] }}>
+                      <Pressable
+                        onPress={() => setShowExpiredAlarms(!showExpiredAlarms)}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          paddingVertical: spacing[2],
+                          paddingHorizontal: spacing[3],
+                          backgroundColor: colors.background.secondary,
+                          borderRadius: spacing[2],
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: spacing[2],
+                          }}
+                        >
+                          <Ionicons
+                            name="archive-outline"
+                            size={18}
+                            color={colors.text.secondary}
+                          />
+                          <Text
+                            style={[
+                              typography.labelLarge,
+                              { color: colors.text.secondary },
+                            ]}
+                          >
+                            Expired Alarms ({expiredAlarms.length})
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name={
+                            showExpiredAlarms ? "chevron-up" : "chevron-down"
+                          }
+                          size={20}
+                          color={colors.text.secondary}
+                        />
+                      </Pressable>
+
+                      {showExpiredAlarms && (
+                        <View
+                          style={{ gap: spacing[3], marginTop: spacing[3] }}
+                        >
+                          {expiredAlarms.map(({ alarm }) => (
+                            <AlarmCard
+                              key={alarm.id}
+                              alarm={alarm}
+                              onPress={() => {
+                                console.log(
+                                  "🚨 Navigating to alarm edit:",
+                                  alarm.id,
+                                  "from device:",
+                                  deviceId,
+                                );
+                                router.push(
+                                  `/devices/${deviceId}/alarms/edit/${alarm.id}`,
+                                );
+                              }}
+                            />
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               );
             }

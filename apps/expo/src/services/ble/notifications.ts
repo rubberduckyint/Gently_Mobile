@@ -34,6 +34,10 @@ export interface TimeNotification {
 /**
  * Parse Battery Status Notify (Command 0x80)
  * Format: API | Command | Reserved | Voltage(2 bytes) | Charging+Level | Reserved(2 bytes)
+ *
+ * Byte 5 breakdown (protocol uses bit 0 = leftmost = MSB):
+ * - Bit 0 (leftmost/MSB/bit7): Charging (1 = ON, 0 = OFF)
+ * - Bits 1-7 (rightmost/LSBs/bits6-0): Battery Level (0x00-0x04)
  */
 export function parseBatteryStatusNotification(
   payload: Uint8Array,
@@ -50,10 +54,10 @@ export function parseBatteryStatusNotification(
   // Bytes 3-4: Battery voltage in mV (little endian)
   const batteryVoltage = ((payload[4] ?? 0) << 8) | (payload[3] ?? 0);
 
-  // Byte 5: Charging status (bit 0) + Battery level (bits 1-7)
+  // Byte 5: Charging status (bit 7/MSB) + Battery level (bits 6-0/LSBs)
   const chargingAndLevel = payload[5] ?? 0;
-  const isCharging = (chargingAndLevel & 0x01) === 1;
-  const batteryLevel = (chargingAndLevel >> 1) & 0x0f;
+  const isCharging = (chargingAndLevel & 0x80) !== 0; // Check bit 7 (MSB)
+  const batteryLevel = chargingAndLevel & 0x7f; // Get bits 6-0 (0x00-0x04)
 
   const batteryLevelTexts = ["CRITICAL", "LOW", "MEDIUM", "GOOD", "FULL"];
   const batteryLevelText = batteryLevelTexts[batteryLevel] ?? "UNKNOWN";
