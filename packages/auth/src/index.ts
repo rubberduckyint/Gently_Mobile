@@ -90,29 +90,25 @@ export function initAuth(options: {
             type,
           });
 
-          if (type === "sign-in") {
-            try {
-              if (otpService) {
-                console.log(`📧 Using email service to send OTP`);
-                await otpService.sendOTP({
-                  email,
-                  otp,
-                  productName: "Gently",
-                });
-                console.log(`✅ OTP sent to ${email}`);
-              } else {
-                // Fallback for development or missing email config
-                console.log(`📝 OTP for ${email}: ${otp}`);
-                console.warn(
-                  "⚠️ Email service not configured. Using console fallback.",
-                );
-              }
-            } catch (error) {
-              console.error("❌ Failed to send OTP:", error);
-              throw error;
+          try {
+            if (otpService) {
+              console.log(`📧 Using email service to send OTP`);
+              await otpService.sendOTP({
+                email,
+                otp,
+                productName: "Gently",
+              });
+              console.log(`✅ OTP sent to ${email}`);
+            } else {
+              // Fallback for development or missing email config
+              console.log(`📝 OTP for ${email}: ${otp}`);
+              console.warn(
+                "⚠️ Email service not configured. Using console fallback.",
+              );
             }
-          } else {
-            console.log(`⏭️ Skipping OTP send for type: ${type}`);
+          } catch (error) {
+            console.error("❌ Failed to send OTP:", error);
+            throw error;
           }
         },
         // Enable OTP storage and validation to prevent accepting any OTP
