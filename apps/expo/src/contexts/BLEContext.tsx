@@ -644,7 +644,7 @@ export function BLEProvider({ children }: BLEProviderProps) {
 
         setConnectionState("scanning");
 
-        // Check for existing connections first
+        // Check for existing connections and disconnect from ALL devices
         onProgress?.({
           step: "checking_existing",
           progress: 10,
@@ -653,70 +653,42 @@ export function BLEProvider({ children }: BLEProviderProps) {
 
         const connectedDevices = await BleManager.getConnectedPeripherals([]);
 
-        // Try to validate existing connections
-        for (const peripheral of connectedDevices) {
-          const sanitizedDeviceId = peripheral.id.replace(
-            /[^a-zA-Z0-9._-]/g,
-            "_",
+        // Disconnect from ALL existing connections to ensure clean state
+        if (connectedDevices.length > 0) {
+          console.log(
+            `🔌 [BLE Context] Found ${connectedDevices.length} existing connection(s), disconnecting all...`,
           );
+          onProgress?.({
+            step: "disconnecting_previous",
+            progress: 15,
+            message: `🔌 Disconnecting ${connectedDevices.length} previous device(s)...`,
+          });
 
-          try {
-            const storedKey = await SecureStore.getItemAsync(
-              `ble_device_${sanitizedDeviceId}`,
-            );
-
-            if (storedKey) {
-              onProgress?.({
-                step: "validating_existing",
-                progress: 20,
-                message: `🔐 Testing existing connection to ${peripheral.id}...`,
-              });
-
-              // Configure for existing connection
-              if (Platform.OS === "android") {
-                try {
-                  await BleManager.requestMTU(
-                    peripheral.id,
-                    defaultConfig.mtuSize,
-                  );
-                } catch (mtuError) {
-                  console.warn("MTU request failed:", mtuError);
-                }
-              }
-
-              await startNotifications(peripheral.id);
+          for (const peripheral of connectedDevices) {
+            try {
               console.log(
-                "🔔 [BLE Context] Notifications enabled for existing connection - device will send battery, event, and time notifications",
+                `🔌 [BLE Context] Disconnecting from ${peripheral.id} (${peripheral.name ?? "unknown"})`,
               );
-
-              // Validate with device status command
-              const statusResponse = await sendCommand({
-                peripheralId: peripheral.id,
-                command: createGetDeviceStatusRequest(),
-                encryptionKey: storedKey,
-              });
-
-              if (statusResponse.status === ResponseStatus.OK) {
-                onProgress?.({
-                  step: "connection_complete",
-                  progress: 100,
-                  message: "✅ Existing connection validated successfully!",
-                });
-
-                setConnectedDevice({
-                  id: peripheral.id,
-                  name: peripheral.name,
-                  serialNumber: serialNumber,
-                  peripheral: peripheral,
-                });
-                setEncryptionKey(storedKey);
-                setConnectionState("connected");
-                return;
-              }
+              await disconnectFromBLEDevice(peripheral.id);
+              console.log(
+                `✅ [BLE Context] Disconnected from ${peripheral.id}`,
+              );
+            } catch (disconnectError) {
+              console.warn(
+                `⚠️ [BLE Context] Failed to disconnect from ${peripheral.id}:`,
+                disconnectError,
+              );
+              // Continue with other disconnections even if one fails
             }
-          } catch (error) {
-            console.warn("Error validating existing connection:", error);
           }
+
+          // Wait a moment for disconnections to complete
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          console.log(
+            `✅ [BLE Context] All previous connections disconnected`,
+          );
+        } else {
+          console.log(`ℹ️ [BLE Context] No existing connections found`);
         }
 
         // No valid existing connection, start scanning
@@ -896,7 +868,7 @@ export function BLEProvider({ children }: BLEProviderProps) {
         await new Promise((resolve) => setTimeout(resolve, 900));
         console.log(`✅ [BLE Context] Wait complete, ready to connect`);
 
-        // Check for existing connections first
+        // Check for existing connections and disconnect from ALL devices
         onProgress?.({
           step: "checking_existing",
           progress: 10,
@@ -905,70 +877,42 @@ export function BLEProvider({ children }: BLEProviderProps) {
 
         const connectedDevices = await BleManager.getConnectedPeripherals([]);
 
-        // Try to validate existing connections
-        for (const existingPeripheral of connectedDevices) {
-          const sanitizedDeviceId = existingPeripheral.id.replace(
-            /[^a-zA-Z0-9._-]/g,
-            "_",
+        // Disconnect from ALL existing connections to ensure clean state
+        if (connectedDevices.length > 0) {
+          console.log(
+            `🔌 [BLE Context] Found ${connectedDevices.length} existing connection(s), disconnecting all...`,
           );
+          onProgress?.({
+            step: "disconnecting_previous",
+            progress: 15,
+            message: `🔌 Disconnecting ${connectedDevices.length} previous device(s)...`,
+          });
 
-          try {
-            const storedKey = await SecureStore.getItemAsync(
-              `ble_device_${sanitizedDeviceId}`,
-            );
-
-            if (storedKey) {
-              onProgress?.({
-                step: "validating_existing",
-                progress: 20,
-                message: `🔐 Testing existing connection to ${existingPeripheral.id}...`,
-              });
-
-              // Configure for existing connection
-              if (Platform.OS === "android") {
-                try {
-                  await BleManager.requestMTU(
-                    existingPeripheral.id,
-                    defaultConfig.mtuSize,
-                  );
-                } catch (mtuError) {
-                  console.warn("MTU request failed:", mtuError);
-                }
-              }
-
-              await startNotifications(existingPeripheral.id);
+          for (const existingPeripheral of connectedDevices) {
+            try {
               console.log(
-                "🔔 [BLE Context] Notifications enabled for existing connection - device will send battery, event, and time notifications",
+                `🔌 [BLE Context] Disconnecting from ${existingPeripheral.id} (${existingPeripheral.name ?? "unknown"})`,
               );
-
-              // Validate with device status command
-              const statusResponse = await sendCommand({
-                peripheralId: existingPeripheral.id,
-                command: createGetDeviceStatusRequest(),
-                encryptionKey: storedKey,
-              });
-
-              if (statusResponse.status === ResponseStatus.OK) {
-                onProgress?.({
-                  step: "connection_complete",
-                  progress: 100,
-                  message: "✅ Existing connection validated successfully!",
-                });
-
-                setConnectedDevice({
-                  id: existingPeripheral.id,
-                  name: existingPeripheral.name,
-                  serialNumber: serialNumber,
-                  peripheral: existingPeripheral,
-                });
-                setEncryptionKey(storedKey);
-                setConnectionState("connected");
-                return;
-              }
+              await disconnectFromBLEDevice(existingPeripheral.id);
+              console.log(
+                `✅ [BLE Context] Disconnected from ${existingPeripheral.id}`,
+              );
+            } catch (disconnectError) {
+              console.warn(
+                `⚠️ [BLE Context] Failed to disconnect from ${existingPeripheral.id}:`,
+                disconnectError,
+              );
+              // Continue with other disconnections even if one fails
             }
-          } catch (error) {
-            console.warn("Error validating existing connection:", error);
           }
+
+          // Wait a moment for disconnections to complete
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          console.log(
+            `✅ [BLE Context] All previous connections disconnected`,
+          );
+        } else {
+          console.log(`ℹ️ [BLE Context] No existing connections found`);
         }
 
         // No valid existing connection, connect to the provided peripheral
