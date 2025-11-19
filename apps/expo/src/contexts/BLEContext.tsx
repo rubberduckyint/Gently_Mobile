@@ -809,11 +809,13 @@ export function BLEProvider({ children }: BLEProviderProps) {
           // Start scanning
           BleManager.onDiscoverPeripheral(handleDiscoverPeripheral);
 
-          BleManager.scan([], defaultScanConfig.scanTimeoutSeconds, false, {
+          BleManager.scan({
+            serviceUUIDs: [],
+            seconds: defaultScanConfig.scanTimeoutSeconds,
+            allowDuplicates: false,
             matchMode: BleScanMatchMode.Sticky,
             scanMode: BleScanMode.LowLatency,
             callbackType: BleScanCallbackType.AllMatches,
-            legacy: false,
           }).catch((error) => {
             clearTimeout(scanTimeout);
             reject(
@@ -1229,11 +1231,13 @@ export function BLEProvider({ children }: BLEProviderProps) {
           ),
         );
 
-        BleManager.scan([], defaultConfig.scanTimeoutSeconds, false, {
+        BleManager.scan({
+          serviceUUIDs: [],
+          seconds: defaultConfig.scanTimeoutSeconds,
+          allowDuplicates: false,
           matchMode: BleScanMatchMode.Sticky,
           scanMode: BleScanMode.LowLatency,
           callbackType: BleScanCallbackType.AllMatches,
-          legacy: false,
         }).catch((error) => {
           clearTimeout(scanTimeout);
           reject(
@@ -1328,11 +1332,13 @@ export function BLEProvider({ children }: BLEProviderProps) {
         BleManager.onDiscoverPeripheral(handleDiscoverPeripheral);
 
         console.log(`📡 [BLE Context] Initiating BLE scan...`);
-        BleManager.scan([], timeoutSeconds, false, {
+        BleManager.scan({
+          serviceUUIDs: [],
+          seconds: timeoutSeconds,
+          allowDuplicates: false,
           matchMode: BleScanMatchMode.Sticky,
           scanMode: BleScanMode.LowLatency,
           callbackType: BleScanCallbackType.AllMatches,
-          legacy: false,
         })
           .then(() => {
             console.log(`✅ [BLE Context] BLE scan initiated successfully`);

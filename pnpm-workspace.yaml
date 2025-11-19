@@ -4,21 +4,70 @@ packages:
   - tooling/*
 
 catalog:
-  "@tanstack/react-query": ^5.90.3
-  "@trpc/client": ^11.6.0
-  "@trpc/server": ^11.6.0
-  "@trpc/tanstack-react-query": ^11.6.0
-  eslint: ^9.37.0
+  # Build tools
+  eslint: ^9.39.1
   prettier: ^3.6.2
   typescript: ^5.9.3
+
+  # tRPC & React Query
+  "@tanstack/react-query": ^5.90.10
+  "@trpc/client": ^11.7.1
+  "@trpc/server": ^11.7.1
+  "@trpc/tanstack-react-query": ^11.7.1
+
+  # Validation
   zod: ^4.1.12
+
+  # React & Next.js
+  react: ^19.2.0
+  react-dom: ^19.2.0
+  next: ^16.0.3
+
+  # Authentication
+  better-auth: 1.3.34
+  "@better-auth/expo": 1.3.34
+  "@better-auth/cli": 1.3.34
+
+  # Email
+  "@react-email/components": ^1.0.1
+  "@react-email/render": ^2.0.0
+  nodemailer: ^7.0.10
+  react-email: ^5.0.4
+
+  # Database
+  drizzle-orm: ^0.44.7
+  drizzle-zod: ^0.8.3
+  drizzle-cuid2: ^2.1.0
+  drizzle-kit: ^0.31.7
+  postgres: ^3.4.7
+  "@vercel/postgres": ^0.10.0
+
+  # Environment & Config
+  "@t3-oss/env-nextjs": ^0.13.8
+  dotenv-cli: ^11.0.0
+
+  # Utilities
+  minimatch: ^10.1.1
+  superjson: 2.2.5
+  cronstrue: ^3.9.0
+
+  # Expo
+  expo: canary
+  "@expo/metro-runtime": canary
+  expo-constants: canary
+  expo-crypto: canary
+  expo-linking: canary
+  expo-secure-store: canary
+  expo-web-browser: canary
+
+  # Types
+  "@types/node": ^24.10.1
+  "@types/nodemailer": ^7.0.4
 
 catalogs:
   react19:
-    "@types/react": ^19.2.2
-    "@types/react-dom": ^19.2.2
-    react: 19.1.0
-    react-dom: 19.1.0
+    "@types/react": ^19.2.6
+    "@types/react-dom": ^19.2.3
 
 nodeLinker: hoisted
 

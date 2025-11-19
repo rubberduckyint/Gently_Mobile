@@ -32,12 +32,12 @@
     "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
-    "@vercel/postgres": "^0.10.0",
-    "drizzle-cuid2": "^2.1.0",
-    "drizzle-orm": "^0.44.6",
-    "drizzle-zod": "^0.8.3",
-    "minimatch": "^10.0.3",
-    "postgres": "^3.4.7",
+    "@vercel/postgres": "catalog:",
+    "drizzle-cuid2": "catalog:",
+    "drizzle-orm": "catalog:",
+    "drizzle-zod": "catalog:",
+    "minimatch": "catalog:",
+    "postgres": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -45,9 +45,9 @@
     "@gently/eslint-config": "workspace:*",
     "@gently/prettier-config": "workspace:*",
     "@gently/tsconfig": "workspace:*",
-    "@types/pg": "^8.15.5",
-    "dotenv-cli": "^10.0.0",
-    "drizzle-kit": "^0.31.5",
+    "@types/pg": "^8.15.6",
+    "dotenv-cli": "catalog:",
+    "drizzle-kit": "catalog:",
     "eslint": "catalog:",
     "prettier": "catalog:",
     "tsx": "^4.20.6",

@@ -23,8 +23,8 @@
     "@gently/db": "workspace:*",
     "@gently/validators": "workspace:*",
     "@trpc/server": "catalog:",
-    "minimatch": "^10.0.3",
-    "superjson": "2.2.2",
+    "minimatch": "catalog:",
+    "superjson": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

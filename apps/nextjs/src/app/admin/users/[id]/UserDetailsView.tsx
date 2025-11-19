@@ -21,7 +21,9 @@ import {
   TableHeader,
   TableRow,
 } from "~/_components/ui/table";
+import { AlarmCard } from "~/components/alarms/AlarmCard";
 import { useTRPC } from "~/trpc/react";
+import { formatCronExpressionWithStartEnd } from "~/utils/alarmFormatters";
 
 interface UserDetailsViewProps {
   userId: string;
@@ -80,19 +82,6 @@ export function UserDetailsView({ userId }: UserDetailsViewProps) {
         return "bg-yellow-100 text-yellow-800";
       case "ERROR":
         return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getSeverityLevelColor = (severityLevel: string) => {
-    switch (severityLevel) {
-      case "CRITICAL":
-        return "bg-red-100 text-red-800";
-      case "WARNING":
-        return "bg-yellow-100 text-yellow-800";
-      case "INFORMATIONAL":
-        return "bg-blue-100 text-blue-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -234,50 +223,19 @@ export function UserDetailsView({ userId }: UserDetailsViewProps) {
               No alarms found.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Sync Status</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {user.alarms.map((alarm) => (
-                  <TableRow key={alarm.id}>
-                    <TableCell className="font-medium">{alarm.title}</TableCell>
-                    <TableCell>{alarm.device?.title ?? "No device"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        className={getSeverityLevelColor(alarm.severityLevel)}
-                        variant="secondary"
-                      >
-                        {alarm.severityLevel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={alarm.isActive ? "default" : "secondary"}>
-                        {alarm.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={getSyncStatusColor(alarm.syncStatus)}
-                        variant="secondary"
-                      >
-                        {alarm.syncStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(alarm.createdAt).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ul className="divide-border divide-y">
+              {user.alarms.map((alarm) => (
+                <li key={alarm.id} className="py-6">
+                  <AlarmCard
+                    alarm={alarm}
+                    formatCronExpressionWithStartEnd={
+                      formatCronExpressionWithStartEnd
+                    }
+                    showExpiredBadge={true}
+                  />
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

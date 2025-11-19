@@ -109,7 +109,7 @@ export async function getDeviceKeyBySerial(
 
     for (const deviceId of deviceIds) {
       const deviceKey = await getDeviceKey(deviceId);
-      if (deviceKey && deviceKey.serialNumber === serialNumber) {
+      if (deviceKey?.serialNumber === serialNumber) {
         console.log(
           `✅ Found device key for serial ${serialNumber} (device ${deviceId})`,
         );
