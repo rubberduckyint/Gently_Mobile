@@ -18,6 +18,7 @@
     "@expo/metro-runtime": "canary",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/datetimepicker": "^8.4.4",
+    "@react-native-community/slider": "^5.0.1",
     "@react-native-google-signin/google-signin": "^22.1.0",
     "@tanstack/react-query": "^5.90.10",
     "@trpc/client": "^11.7.1",

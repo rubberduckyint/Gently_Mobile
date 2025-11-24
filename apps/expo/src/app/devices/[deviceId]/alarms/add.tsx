@@ -13,13 +13,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AlarmFormData } from "~/components/alarms";
 import { AlarmForm } from "~/components/alarms";
 import { Header } from "~/components/ui/Header";
+import { useBLE } from "~/contexts/BLEContext";
 import { colors, containers, spacing, typography } from "~/styles";
 import { trpc } from "~/utils/api";
 import { mapVibrationPatternToLegacyNumber } from "~/utils/bleAlarmUtils";
 
 const getDefaultFormData = (userPreferences?: {
   defaultSeverityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
-  defaultLedPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+  defaultLedPattern: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
   defaultLedColor:
     | "RED"
     | "GREEN"
@@ -107,6 +108,7 @@ const generateCronExpression = (formData: AlarmFormData): string => {
 export default function AddAlarmPage() {
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
   const queryClient = useQueryClient();
+  const { connectionState } = useBLE();
 
   // Fetch user preferences
   const { data: userPreferences, isLoading: isLoadingPreferences } = useQuery({
@@ -159,12 +161,26 @@ export default function AddAlarmPage() {
         queryKey: ["device", "getById", { id: deviceId }],
       });
 
-      Alert.alert("Success", "Alarm created successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.back(),
-        },
-      ]);
+      // Check if device is connected
+      if (connectionState === "connected") {
+        Alert.alert("Success", "Alarm created and will sync automatically!", [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]);
+      } else {
+        Alert.alert(
+          "Alarm Created",
+          "Your alarm has been created successfully. Connect to your Gently bracelet to sync it to your device.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back(),
+            },
+          ],
+        );
+      }
     },
     onError: (error) => {
       console.error("❌ Failed to create alarm:", error);

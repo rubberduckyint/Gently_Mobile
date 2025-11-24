@@ -11,9 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { buttons, buttonText, colors, spacing, typography } from "~/styles";
 
 interface AlarmPreferencesSectionProps {
-  ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+  ledPattern: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
   setLedPattern: (
-    value: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE",
+    value: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE",
   ) => void;
   ledColor: "RED" | "GREEN" | "BLUE" | "YELLOW" | "MAGENTA" | "CYAN" | "WHITE";
   setLedColor: (
@@ -29,6 +29,12 @@ interface AlarmPreferencesSectionProps {
 
 // Constants matching AdvancedSection
 const LED_PATTERNS = [
+  {
+    key: "OFF" as const,
+    label: "Off",
+    description: "LED disabled",
+    icon: "remove-circle-outline" as const,
+  },
   {
     key: "SOLID" as const,
     label: "Solid",
@@ -227,39 +233,41 @@ export function AlarmPreferencesSection({
         </Text>
       </View>
 
-      {/* LED Color */}
-      <View style={{ marginBottom: spacing[4] }}>
-        <Text style={[typography.label, { marginBottom: spacing[2] }]}>
-          Light Color
-        </Text>
-        <View
-          style={{
-            flexDirection: "row",
-            gap: spacing[2],
-          }}
-        >
-          {LED_COLORS.map((colorOption) => (
-            <Pressable
-              key={colorOption.key}
-              onPress={() => setLedColor(colorOption.key)}
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                flex: 1,
-                aspectRatio: 1,
-                maxWidth: 50,
-                borderRadius: 25,
-                borderWidth: 3,
-                borderColor:
-                  ledColor === colorOption.key
-                    ? colors.primary[500]
-                    : colors.border.light,
-                backgroundColor: colorOption.color,
-              }}
-            />
-          ))}
+      {/* LED Color - Only show if pattern is not OFF */}
+      {ledPattern !== "OFF" && (
+        <View style={{ marginBottom: spacing[4] }}>
+          <Text style={[typography.label, { marginBottom: spacing[2] }]}>
+            Light Color
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: spacing[2],
+            }}
+          >
+            {LED_COLORS.map((colorOption) => (
+              <Pressable
+                key={colorOption.key}
+                onPress={() => setLedColor(colorOption.key)}
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flex: 1,
+                  aspectRatio: 1,
+                  maxWidth: 50,
+                  borderRadius: 25,
+                  borderWidth: 3,
+                  borderColor:
+                    ledColor === colorOption.key
+                      ? colors.primary[500]
+                      : colors.border.light,
+                  backgroundColor: colorOption.color,
+                }}
+              />
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Vibration Intensity */}
       <View style={{ marginBottom: spacing[4] }}>

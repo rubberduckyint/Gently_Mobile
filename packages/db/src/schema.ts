@@ -24,6 +24,7 @@ export const severityLevelEnum = pgEnum("SeverityLevel", [
 ]);
 
 export const ledPatternEnum = pgEnum("LedPattern", [
+  "OFF",
   "SOLID",
   "BLINK_SLOW",
   "BLINK_FAST",
@@ -70,6 +71,33 @@ export const UserPreferences = pgTable("UserPreferences", (t) => ({
   defaultRetriggerDelay: t.integer().default(1).notNull(), // minutes
   defaultRetriggerTimeout: t.integer().default(5).notNull(), // minutes
 
+  createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ withTimezone: true, mode: "string" })
+    .$onUpdate(() => sql`NOW()`)
+    .notNull(),
+}));
+
+// Calendar Connections table for Google Calendar OAuth
+export const CalendarConnection = pgTable("CalendarConnection", (t) => ({
+  id: pgCuid2("id").defaultRandom().primaryKey(),
+  userId: t
+    .text()
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  
+  provider: t.text().notNull(), // "google"
+  accountEmail: t.text().notNull(),
+  
+  // OAuth tokens
+  accessToken: t.text().notNull(),
+  refreshToken: t.text(),
+  tokenExpiresAt: t.timestamp({ withTimezone: true }),
+  
+  // Connection metadata
+  isActive: t.boolean().default(true).notNull(),
+  lastSyncedAt: t.timestamp({ withTimezone: true }),
+  
   createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
   updatedAt: t
     .timestamp({ withTimezone: true, mode: "string" })
@@ -196,7 +224,7 @@ export const CreateAlarmSchema = createInsertSchema(Alarm, {
     .enum(["SOLID", "BLINK_SLOW", "BLINK_FAST", "PULSE", "STROBE"])
     .optional(),
   ledColor: z
-    .enum(["RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"])
+    .enum(["OFF", "RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"])
     .optional(),
   vibrationPattern: z.number().int().min(1).max(63).optional(),
   vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH", "MAXIMUM"]).optional(),
@@ -250,6 +278,21 @@ export const UpdateUserPreferencesSchema =
 
 export const UserPreferencesSelectSchema = createSelectSchema(UserPreferences);
 
+// Calendar Connection Schemas
+export const CreateCalendarConnectionSchema = createInsertSchema(
+  CalendarConnection,
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const UpdateCalendarConnectionSchema =
+  CreateCalendarConnectionSchema.partial();
+
+export const CalendarConnectionSelectSchema =
+  createSelectSchema(CalendarConnection);
+
 // Relations
 export const userRelations = relations(user, ({ many, one }) => ({
   devices: many(Device),
@@ -258,6 +301,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
     fields: [user.id],
     references: [UserPreferences.userId],
   }),
+  calendarConnections: many(CalendarConnection),
 }));
 
 export const deviceRelations = relations(Device, ({ one, many }) => ({
@@ -284,6 +328,16 @@ export const userPreferencesRelations = relations(
   ({ one }) => ({
     user: one(user, {
       fields: [UserPreferences.userId],
+      references: [user.id],
+    }),
+  }),
+);
+
+export const calendarConnectionRelations = relations(
+  CalendarConnection,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [CalendarConnection.userId],
       references: [user.id],
     }),
   }),

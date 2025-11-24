@@ -264,6 +264,13 @@ export function TemplatesSection({ onSelectTemplate }: TemplatesSectionProps) {
                   ...template.data,
                   startDate: date,
                 });
+              } else if (template.id === "stretch-reminder" || template.id === "hourly") {
+                // For minute/hour-based templates, set startDate to now
+                const now = new Date();
+                onSelectTemplate({
+                  ...template.data,
+                  startDate: now,
+                });
               } else {
                 onSelectTemplate(template.data);
               }

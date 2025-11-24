@@ -10,6 +10,7 @@ export * from "./getAllEvents";
 export * from "./removeEvent";
 export * from "./removeAllEvents";
 export * from "./setEventOnOff";
+export * from "./acknowledgeEvent";
 export * from "./getUptime";
 export * from "./getDeviceInfo";
 export * from "./getDeviceStatus";

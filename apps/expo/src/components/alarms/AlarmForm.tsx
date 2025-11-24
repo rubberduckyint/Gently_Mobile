@@ -22,6 +22,7 @@ export interface AlarmFormProps {
   onCancel: () => void;
   saveButtonText?: string;
   isLoading?: boolean;
+  showTemplates?: boolean;
 }
 
 export function AlarmForm({
@@ -30,6 +31,7 @@ export function AlarmForm({
   onCancel,
   saveButtonText = "Save Alarm",
   isLoading = false,
+  showTemplates = true,
 }: AlarmFormProps) {
   const [formData, setFormData] = useState<AlarmFormData>(initialData);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -74,7 +76,9 @@ export function AlarmForm({
         showsVerticalScrollIndicator={false}
       >
         {/* Templates Section */}
-        <TemplatesSection onSelectTemplate={handleTemplateSelect} />
+        {showTemplates && (
+          <TemplatesSection onSelectTemplate={handleTemplateSelect} />
+        )}
 
         {/* Basic Information Section */}
         <BasicInfoSection

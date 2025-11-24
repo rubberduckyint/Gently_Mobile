@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 
 import "react-native-reanimated";
 
+import { AlarmNotificationModal } from "~/components/AlarmNotificationModal";
 import { BLEProvider } from "~/contexts/BLEContext";
 import { queryClient } from "~/utils/api";
 
@@ -101,6 +102,8 @@ export default function RootLayout() {
           />
         </Stack>
         <StatusBar style="dark" />
+        {/* Global alarm notification modal - shows when BLE context has activeAlarm */}
+        <AlarmNotificationModal />
       </BLEProvider>
     </QueryClientProvider>
   );

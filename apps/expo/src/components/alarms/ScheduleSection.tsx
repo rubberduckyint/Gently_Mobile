@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import Slider from "@react-native-community/slider";
 
 import type { AlarmFormData } from "./BasicInfoSection";
 import { cards, colors, spacing, typography } from "~/styles";
@@ -412,92 +413,51 @@ export function ScheduleSection({
                 3 days)
               </Text>
 
-              {/* Plus/Minus Controls with Value Display */}
+              {/* Slider Control with Value Display */}
               <View style={{ marginBottom: spacing[3] }}>
                 <Text
                   style={[
-                    typography.body,
+                    typography.h3,
                     {
-                      marginBottom: spacing[2],
-                      fontWeight: "600",
+                      marginBottom: spacing[3],
+                      fontWeight: "700",
                       textAlign: "center",
+                      color: colors.primary[500],
                     },
                   ]}
                 >
                   {formData.repeatEvery}
                 </Text>
+                <Slider
+                  style={{ width: "100%", height: 40 }}
+                  minimumValue={1}
+                  maximumValue={60}
+                  step={1}
+                  value={formData.repeatEvery}
+                  onValueChange={(value) =>
+                    onUpdateFormData({ repeatEvery: Math.round(value) })
+                  }
+                  minimumTrackTintColor={colors.primary[500]}
+                  maximumTrackTintColor={colors.border.light}
+                  thumbTintColor={colors.primary[500]}
+                />
                 <View
                   style={{
                     flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing[3],
+                    justifyContent: "space-between",
+                    marginTop: spacing[1],
                   }}
                 >
-                  <Pressable
-                    onPress={() =>
-                      onUpdateFormData({
-                        repeatEvery: Math.max(1, formData.repeatEvery - 1),
-                      })
-                    }
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 8,
-                      backgroundColor: colors.background.primary,
-                      borderWidth: 1,
-                      borderColor: colors.border.medium,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
+                  <Text
+                    style={[typography.caption, { color: colors.text.tertiary }]}
                   >
-                    <Ionicons
-                      name="remove"
-                      size={24}
-                      color={colors.text.primary}
-                    />
-                  </Pressable>
-                  <View style={{ flex: 1 }}>
-                    <View
-                      style={{
-                        height: 8,
-                        backgroundColor: colors.border.light,
-                        borderRadius: 4,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <View
-                        style={{
-                          height: 8,
-                          width: `${(formData.repeatEvery / 60) * 100}%`,
-                          backgroundColor: colors.primary[500],
-                          borderRadius: 4,
-                        }}
-                      />
-                    </View>
-                  </View>
-                  <Pressable
-                    onPress={() =>
-                      onUpdateFormData({
-                        repeatEvery: Math.min(60, formData.repeatEvery + 1),
-                      })
-                    }
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 8,
-                      backgroundColor: colors.background.primary,
-                      borderWidth: 1,
-                      borderColor: colors.border.medium,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
+                    1
+                  </Text>
+                  <Text
+                    style={[typography.caption, { color: colors.text.tertiary }]}
                   >
-                    <Ionicons
-                      name="add"
-                      size={24}
-                      color={colors.text.primary}
-                    />
-                  </Pressable>
+                    60
+                  </Text>
                 </View>
               </View>
 

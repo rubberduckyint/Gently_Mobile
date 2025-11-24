@@ -20,6 +20,12 @@ interface AdvancedSectionProps {
 
 const LED_PATTERNS = [
   {
+    key: "OFF" as const,
+    label: "Off",
+    description: "LED disabled",
+    icon: "remove-circle-outline" as const,
+  },
+  {
     key: "SOLID" as const,
     label: "Solid",
     description: "Continuous steady light",
@@ -258,39 +264,41 @@ export function AdvancedSection({
         </Text>
       </View>
 
-      {/* LED Color */}
-      <View style={{ marginBottom: spacing[4] }}>
-        <Text style={[typography.label, { marginBottom: spacing[2] }]}>
-          Light Color
-        </Text>
-        <View
-          style={{
-            flexDirection: "row",
-            gap: spacing[2],
-          }}
-        >
-          {LED_COLORS.map((colorOption) => (
-            <Pressable
-              key={colorOption.key}
-              onPress={() => onUpdateFormData({ ledColor: colorOption.key })}
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                flex: 1,
-                aspectRatio: 1,
-                maxWidth: 50,
-                borderRadius: 25,
-                borderWidth: 3,
-                borderColor:
-                  formData.ledColor === colorOption.key
-                    ? colors.primary[500]
-                    : colors.border.light,
-                backgroundColor: colorOption.color,
-              }}
-            />
-          ))}
+      {/* LED Color - Only show if pattern is not OFF */}
+      {formData.ledPattern !== "OFF" && (
+        <View style={{ marginBottom: spacing[4] }}>
+          <Text style={[typography.label, { marginBottom: spacing[2] }]}>
+            Light Color
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: spacing[2],
+            }}
+          >
+            {LED_COLORS.map((colorOption) => (
+              <Pressable
+                key={colorOption.key}
+                onPress={() => onUpdateFormData({ ledColor: colorOption.key })}
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flex: 1,
+                  aspectRatio: 1,
+                  maxWidth: 50,
+                  borderRadius: 25,
+                  borderWidth: 3,
+                  borderColor:
+                    formData.ledColor === colorOption.key
+                      ? colors.primary[500]
+                      : colors.border.light,
+                  backgroundColor: colorOption.color,
+                }}
+              />
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Vibration Intensity - Compact Horizontal */}
       <View style={{ marginBottom: spacing[4] }}>

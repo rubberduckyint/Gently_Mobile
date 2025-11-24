@@ -271,8 +271,10 @@ function calculateNextCronOccurrence(
       return null;
     }
 
-    // Calculate next occurrence
-    const candidate = new Date(now);
+    // For minute-based repeating alarms, calculate from current time
+    // The startDate is only used to determine when the alarm becomes active
+    const searchFrom = startDate > now ? startDate : now;
+    const candidate = new Date(searchFrom);
     const currentMinute = candidate.getMinutes();
     const nextMinute = Math.ceil((currentMinute + 1) / interval) * interval;
 
@@ -283,7 +285,8 @@ function calculateNextCronOccurrence(
       candidate.setMinutes(nextMinute, 0, 0);
     }
 
-    if (candidate >= startDate && (!endDate || candidate <= endDate)) {
+    // Only check endDate, not startDate (since we already used it above)
+    if (!endDate || candidate <= endDate) {
       return candidate;
     }
 
@@ -305,12 +308,13 @@ function calculateNextCronOccurrence(
       return null;
     }
 
-    // Find next occurrence
-    const candidate = new Date(now);
+    // For hour-based repeating alarms, calculate from current time or startDate
+    const searchFrom = startDate > now ? startDate : now;
+    const candidate = new Date(searchFrom);
     candidate.setMinutes(minute, 0, 0);
 
     // If we've passed the minute mark this hour, move to next interval
-    if (candidate <= now) {
+    if (candidate <= searchFrom) {
       candidate.setHours(candidate.getHours() + 1);
     }
 
@@ -325,7 +329,8 @@ function calculateNextCronOccurrence(
       candidate.setHours(nextHour, minute, 0, 0);
     }
 
-    if (candidate >= startDate && (!endDate || candidate <= endDate)) {
+    // Only check endDate
+    if (!endDate || candidate <= endDate) {
       return candidate;
     }
 

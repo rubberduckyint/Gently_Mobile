@@ -21,10 +21,11 @@ export interface AlarmFormData {
   ends: "never" | "on" | "after";
   endsOnDate?: Date;
   endsAfter?: number;
+  isActive?: boolean; // Optional to support editing existing alarms
   // BLE Protocol fields (consolidated - these replace legacy color, priority, hapticChoice)
   severityLevel: "INFORMATIONAL" | "WARNING" | "CRITICAL";
   ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
-  ledColor: "RED" | "GREEN" | "BLUE" | "YELLOW" | "MAGENTA" | "CYAN" | "WHITE";
+  ledColor: "OFF" | "RED" | "GREEN" | "BLUE" | "YELLOW" | "MAGENTA" | "CYAN" | "WHITE";
   vibrationPattern: "QUICK" | "HEARTBEAT" | "RAPID" | "SYMPHONY"; // 0-3: quick, heartbeat, rapid, symphony
   vibrationIntensity: "LOW" | "MEDIUM" | "HIGH" | "MAXIMUM";
   snoozePeriod: number; // minutes

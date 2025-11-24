@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { AlarmFormData } from "~/components/alarms";
 import { AlarmForm } from "~/components/alarms";
+import { useBLE } from "~/contexts/BLEContext";
 import { colors, containers, spacing, typography } from "~/styles";
 import { trpc } from "~/utils/api";
 import {
@@ -117,6 +118,7 @@ export default function EditAlarmPage() {
   const [formData, setFormData] = useState<AlarmFormData | null>(null);
   const initializedRef = useRef(false);
   const queryClient = useQueryClient();
+  const { connectionState } = useBLE();
 
   const {
     data: alarm,
@@ -138,9 +140,11 @@ export default function EditAlarmPage() {
     endDate?: string | Date | null;
     repeat: boolean;
     cronExpression: string;
+    isActive?: boolean;
     severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
     ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
     ledColor:
+      | "OFF"
       | "RED"
       | "GREEN"
       | "BLUE"
@@ -197,6 +201,7 @@ export default function EditAlarmPage() {
       ends: endsOnDate ? "on" : "never",
       endsOnDate,
       endsAfter: undefined,
+      isActive: alarm.isActive ?? true,
       severityLevel: alarm.severityLevel,
       ledPattern: alarm.ledPattern,
       ledColor: alarm.ledColor,
@@ -242,7 +247,7 @@ export default function EditAlarmPage() {
         id: alarmId,
         title: data.title,
         description: data.description || undefined,
-        isActive: true,
+        isActive: data.isActive ?? true,
         startDate: data.startDate.toISOString(),
         endDate,
         repeat: data.repeat,
@@ -268,12 +273,26 @@ export default function EditAlarmPage() {
         queryKey: ["device", "getById", { id: deviceId }],
       });
 
-      Alert.alert("Success", "Alarm updated successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.back(),
-        },
-      ]);
+      // Check if device is connected
+      if (connectionState === "connected") {
+        Alert.alert("Success", "Alarm updated and will sync automatically!", [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]);
+      } else {
+        Alert.alert(
+          "Alarm Updated",
+          "Your alarm has been updated successfully. Connect to your Gently bracelet to sync the changes.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back(),
+            },
+          ],
+        );
+      }
     },
     onError: (error) => {
       console.error("❌ Failed to update alarm:", error);
@@ -469,8 +488,6 @@ export default function EditAlarmPage() {
     <SafeAreaView style={containers.safeArea}>
       <View
         style={{
-          flexDirection: "row",
-          alignItems: "center",
           paddingHorizontal: spacing[6],
           paddingVertical: spacing[4],
           borderBottomWidth: 1,
@@ -478,41 +495,90 @@ export default function EditAlarmPage() {
           backgroundColor: colors.background.primary,
         }}
       >
-        <Pressable
-          onPress={() => router.back()}
-          style={({ pressed }) => ({
-            opacity: pressed ? 0.7 : 1,
-            padding: spacing[2],
-            marginLeft: -spacing[2],
-          })}
+        {/* Header Row */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: spacing[3],
+          }}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-        </Pressable>
-
-        <View style={{ flex: 1, alignItems: "center" }}>
-          <Text
-            style={[
-              typography.h3,
-              {
-                color: colors.text.primary,
-                textAlign: "center",
-              },
-            ]}
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.7 : 1,
+              padding: spacing[2],
+              marginLeft: -spacing[2],
+            })}
           >
-            Edit Alarm
-          </Text>
+            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+          </Pressable>
+
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text
+              style={[
+                typography.h3,
+                {
+                  color: colors.text.primary,
+                  textAlign: "center",
+                },
+              ]}
+            >
+              Edit Alarm
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={handleDeleteAlarm}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.7 : 1,
+              padding: spacing[2],
+              marginRight: -spacing[2],
+            })}
+          >
+            <Ionicons name="trash-outline" size={24} color={colors.error[500]} />
+          </Pressable>
         </View>
 
-        <Pressable
-          onPress={handleDeleteAlarm}
-          style={({ pressed }) => ({
-            opacity: pressed ? 0.7 : 1,
-            padding: spacing[2],
-            marginRight: -spacing[2],
-          })}
+        {/* Enable/Disable Toggle */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backgroundColor: colors.background.secondary,
+            padding: spacing[3],
+            borderRadius: 8,
+          }}
         >
-          <Ionicons name="trash-outline" size={24} color={colors.error[500]} />
-        </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                typography.label,
+                { color: colors.text.primary, marginBottom: 2 },
+              ]}
+            >
+              {formData.isActive ? "Alarm Enabled" : "Alarm Disabled"}
+            </Text>
+            <Text style={[typography.caption, { color: colors.text.secondary }]}>
+              {formData.isActive
+                ? "This alarm is active and will trigger"
+                : "This alarm is paused and won't trigger"}
+            </Text>
+          </View>
+          <Switch
+            value={formData.isActive ?? true}
+            onValueChange={(value) => {
+              setFormData((prev) => ({ ...prev, isActive: value }));
+            }}
+            trackColor={{
+              false: colors.gray[300],
+              true: colors.primary[500],
+            }}
+            thumbColor={colors.background.primary}
+            ios_backgroundColor={colors.gray[300]}
+          />
+        </View>
       </View>
 
       <AlarmForm
@@ -521,6 +587,7 @@ export default function EditAlarmPage() {
         onCancel={() => router.back()}
         isLoading={updateAlarmMutation.isPending}
         saveButtonText="Update Alarm"
+        showTemplates={false}
       />
     </SafeAreaView>
   );

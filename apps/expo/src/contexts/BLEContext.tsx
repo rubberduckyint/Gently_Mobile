@@ -28,6 +28,10 @@ import type {
   BLECommandRequest,
   BLECommandResponse,
 } from "../services/ble/types";
+import {
+  createAcknowledgeEventRequest,
+  parseAcknowledgeEventResponse,
+} from "../services/ble/commands/acknowledgeEvent";
 import { createGetDeviceInfoRequest } from "../services/ble/commands/getDeviceInfo";
 import { createGetDeviceStatusRequest } from "../services/ble/commands/getDeviceStatus";
 import {
@@ -94,11 +98,19 @@ export interface BLEConnectionProgress {
 
 export type BLEConnectionCallback = (progress: BLEConnectionProgress) => void;
 
+export interface ActiveAlarmNotification {
+  eventIndex: number;
+  eventState: number;
+  eventStateText: string;
+  timestamp: Date;
+}
+
 export interface BLEContextValue {
   connectionState: BLEConnectionState;
   connectedDevice: BLEDeviceInfo | null;
   encryptionKey: string | null;
   notifications: BLENotification[];
+  activeAlarm: ActiveAlarmNotification | null;
   setConnectedDevice: (device: BLEDeviceInfo | null) => void;
   setEncryptionKey: (key: string | null) => void;
   setConnectionState: (state: BLEConnectionState) => void;
@@ -115,6 +127,7 @@ export interface BLEContextValue {
   addNotification: (notification: BLENotification) => void;
   getConnectionStatus: () => BLEConnectionState;
   isDeviceConnected: () => boolean;
+  acknowledgeAlarm: (eventIndex: number) => Promise<void>;
   // Connection methods
   connectToDevice: (
     serialNumber: string,
@@ -194,6 +207,8 @@ export function BLEProvider({ children }: BLEProviderProps) {
   );
   const [encryptionKey, setEncryptionKey] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<BLENotification[]>([]);
+  const [activeAlarm, setActiveAlarm] =
+    useState<ActiveAlarmNotification | null>(null);
 
   // Use refs to maintain stable references for event handlers
   const bleInitialized = useRef(false);
@@ -332,7 +347,19 @@ export function BLEProvider({ children }: BLEProviderProps) {
               console.log(
                 `🚨 [BLE Context] ALARM TRIGGERED: Event #${eventNotification.eventIndex} is now vibrating!`,
               );
-              // Alert removed - device will handle vibration/LED notifications
+              // Set active alarm to show notification modal
+              setActiveAlarm({
+                eventIndex: eventNotification.eventIndex,
+                eventState: eventNotification.eventState,
+                eventStateText: eventNotification.eventStateText,
+                timestamp: new Date(),
+              });
+            } else if (eventNotification.eventState === 0) {
+              // Clear active alarm when event turns off
+              console.log(
+                `🔕 [BLE Context] ALARM STOPPED: Event #${eventNotification.eventIndex} turned off`,
+              );
+              setActiveAlarm(null);
             }
           } else {
             // Time Notification (command === 0x82)
@@ -445,6 +472,7 @@ export function BLEProvider({ children }: BLEProviderProps) {
     connectedDevice,
     encryptionKey,
     notifications,
+    activeAlarm,
     setConnectedDevice,
     setEncryptionKey,
     setConnectionState,
@@ -594,6 +622,42 @@ export function BLEProvider({ children }: BLEProviderProps) {
       setNotifications((prev) => [...prev, notification]),
     getConnectionStatus: () => connectionState,
     isDeviceConnected: () => connectionState === "connected",
+    acknowledgeAlarm: async (eventIndex: number) => {
+      console.log(`🔕 [BLE Context] Acknowledging alarm ${eventIndex}...`);
+
+      if (!connectedDevice || !encryptionKey) {
+        throw new Error(
+          "Device not connected - cannot acknowledge alarm offline",
+        );
+      }
+
+      try {
+        const command = createAcknowledgeEventRequest(eventIndex);
+        const response = await sendCommand({
+          peripheralId: connectedDevice.id,
+          command,
+          encryptionKey,
+          timeoutMs: 10000,
+        });
+
+        const result = parseAcknowledgeEventResponse(response.payload);
+
+        if (result.status === ResponseStatus.OK) {
+          console.log(
+            `✅ [BLE Context] Alarm ${eventIndex} acknowledged successfully`,
+          );
+          // Clear the active alarm from state
+          setActiveAlarm(null);
+        } else {
+          throw new Error(
+            `Failed to acknowledge alarm: Status=${result.status}`,
+          );
+        }
+      } catch (error) {
+        console.error(`❌ [BLE Context] Failed to acknowledge alarm:`, error);
+        throw error;
+      }
+    },
 
     // Connection methods
     connectToDevice: async (
