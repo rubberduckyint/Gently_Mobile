@@ -103,6 +103,7 @@ export interface ActiveAlarmNotification {
   eventState: number;
   eventStateText: string;
   timestamp: Date;
+  alarmTitle?: string; // Optional alarm title from device
 }
 
 export interface BLEContextValue {
@@ -347,12 +348,27 @@ export function BLEProvider({ children }: BLEProviderProps) {
               console.log(
                 `🚨 [BLE Context] ALARM TRIGGERED: Event #${eventNotification.eventIndex} is now vibrating!`,
               );
+              
+              // Try to get alarm title from device data
+              // The deviceIndex corresponds to eventIndex
+              let alarmTitle: string | undefined;
+              if (connectedDeviceRef.current?.deviceId) {
+                try {
+                  // We'll store the device data in the context to access alarm titles
+                  // For now, use a generic title
+                  alarmTitle = undefined;
+                } catch (error) {
+                  console.warn("Could not fetch alarm title:", error);
+                }
+              }
+              
               // Set active alarm to show notification modal
               setActiveAlarm({
                 eventIndex: eventNotification.eventIndex,
                 eventState: eventNotification.eventState,
                 eventStateText: eventNotification.eventStateText,
                 timestamp: new Date(),
+                alarmTitle,
               });
             } else if (eventNotification.eventState === 0) {
               // Clear active alarm when event turns off

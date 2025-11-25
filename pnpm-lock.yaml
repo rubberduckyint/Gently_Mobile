@@ -66,6 +66,9 @@ catalogs:
     eslint:
       specifier: ^9.39.1
       version: 9.39.1
+    expo-web-browser:
+      specifier: canary
+      version: 15.0.10-canary-20251120-e46b3cc
     minimatch:
       specifier: ^10.1.1
       version: 10.1.1
@@ -171,6 +174,9 @@ importers:
       expo-apple-authentication:
         specifier: canary
         version: 8.0.8-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))
+      expo-auth-session:
+        specifier: 7.0.10-canary-20251120-e46b3cc
+        version: 7.0.10-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))(react@19.1.1)
       expo-constants:
         specifier: canary
         version: 18.1.0-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))
@@ -205,7 +211,7 @@ importers:
         specifier: canary
         version: 6.0.9-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native-web@0.21.2(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))
       expo-web-browser:
-        specifier: canary
+        specifier: 'catalog:'
         version: 15.0.10-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))
       minimatch:
         specifier: ^10.1.1
@@ -5417,10 +5423,21 @@ packages:
       expo: 55.0.0-canary-20251120-e46b3cc
       react-native: '*'
 
+  expo-application@7.0.8-canary-20251120-e46b3cc:
+    resolution: {integrity: sha512-BXjwZY/ShTY8bSVXULArFp5w213iXsyCugIqAkPugWZT1s7joZU1Okrn/aOVNV+brC8YykiV5ZLZfOCj6npZkQ==}
+    peerDependencies:
+      expo: 55.0.0-canary-20251120-e46b3cc
+
   expo-asset@12.0.11-canary-20251120-e46b3cc:
     resolution: {integrity: sha512-hxX+iEV4ZgBQzDlMGNUUTjIWq6ORsCzEPxhoehaMev98vhJZt389GYkHMMKw70nI9axG63xJuKN0lBM6m2tZ8w==}
     peerDependencies:
       expo: 55.0.0-canary-20251120-e46b3cc
+      react: '*'
+      react-native: '*'
+
+  expo-auth-session@7.0.10-canary-20251120-e46b3cc:
+    resolution: {integrity: sha512-VWWOWO4yv3ivhRwX5F2CcQWp29r4UMcM5GPlpM6/lDUepq/Qmx7RL6HA0wzm0moPruwae0QWziVW80YsMKC6nQ==}
+    peerDependencies:
       react: '*'
       react-native: '*'
 
@@ -14562,6 +14579,10 @@ snapshots:
       expo: 55.0.0-canary-20251120-e46b3cc(@babel/core@7.28.5)(@expo/dom-webview@0.2.8-canary-20251118-8f7ee64)(@expo/metro-runtime@6.2.0-canary-20251120-e46b3cc)(bufferutil@4.0.9)(expo-router@7.0.0-canary-20251120-e46b3cc)(react-dom@19.1.1(react@19.1.1))(react-native-web@0.21.2(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))(react@19.1.1)
       react-native: 0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1)
 
+  expo-application@7.0.8-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc):
+    dependencies:
+      expo: 55.0.0-canary-20251120-e46b3cc(@babel/core@7.28.5)(@expo/dom-webview@0.2.8-canary-20251118-8f7ee64)(@expo/metro-runtime@6.2.0-canary-20251120-e46b3cc)(bufferutil@4.0.9)(expo-router@7.0.0-canary-20251120-e46b3cc)(react-dom@19.1.1(react@19.1.1))(react-native-web@0.21.2(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))(react@19.1.1)
+
   expo-asset@12.0.11-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))(react@19.1.1):
     dependencies:
       '@expo/image-utils': 0.8.8-canary-20251120-e46b3cc
@@ -14580,6 +14601,20 @@ snapshots:
       react: 19.2.0
       react-native: 0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.2.0)
     transitivePeerDependencies:
+      - supports-color
+
+  expo-auth-session@7.0.10-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))(react@19.1.1):
+    dependencies:
+      expo-application: 7.0.8-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)
+      expo-constants: 18.1.0-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))
+      expo-crypto: 15.0.8-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)
+      expo-linking: 8.0.10-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))(react@19.1.1)
+      expo-web-browser: 15.0.10-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1))
+      invariant: 2.2.4
+      react: 19.1.1
+      react-native: 0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1)
+    transitivePeerDependencies:
+      - expo
       - supports-color
 
   expo-constants@18.1.0-canary-20251120-e46b3cc(expo@55.0.0-canary-20251120-e46b3cc)(react-native@0.83.0-rc.2(@babel/core@7.28.5)(@types/react@19.2.6)(bufferutil@4.0.9)(react@19.1.1)):

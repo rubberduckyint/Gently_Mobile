@@ -142,9 +142,8 @@ export default function EditAlarmPage() {
     cronExpression: string;
     isActive?: boolean;
     severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
-    ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+    ledPattern: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
     ledColor:
-      | "OFF"
       | "RED"
       | "GREEN"
       | "BLUE"
@@ -243,7 +242,7 @@ export default function EditAlarmPage() {
         throw new Error("Alarm ID is required");
       }
 
-      return await trpc.alarm.update.mutate({
+      const result = await trpc.alarm.update.mutate({
         id: alarmId,
         title: data.title,
         description: data.description || undefined,
@@ -264,6 +263,14 @@ export default function EditAlarmPage() {
         retriggerDelay: data.retriggerDelay,
         retriggerTimeout: data.retriggerTimeout,
       });
+
+      // Mark as NOT_SYNCED to ensure sync happens even when disabled
+      await trpc.alarm.update.mutate({
+        id: alarmId,
+        syncStatus: "NOT_SYNCED" as const,
+      });
+
+      return result;
     },
     onSuccess: () => {
       queryClient.removeQueries({

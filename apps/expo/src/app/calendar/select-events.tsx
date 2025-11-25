@@ -131,12 +131,27 @@ export default function SelectEventsPage() {
     setIsCreatingAlarms(true);
 
     try {
-      // TODO: Implement alarm creation from calendar events
-      // This will require a new tRPC endpoint to create alarms
-      // For now, just show success
+      // Convert selected events to the format expected by the API
+      const eventsArray = Array.from(selectedEvents.values()).map((event) => ({
+        eventId: event.id,
+        eventSummary: event.summary || "Untitled Event",
+        eventStartTime: new Date(event.start.dateTime || event.start.date || ""),
+        eventEndTime: event.end.dateTime || event.end.date
+          ? new Date(event.end.dateTime || event.end.date || "")
+          : undefined,
+        eventLocation: event.location,
+        alarmMinutesBefore: event.alarmMinutesBefore,
+      }));
+
+      // Call the tRPC endpoint to create alarms
+      const result = await trpc.calendar.createAlarmsFromEvents.mutate({
+        connectionId,
+        events: eventsArray,
+      });
+
       Alert.alert(
         "Success",
-        `Created ${selectedEvents.size} alarm(s) from calendar events`,
+        `Created ${result.created} alarm(s) from calendar events`,
         [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error) {

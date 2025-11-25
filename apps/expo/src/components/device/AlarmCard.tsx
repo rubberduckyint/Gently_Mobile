@@ -279,6 +279,41 @@ export function AlarmCard({ alarm, onPress }: AlarmCardProps) {
           })()}
         </Text>
 
+        {/* Status Badge - Show if disabled */}
+        {!alarm.isActive && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: spacing[2],
+              paddingVertical: spacing[1],
+              paddingHorizontal: spacing[2],
+              backgroundColor: colors.gray[100],
+              borderRadius: 4,
+              alignSelf: "flex-start",
+            }}
+          >
+            <Ionicons
+              name="close-circle"
+              size={12}
+              color={colors.text.secondary}
+              style={{ marginRight: spacing[1] }}
+            />
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: colors.text.secondary,
+                  fontSize: 10,
+                  fontWeight: "600",
+                },
+              ]}
+            >
+              DISABLED
+            </Text>
+          </View>
+        )}
+
         {/* Next Occurrence */}
         {scheduleInfo.timeUntilNext && alarm.isActive && (
           <View

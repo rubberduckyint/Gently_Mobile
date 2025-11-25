@@ -10,7 +10,7 @@ import * as WebBrowser from "expo-web-browser";
 WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_OAUTH_CONFIG = {
-  clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || "",
+  clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "",
   scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
   redirectUri: AuthSession.makeRedirectUri({
     scheme: "gently",

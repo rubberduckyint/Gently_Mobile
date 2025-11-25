@@ -26,6 +26,7 @@ import { buttons, buttonText, colors, spacing, typography } from "~/styles";
 export function AlarmNotificationModal() {
   const { activeAlarm, acknowledgeAlarm } = useBLE();
   const [isAcknowledging, setIsAcknowledging] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   // Vibrate the phone when alarm modal appears
   useEffect(() => {
@@ -41,7 +42,14 @@ export function AlarmNotificationModal() {
     }
   }, [activeAlarm]);
 
-  if (!activeAlarm) return null;
+  // Reset dismissed state when a new alarm comes in
+  useEffect(() => {
+    if (activeAlarm) {
+      setIsDismissed(false);
+    }
+  }, [activeAlarm?.eventIndex, activeAlarm?.timestamp]);
+
+  if (!activeAlarm || isDismissed) return null;
 
   const handleAcknowledge = async () => {
     setIsAcknowledging(true);
@@ -66,16 +74,8 @@ export function AlarmNotificationModal() {
   };
 
   const getStateColor = () => {
-    switch (activeAlarm.eventState) {
-      case 2: // ON & vibrating
-        return colors.error[500];
-      case 3: // ON & retrigger delay
-        return colors.warning[500];
-      case 4: // ON & snooze period
-        return colors.primary[500];
-      default:
-        return colors.gray[500];
-    }
+    // Use primary blue color instead of red - less negative
+    return colors.primary[500];
   };
 
   const getStateIcon = () => {
@@ -91,12 +91,20 @@ export function AlarmNotificationModal() {
     }
   };
 
+  const handleDismiss = () => {
+    // Allow dismissing modal without stopping the alarm
+    Vibration.cancel();
+    setIsDismissed(true);
+    // Note: This doesn't stop the alarm on the device, just closes the modal
+    // The alarm will continue on the bracelet
+  };
+
   return (
     <Modal
       visible={true}
       transparent={true}
       animationType="fade"
-      onRequestClose={handleAcknowledge}
+      onRequestClose={handleDismiss}
     >
       <View
         style={{
@@ -141,10 +149,10 @@ export function AlarmNotificationModal() {
             />
           </View>
 
-          {/* Title */}
+          {/* Alarm Title */}
           <Text
             style={[
-              typography.h1,
+              typography.h2,
               {
                 color: colors.text.primary,
                 marginBottom: spacing[2],
@@ -152,7 +160,7 @@ export function AlarmNotificationModal() {
               },
             ]}
           >
-            Alarm Active
+            {activeAlarm.alarmTitle || "Alarm Active"}
           </Text>
 
           {/* State */}
@@ -184,20 +192,22 @@ export function AlarmNotificationModal() {
             Event #{activeAlarm.eventIndex} on your Gently bracelet
           </Text>
 
-          {/* Acknowledge Button */}
-          <Pressable
-            style={[
-              buttons.base,
-              buttons.large,
-              {
-                backgroundColor: getStateColor(),
-                width: "100%",
-                paddingVertical: spacing[5],
-              },
-              isAcknowledging && buttons.disabled,
-            ]}
-            onPress={handleAcknowledge}
-            disabled={isAcknowledging}
+          {/* Action Buttons */}
+          <View style={{ width: "100%", gap: spacing[3] }}>
+            {/* Stop Alarm Button */}
+            <Pressable
+              style={[
+                buttons.base,
+                buttons.large,
+                {
+                  backgroundColor: getStateColor(),
+                  width: "100%",
+                  paddingVertical: spacing[5],
+                },
+                isAcknowledging && buttons.disabled,
+              ]}
+              onPress={handleAcknowledge}
+              disabled={isAcknowledging}
           >
             {isAcknowledging ? (
               <ActivityIndicator color={colors.text.inverse} />
@@ -216,6 +226,38 @@ export function AlarmNotificationModal() {
             )}
           </Pressable>
 
+          {/* Dismiss Button */}
+          <Pressable
+            style={[
+              buttons.base,
+              buttons.large,
+              {
+                backgroundColor: colors.background.secondary,
+                borderWidth: 1,
+                borderColor: colors.border.light,
+                width: "100%",
+                paddingVertical: spacing[5],
+              },
+            ]}
+            onPress={handleDismiss}
+          >
+            <Ionicons
+              name="close-circle-outline"
+              size={24}
+              color={colors.text.secondary}
+              style={{ marginRight: spacing[2] }}
+            />
+            <Text
+              style={[
+                buttonText.secondary,
+                { fontSize: 18, color: colors.text.secondary },
+              ]}
+            >
+              Dismiss
+            </Text>
+          </Pressable>
+          </View>
+
           {/* Help Text */}
           <Text
             style={[
@@ -228,7 +270,7 @@ export function AlarmNotificationModal() {
               },
             ]}
           >
-            This stops the alarm on your bracelet
+            Stop turns off the alarm • Dismiss keeps it on your bracelet
           </Text>
         </View>
       </View>

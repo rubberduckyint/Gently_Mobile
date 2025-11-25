@@ -4,8 +4,10 @@
 
 ### Database Layer
 - **CalendarConnection table** created in schema with OAuth token storage
+- **CalendarEventAlarm table** created to map calendar events to alarms
 - **Migration pushed** to database successfully
 - Fields: userId, provider, accountEmail, accessToken, refreshToken, tokenExpiresAt, isActive, lastSyncedAt
+- Event mapping fields: eventId, eventSummary, eventStartTime, eventEndTime, eventLocation, alarmMinutesBefore
 
 ### API Layer (tRPC)
 - **Calendar router** (`packages/api/src/router/calendar.ts`) with endpoints:
@@ -16,6 +18,7 @@
   - `toggleActive` - Enable/disable sync
   - `deleteConnection` - Remove connection
   - `updateLastSynced` - Update sync timestamp
+  - **`createAlarmsFromEvents`** - Create alarms from selected calendar events ✨ NEW
 
 ### Service Layer
 - **Google Calendar service** (`apps/expo/src/services/googleCalendar.ts`):
@@ -43,7 +46,8 @@
   - Multi-select events
   - Configure alarm timing (5/15/30/60 min before)
   - Pull-to-refresh
-  - Batch alarm creation UI
+  - **Integrated with alarm creation endpoint** ✨ NEW
+  - Creates alarms and event mappings in database
 
 - **Settings integration**:
   - "Calendar Integration" card in settings
@@ -52,74 +56,24 @@
 ## ⏸️ Pending Implementation
 
 ### 1. Package Installation
-**Status**: Required before testing
-```bash
-cd apps/expo
-npx expo install expo-auth-session expo-web-browser
-```
+**Status**: ✅ COMPLETED - Packages installed
 
 ### 2. Environment Configuration
-**Status**: Required before OAuth works
-
-Add to `.env` or `app.config.ts`:
-```
-EXPO_PUBLIC_GOOGLE_CLIENT_ID=your-google-oauth-client-id
-```
-
-**Google Cloud Console setup needed**:
-1. Create OAuth 2.0 credentials
-2. Add redirect URIs:
-   - Dev: `exp://localhost:8081/--/oauth/callback`
-   - Prod: `gently://oauth/callback`
-3. Enable Google Calendar API
-4. Add scope: `https://www.googleapis.com/auth/calendar.readonly`
+**Status**: ✅ COMPLETED - Using existing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
 
 ### 3. Alarm Creation from Calendar Events
-**Status**: Not started
+**Status**: ✅ COMPLETED
 
-**What's needed**:
-- tRPC endpoint to create alarms from calendar events
-- Logic to calculate alarm time from event start time and user preference
-- BLE command to sync alarms to Gently device
-- Database table to link calendar events to alarms
-- Handle event updates/cancellations
-
-**Suggested schema addition**:
-```typescript
-export const CalendarEventAlarm = pgTable("calendar_event_alarms", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  userId: text("user_id").notNull().references(() => User.id, { onDelete: "cascade" }),
-  calendarConnectionId: text("calendar_connection_id").notNull().references(() => CalendarConnection.id, { onDelete: "cascade" }),
-  eventId: text("event_id").notNull(), // Google event ID
-  alarmId: text("alarm_id").references(() => Alarm.id, { onDelete: "cascade" }),
-  eventSummary: text("event_summary").notNull(),
-  eventStartTime: timestamp("event_start_time").notNull(),
-  alarmMinutesBefore: integer("alarm_minutes_before").notNull(),
-  lastSynced: timestamp("last_synced"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-```
-
-**API endpoint needed**:
-```typescript
-// In calendar router
-createAlarmsFromEvents: protectedProcedure
-  .input(z.object({
-    events: z.array(z.object({
-      eventId: z.string(),
-      eventSummary: z.string(),
-      eventStartTime: z.date(),
-      alarmMinutesBefore: z.number(),
-    })),
-    connectionId: z.string(),
-  }))
-  .mutation(async ({ ctx, input }) => {
-    // 1. Calculate alarm times
-    // 2. Create alarms in database
-    // 3. Sync to BLE device
-    // 4. Create event-alarm mappings
-  })
-```
+**Implemented**:
+- ✅ CalendarEventAlarm table in database schema
+- ✅ tRPC endpoint `createAlarmsFromEvents` with:
+  - Calendar event to alarm conversion
+  - Automatic cron expression generation from event time
+  - User's default alarm preferences applied
+  - Event-alarm mapping creation
+  - Transaction safety with rollback on failure
+- ✅ UI integration in select-events screen
+- ✅ Batch alarm creation from multiple events
 
 ### 4. Calendar Sync System
 **Status**: Not started

@@ -105,6 +105,41 @@ export const CalendarConnection = pgTable("CalendarConnection", (t) => ({
     .notNull(),
 }));
 
+// Calendar Event Alarms - maps calendar events to created alarms
+export const CalendarEventAlarm = pgTable("CalendarEventAlarm", (t) => ({
+  id: pgCuid2("id").defaultRandom().primaryKey(),
+  userId: t
+    .text()
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  calendarConnectionId: t
+    .text()
+    .notNull()
+    .references(() => CalendarConnection.id, { onDelete: "cascade" }),
+  alarmId: t
+    .text()
+    .references(() => Alarm.id, { onDelete: "cascade" }),
+  
+  // Calendar event details
+  eventId: t.text().notNull(), // Google Calendar event ID
+  eventSummary: t.text().notNull(),
+  eventStartTime: t.timestamp({ withTimezone: true }).notNull(),
+  eventEndTime: t.timestamp({ withTimezone: true }),
+  eventLocation: t.text(),
+  
+  // Alarm configuration
+  alarmMinutesBefore: t.integer().notNull(),
+  
+  // Sync tracking
+  lastSynced: t.timestamp({ withTimezone: true }),
+  
+  createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ withTimezone: true, mode: "string" })
+    .$onUpdate(() => sql`NOW()`)
+    .notNull(),
+}));
+
 export const Device = pgTable("Device", (t) => ({
   id: pgCuid2("id").defaultRandom().primaryKey(),
   title: t.text().notNull(),
@@ -293,6 +328,30 @@ export const UpdateCalendarConnectionSchema =
 export const CalendarConnectionSelectSchema =
   createSelectSchema(CalendarConnection);
 
+// Calendar Event Alarm Schemas
+export const CreateCalendarEventAlarmSchema = createInsertSchema(
+  CalendarEventAlarm,
+  {
+    eventId: z.string().min(1),
+    eventSummary: z.string().min(1),
+    eventStartTime: z.date(),
+    eventEndTime: z.date().optional(),
+    eventLocation: z.string().optional(),
+    alarmMinutesBefore: z.number().int().min(0).max(1440), // Max 24 hours
+  },
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  userId: true, // Set from session
+});
+
+export const UpdateCalendarEventAlarmSchema =
+  CreateCalendarEventAlarmSchema.partial();
+
+export const CalendarEventAlarmSelectSchema =
+  createSelectSchema(CalendarEventAlarm);
+
 // Relations
 export const userRelations = relations(user, ({ many, one }) => ({
   devices: many(Device),
@@ -302,6 +361,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
     references: [UserPreferences.userId],
   }),
   calendarConnections: many(CalendarConnection),
+  calendarEventAlarms: many(CalendarEventAlarm),
 }));
 
 export const deviceRelations = relations(Device, ({ one, many }) => ({
@@ -312,7 +372,7 @@ export const deviceRelations = relations(Device, ({ one, many }) => ({
   alarms: many(Alarm),
 }));
 
-export const alarmRelations = relations(Alarm, ({ one }) => ({
+export const alarmRelations = relations(Alarm, ({ one, many }) => ({
   user: one(user, {
     fields: [Alarm.userId],
     references: [user.id],
@@ -320,6 +380,10 @@ export const alarmRelations = relations(Alarm, ({ one }) => ({
   device: one(Device, {
     fields: [Alarm.deviceId],
     references: [Device.id],
+  }),
+  calendarEventAlarm: one(CalendarEventAlarm, {
+    fields: [Alarm.id],
+    references: [CalendarEventAlarm.alarmId],
   }),
 }));
 
@@ -335,10 +399,29 @@ export const userPreferencesRelations = relations(
 
 export const calendarConnectionRelations = relations(
   CalendarConnection,
-  ({ one }) => ({
+  ({ one, many }) => ({
     user: one(user, {
       fields: [CalendarConnection.userId],
       references: [user.id],
+    }),
+    calendarEventAlarms: many(CalendarEventAlarm),
+  }),
+);
+
+export const calendarEventAlarmRelations = relations(
+  CalendarEventAlarm,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [CalendarEventAlarm.userId],
+      references: [user.id],
+    }),
+    calendarConnection: one(CalendarConnection, {
+      fields: [CalendarEventAlarm.calendarConnectionId],
+      references: [CalendarConnection.id],
+    }),
+    alarm: one(Alarm, {
+      fields: [CalendarEventAlarm.alarmId],
+      references: [Alarm.id],
     }),
   }),
 );
