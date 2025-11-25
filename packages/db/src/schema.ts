@@ -256,10 +256,10 @@ export const CreateAlarmSchema = createInsertSchema(Alarm, {
   // BLE Protocol fields (consolidated - replaces legacy color, priority, hapticChoice)
   severityLevel: z.enum(["INFORMATIONAL", "WARNING", "CRITICAL"]).optional(),
   ledPattern: z
-    .enum(["SOLID", "BLINK_SLOW", "BLINK_FAST", "PULSE", "STROBE"])
+    .enum(["OFF", "SOLID", "BLINK_SLOW", "BLINK_FAST", "PULSE", "STROBE"])
     .optional(),
   ledColor: z
-    .enum(["OFF", "RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"])
+    .enum(["RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"])
     .optional(),
   vibrationPattern: z.number().int().min(1).max(63).optional(),
   vibrationIntensity: z.enum(["LOW", "MEDIUM", "HIGH", "MAXIMUM"]).optional(),

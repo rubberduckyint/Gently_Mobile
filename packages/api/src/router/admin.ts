@@ -209,6 +209,7 @@ export const adminRouter = {
               // BLE Protocol fields (consolidated - replaced legacy color, priority, hapticChoice)
               severityLevel: z.enum(["INFORMATIONAL", "WARNING", "CRITICAL"]),
               ledPattern: z.enum([
+                "OFF",
                 "SOLID",
                 "BLINK_SLOW",
                 "BLINK_FAST",
