@@ -215,6 +215,16 @@ export const calendarRouter = createTRPCRouter({
         eventMapping: typeof CalendarEventAlarm.$inferSelect;
       }[] = [];
 
+      // Generate unique 10-character alphanumeric peripheral ID
+      const generatePeripheralId = () => {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let result = "";
+        for (let i = 0; i < 10; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      };
+
       // Create alarms for each event
       for (const event of input.events) {
         // Calculate alarm time (event start time minus minutes before)
@@ -223,6 +233,13 @@ export const calendarRouter = createTRPCRouter({
 
         // Generate cron expression for the specific date/time
         const cronExpression = `${alarmTime.getMinutes()} ${alarmTime.getHours()} ${alarmTime.getDate()} ${alarmTime.getMonth() + 1} *`;
+
+        // Ensure ledPattern is a valid BLE pattern (not "OFF")
+        // If user has "OFF" as default, use "BLINK_SLOW" instead since OFF doesn't make sense for alarms
+        const effectiveLedPattern = 
+          preferences?.defaultLedPattern === "OFF" 
+            ? "BLINK_SLOW" 
+            : (preferences?.defaultLedPattern ?? "BLINK_SLOW");
 
         // Create the alarm
         const [alarm] = await ctx.db
@@ -237,9 +254,10 @@ export const calendarRouter = createTRPCRouter({
             repeat: false, // Calendar events are one-time by default
             userId: ctx.session.user.id,
             deviceId: input.deviceId,
+            peripheralId: generatePeripheralId(), // Required for BLE sync event name
             // Use user's default preferences
             severityLevel: preferences?.defaultSeverityLevel ?? "INFORMATIONAL",
-            ledPattern: preferences?.defaultLedPattern ?? "BLINK_SLOW",
+            ledPattern: effectiveLedPattern,
             ledColor: preferences?.defaultLedColor ?? "BLUE",
             vibrationPattern: preferences?.defaultVibrationPattern ?? 1,
             vibrationIntensity:
@@ -302,5 +320,22 @@ export const calendarRouter = createTRPCRouter({
         created: createdAlarms.length,
         alarms: createdAlarms,
       };
+    }),
+
+  // Get all calendar event IDs that are linked to alarms for a connection
+  getLinkedEventIds: protectedProcedure
+    .input(z.object({ connectionId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const linkedEvents = await ctx.db
+        .select({ eventId: CalendarEventAlarm.eventId })
+        .from(CalendarEventAlarm)
+        .where(
+          and(
+            eq(CalendarEventAlarm.calendarConnectionId, input.connectionId),
+            eq(CalendarEventAlarm.userId, ctx.session.user.id),
+          ),
+        );
+
+      return linkedEvents.map((e) => e.eventId);
     }),
 });

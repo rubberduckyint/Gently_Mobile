@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useGlobalSearchParams } from "expo-router";
+import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -227,6 +227,7 @@ export default function DeviceDetailPage() {
     data: device,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["device", "getById", { id: initialDeviceId }],
     queryFn: async () => {
@@ -238,9 +239,9 @@ export default function DeviceDetailPage() {
       return await trpc.device.getById.query({ id: initialDeviceId });
     },
     enabled: !!initialDeviceId && !!deviceId, // Only run when we have both IDs and route is valid
-    refetchOnMount: false, // Don't refetch when component mounts if we have data
+    refetchOnMount: true, // Refetch when component mounts to get latest alarms
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
-    staleTime: 30000, // Consider data fresh for 30 seconds
+    staleTime: 5000, // Consider data fresh for 5 seconds (reduced to ensure fresh data)
     retry: (failureCount, error) => {
       // Don't retry if the device is not found (likely deleted)
       if (
@@ -255,6 +256,14 @@ export default function DeviceDetailPage() {
       return failureCount < 3;
     },
   });
+
+  // Refetch device data when screen comes into focus (e.g., after adding calendar alarms)
+  useFocusEffect(
+    useCallback(() => {
+      console.log("🔍 [Device Detail] Screen focused, refetching device data");
+      void refetch();
+    }, [refetch])
+  );
 
   // Initialize alarm sync hook
   const alarmSync = useAlarmSync({

@@ -100,11 +100,14 @@ export function mapVibrationPatternToNumber(
 
 /**
  * Map alarm form LED pattern to BLE LED pattern number
+ * Per BLE Protocol: 0=OFF, 1=Blink Slow, 2=Blink Fast, 3=Solid
  */
 export function mapLedPatternToNumber(
-  ledPattern: AlarmFormData["ledPattern"],
+  ledPattern: AlarmFormData["ledPattern"] | "OFF",
 ): number {
   switch (ledPattern) {
+    case "OFF":
+      return 0; // OFF
     case "SOLID":
       return 3; // Solid
     case "BLINK_SLOW":
@@ -116,7 +119,7 @@ export function mapLedPatternToNumber(
     case "STROBE":
       return 2; // Map to blink fast (closest equivalent)
     default:
-      return 2; // Default to blink fast
+      return 1; // Default to blink slow (more visible than OFF)
   }
 }
 
@@ -224,7 +227,7 @@ export function alarmDatabaseToBleParameters(
     peripheralId?: string | null;
     cronExpression: string;
     severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
-    ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+    ledPattern: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
     ledColor:
       | "RED"
       | "GREEN"

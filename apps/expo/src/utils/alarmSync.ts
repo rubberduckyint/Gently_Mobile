@@ -21,7 +21,7 @@ export interface AlarmForSync {
   cronExpression: string;
   isActive: boolean;
   severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
-  ledPattern: "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
+  ledPattern: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
   ledColor: "RED" | "GREEN" | "BLUE" | "YELLOW" | "MAGENTA" | "CYAN" | "WHITE";
   vibrationPattern: number;
   vibrationIntensity: "LOW" | "MEDIUM" | "HIGH" | "MAXIMUM";
