@@ -24,12 +24,6 @@ export function AlarmCard({ alarm, onPress, isExpired = false }: AlarmCardProps)
   
   // Safely convert dates, providing defaults for invalid values
   const safeStartDate = React.useMemo(() => {
-    console.log("AlarmCard processing startDate:", {
-      raw: alarm.startDate,
-      type: typeof alarm.startDate,
-      isDate: alarm.startDate instanceof Date,
-    });
-
     let date: Date;
     if (alarm.startDate instanceof Date) {
       date = alarm.startDate;
@@ -50,12 +44,6 @@ export function AlarmCard({ alarm, onPress, isExpired = false }: AlarmCardProps)
   }, [alarm.startDate]);
 
   const safeEndDate = React.useMemo(() => {
-    console.log("AlarmCard processing endDate:", {
-      raw: alarm.endDate,
-      type: typeof alarm.endDate,
-      isDate: alarm.endDate instanceof Date,
-    });
-
     if (!alarm.endDate) return undefined;
 
     let date: Date;
@@ -75,18 +63,6 @@ export function AlarmCard({ alarm, onPress, isExpired = false }: AlarmCardProps)
   }, [alarm.endDate]);
 
   const scheduleInfo = React.useMemo(() => {
-    // Debug logging to trace the source of invalid dates
-    console.log("AlarmCard calculating schedule for alarm:", {
-      id: alarm.id,
-      isActive: alarm.isActive,
-      startDate: safeStartDate,
-      startDateValid: !isNaN(safeStartDate.getTime()),
-      endDate: safeEndDate,
-      endDateValid: safeEndDate ? !isNaN(safeEndDate.getTime()) : true,
-      repeat: alarm.repeat,
-      cronExpression: alarm.cronExpression,
-    });
-
     return calculateNextAlarmOccurrence({
       isActive: alarm.isActive,
       startDate: safeStartDate,

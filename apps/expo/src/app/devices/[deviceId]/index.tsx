@@ -62,22 +62,16 @@ export default function DeviceDetailPage() {
   // Store the initial device ID to prevent it from changing during navigation
   // Only set it if deviceId is actually defined
   const [initialDeviceId] = React.useState(() => {
-    console.log("🔍 [Device Detail] Initializing with deviceId:", deviceId);
     return deviceId;
   });
 
   // Set mounted flag on mount
   React.useEffect(() => {
     isMountedRef.current = true;
-    console.log("🔍 [Device Detail] Component mounted");
 
     // Cleanup function - only runs when component actually unmounts
     return () => {
       isMountedRef.current = false;
-      console.log(
-        "🧹 [Device Detail] Component unmounting for ID:",
-        initialDeviceId,
-      );
 
       // Note: We don't add the device to devicesBeingDeleted here
       // because unmounting happens during normal navigation too.
@@ -85,19 +79,6 @@ export default function DeviceDetailPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run on mount/unmount
-
-  // Debug logging to track device ID changes
-  React.useEffect(() => {
-    console.log("🔍 [Device Detail] Route deviceId:", deviceId);
-    console.log("🔍 [Device Detail] Stored initialDeviceId:", initialDeviceId);
-
-    // If deviceId is not set, log it as a warning
-    if (!deviceId) {
-      console.warn(
-        "⚠️ [Device Detail] Route deviceId is missing - page may be unmounting or route params lost",
-      );
-    }
-  }, [deviceId, initialDeviceId]);
 
   // Use BLE context to show connection status
   const {
@@ -235,7 +216,6 @@ export default function DeviceDetailPage() {
       if (!isMountedRef.current) {
         throw new Error("Component unmounted");
       }
-      console.log(`🔍 [Device Detail] Fetching device: ${initialDeviceId}`);
       return await trpc.device.getById.query({ id: initialDeviceId });
     },
     enabled: !!initialDeviceId && !!deviceId, // Only run when we have both IDs and route is valid
@@ -260,7 +240,6 @@ export default function DeviceDetailPage() {
   // Refetch device data when screen comes into focus (e.g., after adding calendar alarms)
   useFocusEffect(
     useCallback(() => {
-      console.log("🔍 [Device Detail] Screen focused, refetching device data");
       void refetch();
     }, [refetch])
   );

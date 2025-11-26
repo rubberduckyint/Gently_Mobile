@@ -108,7 +108,6 @@ export function useAlarmSync({
 
       if (result.success) {
         setLastSyncTime(new Date());
-        console.log("✅ Alarm sync completed successfully");
 
         // Notify completion
         onSyncComplete?.();

@@ -84,9 +84,12 @@ const generateCronExpression = (formData: AlarmFormData): string => {
   const hour = startDate.getHours();
   const day = startDate.getDate();
   const month = startDate.getMonth() + 1;
+  const dayOfWeek = startDate.getDay(); // 0=Sunday, 1=Monday, etc.
 
   if (!repeat) {
-    return `${minute} ${hour} ${day} ${month} *`;
+    // Use specific day-of-week for one-time alarms so the device
+    // doesn't interpret * as "every day"
+    return `${minute} ${hour} ${day} ${month} ${dayOfWeek}`;
   }
 
   switch (repeatType) {
@@ -101,7 +104,7 @@ const generateCronExpression = (formData: AlarmFormData): string => {
       return `${minute} ${hour} * * ${days}`;
     }
     default:
-      return `${minute} ${hour} ${day} ${month} *`;
+      return `${minute} ${hour} ${day} ${month} ${dayOfWeek}`;
   }
 };
 

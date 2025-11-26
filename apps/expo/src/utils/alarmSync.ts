@@ -19,6 +19,8 @@ export interface AlarmForSync {
   title: string;
   peripheralId?: string | null;
   cronExpression: string;
+  startDate: Date;
+  repeat: boolean;
   isActive: boolean;
   severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
   ledPattern: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
@@ -55,8 +57,6 @@ export async function syncAlarmsToDevice(
   onProgress?: SyncProgressCallback,
   onStatusUpdate?: SyncStatusCallback,
 ): Promise<{ success: boolean; error?: string }> {
-  console.log(`� Syncing ${alarms.length} alarms to device ${peripheralId}`);
-
   try {
     onProgress?.({
       step: "start",
@@ -97,8 +97,6 @@ export async function syncAlarmsToDevice(
         progress: progressPercent,
       });
 
-      console.log(`📝 Syncing alarm ${i + 1}/${totalAlarms}: ${alarm.title}`);
-
       // Convert alarm to BLE parameters
       // Note: Device firmware incorrectly returns index 0 for all ADD_EVENT responses
       // but actually stores at sequential indices. We use actualDeviceIndex to track this.
@@ -128,10 +126,6 @@ export async function syncAlarmsToDevice(
         continue;
       }
 
-      console.log(
-        `✅ Added alarm ${alarm.title} at device index ${actualDeviceIndex} (device reported: ${result.eventIndex})`,
-      );
-
       // Set the alarm on/off state based on isActive
       // Use actualDeviceIndex instead of result.eventIndex due to firmware bug
       const onOffResponse = await sendCommand({
@@ -140,11 +134,7 @@ export async function syncAlarmsToDevice(
         encryptionKey,
       });
 
-      if (onOffResponse.status === ResponseStatus.OK) {
-        console.log(
-          `✅ ${alarm.isActive ? "Enabled" : "Disabled"} alarm ${alarm.title} at index ${actualDeviceIndex}`,
-        );
-      } else {
+      if (onOffResponse.status !== ResponseStatus.OK) {
         console.warn(
           `⚠️ Failed to ${alarm.isActive ? "enable" : "disable"} alarm ${alarm.title}`,
         );
@@ -163,7 +153,6 @@ export async function syncAlarmsToDevice(
       progress: 100,
     });
 
-    console.log("🎉 Alarm sync completed successfully");
     return { success: true };
   } catch (error) {
     const errorMessage =

@@ -219,6 +219,36 @@ export function alarmFormDataToBleParameters(
 }
 
 /**
+ * Generate a cron expression from startDate in local time
+ * For non-repeating alarms, uses specific day-of-week since the BLE device
+ * firmware interprets * as "every day" and ignores day-of-month
+ * For repeating alarms, uses the stored cronExpression
+ */
+function generateLocalTimeCronExpression(
+  startDate: Date,
+  repeat: boolean,
+  storedCronExpression: string,
+): string {
+  // For repeating alarms, use the stored cron expression as-is
+  // (it was created on the client with local time)
+  if (repeat) {
+    return storedCronExpression;
+  }
+
+  // For non-repeating alarms, regenerate from startDate using local time
+  const minute = startDate.getMinutes();
+  const hour = startDate.getHours();
+  const day = startDate.getDate();
+  const month = startDate.getMonth() + 1;
+  // Get day of week (0=Sunday, 1=Monday, etc.)
+  const dayOfWeek = startDate.getDay();
+
+  // Use specific day-of-week instead of * because the BLE device firmware
+  // interprets * as "every day" and may ignore the day-of-month field
+  return `${minute} ${hour} ${day} ${month} ${dayOfWeek}`;
+}
+
+/**
  * Convert database alarm object to BLE CreateEventCommand parameters
  */
 export function alarmDatabaseToBleParameters(
@@ -226,6 +256,8 @@ export function alarmDatabaseToBleParameters(
     title: string;
     peripheralId?: string | null;
     cronExpression: string;
+    startDate: Date;
+    repeat: boolean;
     severityLevel: "CRITICAL" | "WARNING" | "INFORMATIONAL";
     ledPattern: "OFF" | "SOLID" | "BLINK_SLOW" | "BLINK_FAST" | "PULSE" | "STROBE";
     ledColor:
@@ -256,11 +288,18 @@ export function alarmDatabaseToBleParameters(
   const ledColor = mapLedColorToNumber(alarm.ledColor);
   const ledPattern = mapLedPatternToNumber(alarm.ledPattern);
 
+  // Generate cron expression in local time for BLE device
+  const localCronExpression = generateLocalTimeCronExpression(
+    alarm.startDate,
+    alarm.repeat,
+    alarm.cronExpression,
+  );
+
   return {
     eventIndex,
     // Use peripheralId as event name for verification, fallback to title if not available
     eventName: alarm.peripheralId ?? alarm.title.substring(0, 10),
-    cronExpression: alarm.cronExpression,
+    cronExpression: localCronExpression,
     severityLevel,
     vibrationIntensity,
     vibrationPattern,

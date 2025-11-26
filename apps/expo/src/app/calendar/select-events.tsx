@@ -449,7 +449,7 @@ export default function SelectEventsPage() {
       Alert.alert(
         "Alarms Created",
         `Successfully created ${result.created} alarm${result.created !== 1 ? "s" : ""} from your calendar events. They will sync to your device automatically when connected.`,
-        [{ text: "Done", onPress: () => router.back() }],
+        [{ text: "Done", onPress: () => router.replace(`/devices/${deviceId}`) }],
       );
     } catch (error) {
       const errorMessage =

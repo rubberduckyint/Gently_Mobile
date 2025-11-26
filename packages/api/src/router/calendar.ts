@@ -4,7 +4,7 @@
  */
 
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -232,7 +232,11 @@ export const calendarRouter = createTRPCRouter({
         alarmTime.setMinutes(alarmTime.getMinutes() - event.alarmMinutesBefore);
 
         // Generate cron expression for the specific date/time
-        const cronExpression = `${alarmTime.getMinutes()} ${alarmTime.getHours()} ${alarmTime.getDate()} ${alarmTime.getMonth() + 1} *`;
+        // Note: This uses UTC time, but the client-side BLE sync will regenerate
+        // the cron using local time from startDate
+        // Include day-of-week so the device doesn't interpret * as "every day"
+        const dayOfWeek = alarmTime.getUTCDay(); // 0=Sunday, 1=Monday, etc.
+        const cronExpression = `${alarmTime.getUTCMinutes()} ${alarmTime.getUTCHours()} ${alarmTime.getUTCDate()} ${alarmTime.getUTCMonth() + 1} ${dayOfWeek}`;
 
         // Ensure ledPattern is a valid BLE pattern (not "OFF")
         // If user has "OFF" as default, use "BLINK_SLOW" instead since OFF doesn't make sense for alarms
@@ -333,6 +337,8 @@ export const calendarRouter = createTRPCRouter({
           and(
             eq(CalendarEventAlarm.calendarConnectionId, input.connectionId),
             eq(CalendarEventAlarm.userId, ctx.session.user.id),
+            // Only include events where the alarm still exists (not deleted)
+            isNotNull(CalendarEventAlarm.alarmId),
           ),
         );
 

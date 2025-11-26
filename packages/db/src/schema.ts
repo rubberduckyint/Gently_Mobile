@@ -118,7 +118,7 @@ export const CalendarEventAlarm = pgTable("CalendarEventAlarm", (t) => ({
     .references(() => CalendarConnection.id, { onDelete: "cascade" }),
   alarmId: t
     .text()
-    .references(() => Alarm.id, { onDelete: "cascade" }),
+    .references(() => Alarm.id, { onDelete: "set null" }),
   
   // Calendar event details
   eventId: t.text().notNull(), // Google Calendar event ID
