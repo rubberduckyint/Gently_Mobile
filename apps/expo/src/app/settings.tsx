@@ -350,46 +350,6 @@ export default function SettingsPage() {
               isSaving={updatePreferencesMutation.isPending}
             />
           </View>
-
-          {/* Calendar Integration Card */}
-          <View style={cards.base}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: spacing[2],
-              }}
-            >
-              <Ionicons
-                name="calendar-outline"
-                size={24}
-                color={colors.primary[500]}
-                style={{ marginRight: spacing[2] }}
-              />
-              <Text style={typography.h5}>Calendar Integration</Text>
-            </View>
-            <Text
-              style={[
-                typography.caption,
-                { color: colors.text.secondary, marginBottom: spacing[4] },
-              ]}
-            >
-              Connect your Google Calendar to automatically create alarms for your events
-            </Text>
-
-            <Pressable
-              style={[buttons.base, buttons.large, buttons.secondary]}
-              onPress={() => router.push("/calendar")}
-            >
-              <Ionicons
-                name="calendar"
-                size={20}
-                color={colors.primary[500]}
-                style={{ marginRight: spacing[2] }}
-              />
-              <Text style={buttonText.secondary}>Manage Calendar Connections</Text>
-            </Pressable>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

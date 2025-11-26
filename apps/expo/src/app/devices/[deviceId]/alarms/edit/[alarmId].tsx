@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AlarmFormData } from "~/components/alarms";
 import { AlarmForm } from "~/components/alarms";
 import { useBLE } from "~/contexts/BLEContext";
-import { colors, containers, spacing, typography } from "~/styles";
+import { cards, colors, containers, spacing, typography } from "~/styles";
 import { trpc } from "~/utils/api";
 import {
   mapLegacyVibrationPatternToEnum,
@@ -485,6 +485,11 @@ export default function EditAlarmPage() {
     );
   }
 
+  // Check if this alarm is synced with a calendar and get the account info
+  const calendarEventAlarm = (alarm as { calendarEventAlarm?: { calendarConnection?: { accountEmail?: string } } }).calendarEventAlarm;
+  const isCalendarSynced = !!calendarEventAlarm;
+  const calendarAccountEmail = calendarEventAlarm?.calendarConnection?.accountEmail;
+
   return (
     <SafeAreaView style={containers.safeArea}>
       <View
@@ -589,6 +594,64 @@ export default function EditAlarmPage() {
         isLoading={updateAlarmMutation.isPending}
         saveButtonText="Update Alarm"
         showTemplates={false}
+        disableScheduleEditing={isCalendarSynced}
+        topBanner={
+          isCalendarSynced ? (
+            <View
+              style={[
+                cards.base,
+                {
+                  marginBottom: spacing[4],
+                  backgroundColor: colors.primary[50],
+                  borderWidth: 1,
+                  borderColor: colors.primary[200],
+                },
+              ]}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: colors.primary[100],
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: spacing[3],
+                  }}
+                >
+                  <Ionicons name="calendar" size={20} color={colors.primary[600]} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      typography.label,
+                      { color: colors.primary[800], marginBottom: 2 },
+                    ]}
+                  >
+                    Calendar Synced Alarm
+                  </Text>
+                  <Text
+                    style={[
+                      typography.caption,
+                      { color: colors.primary[600], lineHeight: 16 },
+                    ]}
+                  >
+                    {calendarAccountEmail 
+                      ? `Synced from ${calendarAccountEmail}. ` 
+                      : ""}
+                    The schedule is managed by your calendar.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : undefined
+        }
       />
     </SafeAreaView>
   );

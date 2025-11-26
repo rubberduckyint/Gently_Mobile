@@ -757,6 +757,11 @@ export default function DeviceDetailPage() {
                 icon: "help-circle",
               },
               {
+                label: "Calendar Sync",
+                onPress: () => router.push(`/calendar?deviceId=${deviceId}`),
+                icon: "calendar",
+              },
+              {
                 label: "User Settings",
                 onPress: () => router.push("/settings"),
                 icon: "settings",
@@ -1144,6 +1149,7 @@ export default function DeviceDetailPage() {
                             <AlarmCard
                               key={alarm.id}
                               alarm={alarm}
+                              isExpired={true}
                               onPress={() => {
                                 console.log(
                                   "🚨 Navigating to alarm edit:",
@@ -1235,6 +1241,7 @@ export default function DeviceDetailPage() {
                           <AlarmCard
                             key={alarm.id}
                             alarm={alarm}
+                            isExpired={true}
                             onPress={() => {
                               console.log(
                                 "🚨 Navigating to alarm edit:",

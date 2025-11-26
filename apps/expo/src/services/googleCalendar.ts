@@ -6,7 +6,10 @@
 import {
   GoogleSignin,
   statusCodes,
+  type User,
 } from "@react-native-google-signin/google-signin";
+
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
 export interface GoogleCalendarEvent {
   id: string;
@@ -25,6 +28,9 @@ export interface GoogleCalendarEvent {
   location?: string;
   status: string;
   htmlLink: string;
+  // Recurring event fields
+  recurringEventId?: string; // ID of the parent recurring event
+  recurrence?: string[]; // RRULE strings like "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"
 }
 
 export interface GoogleCalendar {
@@ -43,50 +49,121 @@ export interface GoogleSignInResult {
 }
 
 /**
- * Configure Google Sign-In with calendar scope
- */
-export function configureGoogleSignIn() {
-  GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
-    offlineAccess: true, // Request refresh token
-  });
-}
-
-/**
  * Sign in with Google and get calendar access
+ * Always requests calendar scope - will prompt user if not already granted
  */
 export async function signInWithGoogle(): Promise<GoogleSignInResult> {
   try {
-    // Configure before signing in
-    configureGoogleSignIn();
-
-    // Check if already signed in
-    const isSignedIn = GoogleSignin.hasPreviousSignIn();
+    console.log("[Calendar] Starting calendar sign-in flow...");
     
-    let userInfo;
-    if (isSignedIn) {
-      // Try silent sign in first
-      try {
-        userInfo = await GoogleSignin.signInSilently();
-      } catch {
-        // Silent sign in failed, do regular sign in
-        userInfo = await GoogleSignin.signIn();
-      }
+    // Check current user state BEFORE any configuration
+    const currentUser = GoogleSignin.getCurrentUser();
+    console.log("[Calendar] Current user:", currentUser?.user?.email ?? "none");
+    console.log("[Calendar] Current scopes:", currentUser?.scopes ?? "none");
+    
+    // Check if we already have the calendar scope
+    const hasCalendarScope = currentUser?.scopes?.includes(CALENDAR_SCOPE) ?? false;
+    console.log("[Calendar] Has calendar scope:", hasCalendarScope);
+    
+    let email: string | undefined;
+    
+    if (currentUser && hasCalendarScope) {
+      // Already have the scope - use existing session
+      console.log("[Calendar] Already have calendar scope, using existing session");
+      email = currentUser.user.email;
     } else {
-      userInfo = await GoogleSignin.signIn();
+      // Need to get calendar scope - either user not signed in or doesn't have scope
+      console.log("[Calendar] Need calendar scope, will do fresh sign-in flow...");
+      
+      // ALWAYS sign out first to force fresh OAuth with proper scopes
+      // This is necessary because addScopes() is unreliable on iOS
+      if (currentUser) {
+        console.log("[Calendar] Signing out current user to force fresh OAuth...");
+        try {
+          await GoogleSignin.signOut();
+        } catch (signOutError) {
+          console.log("[Calendar] signOut error (continuing anyway):", signOutError);
+        }
+      }
+      
+      // Clear any cached tokens to ensure we get fresh ones
+      try {
+        await GoogleSignin.clearCachedAccessToken(
+          (await GoogleSignin.getTokens().catch(() => ({ accessToken: "" }))).accessToken
+        );
+      } catch {
+        // Ignore - tokens might not exist
+      }
+      
+      // Reconfigure with calendar scope BEFORE signing in
+      // This ensures the sign-in request includes the calendar scope
+      console.log("[Calendar] Configuring GoogleSignin with calendar scope...");
+      GoogleSignin.configure({
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        // Don't pass iosClientId here - it's already configured in Info.plist via the plugin
+        // Passing a different value causes "Inconsistency detected" error
+        scopes: [CALENDAR_SCOPE],
+        offlineAccess: true,
+        // Force account selection to ensure fresh consent
+        forceCodeForRefreshToken: true,
+      });
+      
+      // Now do a fresh sign-in which should show the Google account picker
+      // and consent screen with calendar scope
+      console.log("[Calendar] Starting fresh signIn with calendar scope...");
+      const signInResult = await GoogleSignin.signIn();
+      console.log("[Calendar] signIn result:", signInResult);
+      console.log("[Calendar] signIn scopes:", signInResult.data?.scopes);
+      
+      email = signInResult.data?.user.email;
+      
+      // Verify we got the calendar scope
+      const freshUser = GoogleSignin.getCurrentUser();
+      console.log("[Calendar] Fresh user scopes after signIn:", freshUser?.scopes);
+      
+      if (!freshUser?.scopes?.includes(CALENDAR_SCOPE)) {
+        console.warn("[Calendar] WARNING: Calendar scope not in user scopes!");
+        // Still continue - we'll verify with an actual API call
+      }
     }
 
-    if (!userInfo.data) {
-      throw new Error("No user data received from Google Sign-In");
+    if (!email) {
+      throw new Error("Could not get email from Google Sign-In");
     }
 
-    // Get access token
+    // Get fresh access token
+    console.log("[Calendar] Getting tokens...");
     const tokens = await GoogleSignin.getTokens();
+    console.log("[Calendar] Got tokens, accessToken length:", tokens.accessToken?.length);
     
     if (!tokens.accessToken) {
       throw new Error("No access token received from Google");
     }
+
+    // Verify the token actually has calendar scope by making a test API call
+    console.log("[Calendar] Verifying token has calendar access...");
+    const testResponse = await fetch(
+      "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",
+      {
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`,
+        },
+      }
+    );
+    
+    if (!testResponse.ok) {
+      const errorText = await testResponse.text();
+      console.log("[Calendar] Token verification failed:", testResponse.status, errorText);
+      
+      if (testResponse.status === 403 || testResponse.status === 401) {
+        throw new Error(
+          "Calendar access not granted. Please sign in again and make sure to accept the 'View your calendars' permission."
+        );
+      }
+      throw new Error(`Calendar API error: ${testResponse.status}`);
+    }
+    
+    console.log("[Calendar] Token verification successful - calendar access confirmed!");
 
     // Calculate expiration (tokens typically expire in 1 hour)
     const expiresAt = new Date();
@@ -94,11 +171,11 @@ export async function signInWithGoogle(): Promise<GoogleSignInResult> {
 
     return {
       accessToken: tokens.accessToken,
-      refreshToken: userInfo.data.serverAuthCode || undefined,
-      email: userInfo.data.user.email,
+      email,
       expiresAt,
     };
   } catch (error: unknown) {
+    console.log("[Calendar] Error:", error);
     const googleError = error as { code?: string };
     
     if (googleError.code === "SIGN_IN_CANCELLED") {

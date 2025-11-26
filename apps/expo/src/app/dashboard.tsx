@@ -70,6 +70,27 @@ function DeviceCard({
     return alarms.filter((alarm) => alarm.deviceId === device.id);
   }, [alarms, device.id]);
 
+  // Calculate alarm counts (non-expired only)
+  const alarmCounts = React.useMemo(() => {
+    const nonExpiredAlarms = deviceAlarms.filter((alarm): alarm is Alarm & { cronExpression: string } => {
+      if (alarm.cronExpression === null) return false;
+      const scheduleInfo = calculateNextAlarmOccurrence({
+        isActive: true, // Check if it would have next occurrence
+        startDate: alarm.startDate,
+        endDate: alarm.endDate,
+        repeat: alarm.repeat,
+        cronExpression: alarm.cronExpression,
+      });
+      return scheduleInfo.nextOccurrence !== null;
+    });
+
+    const enabled = nonExpiredAlarms.filter((a) => a.isActive).length;
+    const disabled = nonExpiredAlarms.filter((a) => !a.isActive).length;
+    const total = nonExpiredAlarms.length;
+
+    return { enabled, disabled, total };
+  }, [deviceAlarms]);
+
   // Calculate next alarm
   const nextAlarm = React.useMemo(() => {
     if (deviceAlarms.length === 0) return null;
@@ -153,56 +174,148 @@ function DeviceCard({
           style={({ pressed }) => [
             {
               backgroundColor: "#FFFFFF",
-              borderRadius: 16,
-              padding: spacing[6],
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 8 },
+              borderRadius: 20,
+              padding: spacing[5],
+              shadowColor: colors.primary[900],
+              shadowOffset: { width: 0, height: 12 },
               shadowOpacity: 0.15,
-              shadowRadius: 16,
-              elevation: 12,
+              shadowRadius: 24,
+              elevation: 16,
               borderWidth: 2,
-              borderColor: colors.primary[300],
+              borderColor: colors.primary[200],
+              overflow: "hidden",
             },
-            pressed && { 
-              opacity: 0.95, 
-              transform: [{ scale: 0.98 }],
-              shadowOpacity: 0.2,
+            pressed && {
+              transform: [{ scale: 0.97 }],
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              borderColor: colors.primary[400],
             },
           ]}
         >
-          {/* Device Header - Centered */}
-          <View style={{ alignItems: "center", marginBottom: spacing[4] }}>
-            {/* Device Title */}
-            <Text
-              style={[
-                typography.h3,
-                {
-                  color: colors.text.primary,
-                  fontWeight: "700",
-                  textAlign: "center",
-                  marginBottom: spacing[2],
-                },
-              ]}
+          {/* Gradient accent bar at top */}
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              backgroundColor: colors.primary[500],
+            }}
+          />
+          {/* Device Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: spacing[4], marginTop: spacing[2] }}>
+            {/* Device Icon */}
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                backgroundColor: colors.primary[50],
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: spacing[4],
+              }}
             >
-              {device.title}
-            </Text>
+              <Ionicons
+                name="watch-outline"
+                size={28}
+                color={colors.primary[600]}
+              />
+            </View>
 
-            {/* Alarm Count - directly under title */}
-            <Text
-              style={[
-                typography.body,
-                {
-                  color: colors.text.secondary,
-                  textAlign: "center",
-                },
-              ]}
+            {/* Device Info */}
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  typography.h4,
+                  {
+                    color: colors.text.primary,
+                    fontWeight: "700",
+                    marginBottom: spacing[1],
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {device.title}
+              </Text>
+
+              {/* Alarm Count with breakdown */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[2] }}>
+                {alarmCounts.total === 0 ? (
+                  <Text
+                    style={[
+                      typography.caption,
+                      { color: colors.text.tertiary },
+                    ]}
+                  >
+                    No alarms set
+                  </Text>
+                ) : (
+                  <>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: colors.success[500],
+                          marginRight: spacing[1],
+                        }}
+                      />
+                      <Text
+                        style={[
+                          typography.caption,
+                          { color: colors.success[600], fontWeight: "600" },
+                        ]}
+                      >
+                        {alarmCounts.enabled} active
+                      </Text>
+                    </View>
+                    {alarmCounts.disabled > 0 && (
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: colors.gray[400],
+                            marginRight: spacing[1],
+                          }}
+                        />
+                        <Text
+                          style={[
+                            typography.caption,
+                            { color: colors.text.tertiary, fontWeight: "500" },
+                          ]}
+                        >
+                          {alarmCounts.disabled} paused
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+            </View>
+
+            {/* Chevron indicator */}
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.gray[100],
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              {device._count.alarms === 0
-                ? "No alarms"
-                : device._count.alarms === 1
-                  ? "1 alarm"
-                  : `${device._count.alarms} alarms`}
-            </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.text.secondary}
+              />
+            </View>
           </View>
 
           {/* Next Alarm - Prominent */}
@@ -212,72 +325,68 @@ function DeviceCard({
                 backgroundColor: colors.primary[50],
                 padding: spacing[4],
                 borderRadius: 12,
-                borderWidth: 2,
-                borderColor: colors.primary[200],
+                borderLeftWidth: 4,
+                borderLeftColor: colors.primary[500],
               }}
             >
               <View
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "center",
                   marginBottom: spacing[2],
                 }}
               >
+                <View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: colors.primary[100],
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: spacing[2],
+                  }}
+                >
+                  <Ionicons
+                    name="alarm"
+                    size={16}
+                    color={colors.primary[600]}
+                  />
+                </View>
+                <Text
+                  style={[
+                    typography.labelLarge,
+                    {
+                      color: colors.text.primary,
+                      flex: 1,
+                      fontWeight: "600",
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {nextAlarm.alarm.title}
+                </Text>
+              </View>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginLeft: 36, // Align with title
+                }}
+              >
                 <Ionicons
-                  name="notifications"
-                  size={18}
+                  name="time-outline"
+                  size={14}
                   color={colors.primary[600]}
                 />
                 <Text
                   style={[
                     typography.caption,
                     {
-                      color: colors.primary[600],
-                      marginLeft: spacing[1],
-                      textTransform: "uppercase",
-                      fontWeight: "700",
-                      letterSpacing: 1,
-                    },
-                  ]}
-                >
-                  Next Alarm
-                </Text>
-              </View>
-              
-              <Text
-                style={[
-                  typography.h5,
-                  {
-                    color: colors.text.primary,
-                    textAlign: "center",
-                    marginBottom: spacing[2],
-                    fontWeight: "600",
-                  },
-                ]}
-              >
-                {nextAlarm.alarm.title}
-              </Text>
-              
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons
-                  name="time"
-                  size={16}
-                  color={colors.primary[700]}
-                />
-                <Text
-                  style={[
-                    typography.body,
-                    {
                       color: colors.primary[700],
-                      marginLeft: spacing[2],
-                      fontWeight: "700",
+                      marginLeft: spacing[1],
+                      fontWeight: "600",
                     },
                   ]}
                 >
@@ -287,32 +396,6 @@ function DeviceCard({
             </View>
           )}
 
-          {/* Tap to view indicator */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              marginTop: spacing[4],
-            }}
-          >
-            <Text
-              style={[
-                typography.caption,
-                {
-                  color: colors.text.tertiary,
-                  marginRight: spacing[1],
-                },
-              ]}
-            >
-              Tap to view details
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={14}
-              color={colors.text.tertiary}
-            />
-          </View>
         </Pressable>
       </Link>
     </View>

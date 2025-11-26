@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { Alarm, Device } from "@gently/db/schema";
+import { Alarm, CalendarEventAlarm, Device } from "@gently/db/schema";
 
 import { protectedProcedure } from "../trpc";
 
@@ -66,11 +66,17 @@ export const deviceRouter = {
         });
       }
 
-      // Get related alarms
-      const alarms = await ctx.db
-        .select()
-        .from(Alarm)
-        .where(eq(Alarm.deviceId, input.id));
+      // Get related alarms with calendar event info
+      const alarms = await ctx.db.query.Alarm.findMany({
+        where: eq(Alarm.deviceId, input.id),
+        with: {
+          calendarEventAlarm: {
+            with: {
+              calendarConnection: true,
+            },
+          },
+        },
+      });
 
       // Get alarm count
       const alarmCount = await ctx.db

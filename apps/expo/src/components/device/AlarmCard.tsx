@@ -13,9 +13,15 @@ type Alarm = NonNullable<RouterOutputs["device"]["getById"]>["alarms"][number];
 interface AlarmCardProps {
   alarm: Alarm;
   onPress?: () => void;
+  isExpired?: boolean; // When true, hide "Next:" info since alarm is expired
 }
 
-export function AlarmCard({ alarm, onPress }: AlarmCardProps) {
+export function AlarmCard({ alarm, onPress, isExpired = false }: AlarmCardProps) {
+  // Check if calendarEventAlarm is present and get calendar connection info
+  const calendarEventAlarm = (alarm as { calendarEventAlarm?: { calendarConnection?: { accountEmail?: string } } }).calendarEventAlarm;
+  const isCalendarSynced = !!calendarEventAlarm;
+  const calendarAccountEmail = calendarEventAlarm?.calendarConnection?.accountEmail;
+  
   // Safely convert dates, providing defaults for invalid values
   const safeStartDate = React.useMemo(() => {
     console.log("AlarmCard processing startDate:", {
@@ -237,6 +243,41 @@ export function AlarmCard({ alarm, onPress }: AlarmCardProps) {
             >
               {alarm.title}
             </Text>
+
+            {/* Calendar Sync Indicator */}
+            {isCalendarSynced && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: colors.primary[50],
+                  paddingHorizontal: spacing[2],
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                  marginLeft: spacing[2],
+                  maxWidth: 120,
+                }}
+              >
+                <Ionicons
+                  name="calendar"
+                  size={12}
+                  color={colors.primary[500]}
+                  style={{ marginRight: 2 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "600",
+                    color: colors.primary[600],
+                  }}
+                  numberOfLines={1}
+                >
+                  {calendarAccountEmail 
+                    ? calendarAccountEmail.split('@')[0] 
+                    : "Synced"}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Chevron */}
@@ -263,18 +304,58 @@ export function AlarmCard({ alarm, onPress }: AlarmCardProps) {
           numberOfLines={1}
         >
           {(() => {
-            const startTime = safeStartDate.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
+            const formatDateWithTime = (date: Date) => {
+              const now = new Date();
+              const isToday =
+                date.getDate() === now.getDate() &&
+                date.getMonth() === now.getMonth() &&
+                date.getFullYear() === now.getFullYear();
+              
+              const tomorrow = new Date(now);
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const isTomorrow =
+                date.getDate() === tomorrow.getDate() &&
+                date.getMonth() === tomorrow.getMonth() &&
+                date.getFullYear() === tomorrow.getFullYear();
+
+              const timeStr = date.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+
+              if (isToday) return `Today at ${timeStr}`;
+              if (isTomorrow) return `Tomorrow at ${timeStr}`;
+
+              // Show date for other days
+              const dateStr = date.toLocaleDateString([], {
+                month: "short",
+                day: "numeric",
+              });
+              return `${dateStr} at ${timeStr}`;
+            };
+
+            // For expired alarms, show when it ended/was scheduled
+            if (isExpired) {
+              if (safeEndDate) {
+                return `Ended ${formatDateWithTime(safeEndDate)}`;
+              }
+              return `Was scheduled for ${formatDateWithTime(safeStartDate)}`;
+            }
+
             if (alarm.repeat) {
               try {
-                return cronstrue.toString(alarm.cronExpression);
+                const cronDescription = cronstrue.toString(alarm.cronExpression);
+                // Also show the next occurrence date if available
+                if (scheduleInfo.nextOccurrence) {
+                  const nextDateStr = formatDateWithTime(scheduleInfo.nextOccurrence);
+                  return `${cronDescription} • Next: ${nextDateStr}`;
+                }
+                return cronDescription;
               } catch {
-                return `Repeating • ${startTime}`;
+                return `Repeating • ${formatDateWithTime(safeStartDate)}`;
               }
             } else {
-              return `One-time • ${startTime}`;
+              return `One-time • ${formatDateWithTime(safeStartDate)}`;
             }
           })()}
         </Text>
@@ -314,8 +395,8 @@ export function AlarmCard({ alarm, onPress }: AlarmCardProps) {
           </View>
         )}
 
-        {/* Next Occurrence */}
-        {scheduleInfo.timeUntilNext && alarm.isActive && (
+        {/* Next Occurrence - only show for non-expired active alarms */}
+        {!isExpired && scheduleInfo.timeUntilNext && alarm.isActive && (
           <View
             style={{
               flexDirection: "row",

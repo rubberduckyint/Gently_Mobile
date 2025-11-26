@@ -103,21 +103,14 @@ export default function RootLayout() {
           <Stack.Screen
             name="calendar/index"
             options={{
-              title: "Calendar Connections",
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="calendar/connect-google"
-            options={{
-              title: "Connect Google Calendar",
+              title: "Calendar",
               headerShown: false,
             }}
           />
           <Stack.Screen
             name="calendar/select-events"
             options={{
-              title: "Select Events",
+              title: "Calendar Events",
               headerShown: false,
             }}
           />

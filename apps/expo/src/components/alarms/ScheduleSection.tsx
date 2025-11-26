@@ -32,6 +32,8 @@ interface ScheduleSectionProps {
   onToggleStartDatePicker: () => void;
   showEndTimePicker: boolean;
   onToggleEndTimePicker: () => void;
+  /** If true, all schedule controls are disabled (for calendar-synced alarms) */
+  disabled?: boolean;
 }
 
 export function ScheduleSection({
@@ -45,6 +47,7 @@ export function ScheduleSection({
   onToggleStartDatePicker,
   showEndTimePicker,
   onToggleEndTimePicker,
+  disabled = false,
 }: ScheduleSectionProps) {
   // Local state for temporary picker values (iOS only)
   const [tempStartDate, setTempStartDate] = useState(formData.startDate);
@@ -83,7 +86,7 @@ export function ScheduleSection({
 
   return (
     <>
-      <View style={[cards.base, { marginBottom: spacing[4] }]}>
+      <View style={[cards.base, { marginBottom: spacing[4], opacity: disabled ? 0.6 : 1 }]}>
         <View
           style={{
             flexDirection: "row",
@@ -94,6 +97,35 @@ export function ScheduleSection({
         >
           <Ionicons name="calendar" size={20} color={colors.primary[500]} />
           <Text style={[typography.h4]}>Schedule</Text>
+          {disabled && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: colors.primary[50],
+                paddingHorizontal: spacing[2],
+                paddingVertical: 2,
+                borderRadius: 4,
+                marginLeft: "auto",
+              }}
+            >
+              <Ionicons
+                name="lock-closed"
+                size={12}
+                color={colors.primary[500]}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={{
+                  fontSize: 10,
+                  fontWeight: "600",
+                  color: colors.primary[600],
+                }}
+              >
+                Calendar Synced
+              </Text>
+            </View>
+          )}
         </View>
         <Text
           style={[
@@ -105,13 +137,15 @@ export function ScheduleSection({
             },
           ]}
         >
-          Set when your alarm should trigger and how often it should repeat.
+          {disabled 
+            ? "This alarm's schedule is synced with your calendar and cannot be edited."
+            : "Set when your alarm should trigger and how often it should repeat."}
         </Text>
 
         {/* Start Date & Time - on the same line */}
-        <View style={{ marginBottom: spacing[4] }}>
+        <View style={{ marginBottom: spacing[4] }} pointerEvents={disabled ? "none" : "auto"}>
           <Text style={[typography.label, { marginBottom: spacing[2] }]}>
-            Start Date & Time *
+            Start Date & Time {!disabled && "*"}
           </Text>
           <View style={{ flexDirection: "row", gap: spacing[3] }}>
             {/* Start Date */}
@@ -120,16 +154,17 @@ export function ScheduleSection({
                 flex: 1,
                 borderWidth: 1,
                 borderColor: colors.border.medium,
-                backgroundColor: colors.background.secondary,
+                backgroundColor: disabled ? colors.gray[100] : colors.background.secondary,
                 paddingHorizontal: spacing[3],
                 paddingVertical: spacing[3],
                 borderRadius: 8,
                 justifyContent: "center",
               }}
-              onPress={onToggleStartDatePicker}
+              onPress={disabled ? undefined : onToggleStartDatePicker}
+              disabled={disabled}
             >
               <Text
-                style={[typography.bodySmall, { color: colors.text.primary }]}
+                style={[typography.bodySmall, { color: disabled ? colors.text.secondary : colors.text.primary }]}
               >
                 {formatDate(formData.startDate)}
               </Text>
@@ -141,16 +176,17 @@ export function ScheduleSection({
                 flex: 1,
                 borderWidth: 1,
                 borderColor: colors.border.medium,
-                backgroundColor: colors.background.secondary,
+                backgroundColor: disabled ? colors.gray[100] : colors.background.secondary,
                 paddingHorizontal: spacing[3],
                 paddingVertical: spacing[3],
                 borderRadius: 8,
                 justifyContent: "center",
               }}
-              onPress={onToggleStartTimePicker}
+              onPress={disabled ? undefined : onToggleStartTimePicker}
+              disabled={disabled}
             >
               <Text
-                style={[typography.bodySmall, { color: colors.text.primary }]}
+                style={[typography.bodySmall, { color: disabled ? colors.text.secondary : colors.text.primary }]}
               >
                 {formatTime(formData.startDate)}
               </Text>

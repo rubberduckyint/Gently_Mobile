@@ -26,6 +26,11 @@ export const alarmRouter = {
         where: eq(Alarm.userId, ctx.session.user.id),
         with: {
           device: true,
+          calendarEventAlarm: {
+            with: {
+              calendarConnection: true,
+            },
+          },
         },
       });
     }),
@@ -33,13 +38,19 @@ export const alarmRouter = {
   // Get alarm by ID (only if it belongs to the current user)
   getById: protectedProcedure
     .input(AlarmWhereUniqueSchema)
-    .output(AlarmSelectSchema)
     .query(async ({ input, ctx }) => {
       const alarm = await ctx.db.query.Alarm.findFirst({
         where: and(
           eq(Alarm.id, input.id),
           eq(Alarm.userId, ctx.session.user.id),
         ),
+        with: {
+          calendarEventAlarm: {
+            with: {
+              calendarConnection: true,
+            },
+          },
+        },
       });
 
       if (!alarm) {
