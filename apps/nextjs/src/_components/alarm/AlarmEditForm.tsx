@@ -46,47 +46,41 @@ import { ToggleGroup, ToggleGroupItem } from "~/_components/ui/toggle-group";
 import { authClient } from "~/auth/client";
 import { useTRPC } from "~/trpc/react";
 
-// Type aliases for cleaner code
-type LedPattern = Alarm["ledPattern"];
-type LedColor = Alarm["ledColor"];
-type VibrationIntensity = Alarm["vibrationIntensity"];
-type VibrationPattern = "QUICK" | "HEARTBEAT" | "RAPID" | "SYMPHONY";
-
 // LED Pattern options with icons (matching mobile app)
 const LED_PATTERNS = [
-  { key: "OFF" as LedPattern, label: "Off", description: "LED disabled", icon: CircleOff },
-  { key: "SOLID" as LedPattern, label: "Solid", description: "Continuous steady light", icon: Circle },
-  { key: "BLINK_SLOW" as LedPattern, label: "Slow", description: "Gentle pulsing light", icon: Circle },
-  { key: "BLINK_FAST" as LedPattern, label: "Fast", description: "Rapid attention-getting flashes", icon: Zap },
-  { key: "PULSE" as LedPattern, label: "Pulse", description: "Smooth breathing effect", icon: Heart },
-  { key: "STROBE" as LedPattern, label: "Strobe", description: "Intense flashing pattern", icon: Zap },
+  { key: "OFF", label: "Off", description: "LED disabled", icon: CircleOff },
+  { key: "SOLID", label: "Solid", description: "Continuous steady light", icon: Circle },
+  { key: "BLINK_SLOW", label: "Slow", description: "Gentle pulsing light", icon: Circle },
+  { key: "BLINK_FAST", label: "Fast", description: "Rapid attention-getting flashes", icon: Zap },
+  { key: "PULSE", label: "Pulse", description: "Smooth breathing effect", icon: Heart },
+  { key: "STROBE", label: "Strobe", description: "Intense flashing pattern", icon: Zap },
 ] as const;
 
 // LED Color options (matching mobile app)
 const LED_COLORS = [
-  { key: "RED" as LedColor, label: "Red", color: "#ef4444" },
-  { key: "GREEN" as LedColor, label: "Green", color: "#22c55e" },
-  { key: "BLUE" as LedColor, label: "Blue", color: "#3b82f6" },
-  { key: "YELLOW" as LedColor, label: "Yellow", color: "#eab308" },
-  { key: "MAGENTA" as LedColor, label: "Magenta", color: "#FF1493" },
-  { key: "CYAN" as LedColor, label: "Cyan", color: "#00BFFF" },
-  { key: "WHITE" as LedColor, label: "White", color: "#f3f4f6" },
+  { key: "RED", label: "Red", color: "#ef4444" },
+  { key: "GREEN", label: "Green", color: "#22c55e" },
+  { key: "BLUE", label: "Blue", color: "#3b82f6" },
+  { key: "YELLOW", label: "Yellow", color: "#eab308" },
+  { key: "MAGENTA", label: "Magenta", color: "#FF1493" },
+  { key: "CYAN", label: "Cyan", color: "#00BFFF" },
+  { key: "WHITE", label: "White", color: "#f3f4f6" },
 ] as const;
 
 // Vibration intensity options (matching mobile app)
 const VIBRATION_INTENSITIES = [
-  { key: "LOW" as VibrationIntensity, label: "Low", description: "Gentle vibration" },
-  { key: "MEDIUM" as VibrationIntensity, label: "Med", description: "Moderate vibration" },
-  { key: "HIGH" as VibrationIntensity, label: "High", description: "Strong vibration" },
-  { key: "MAXIMUM" as VibrationIntensity, label: "Max", description: "Maximum vibration" },
+  { key: "LOW", label: "Low", description: "Gentle vibration" },
+  { key: "MEDIUM", label: "Med", description: "Moderate vibration" },
+  { key: "HIGH", label: "High", description: "Strong vibration" },
+  { key: "MAXIMUM", label: "Max", description: "Maximum vibration" },
 ] as const;
 
 // Vibration pattern options (matching mobile app)
 const VIBRATION_PATTERNS = [
-  { key: "QUICK" as VibrationPattern, label: "Quick", description: "Short, sharp vibrations", icon: Zap, value: 1 },
-  { key: "HEARTBEAT" as VibrationPattern, label: "Heart", description: "Rhythmic double pulses", icon: Heart, value: 2 },
-  { key: "RAPID" as VibrationPattern, label: "Rapid", description: "Fast continuous pulses", icon: Activity, value: 3 },
-  { key: "SYMPHONY" as VibrationPattern, label: "Symphony", description: "Complex musical pattern", icon: Music, value: 4 },
+  { key: "QUICK", label: "Quick", description: "Short, sharp vibrations", icon: Zap, value: 1 },
+  { key: "HEARTBEAT", label: "Heart", description: "Rhythmic double pulses", icon: Heart, value: 2 },
+  { key: "RAPID", label: "Rapid", description: "Fast continuous pulses", icon: Activity, value: 3 },
+  { key: "SYMPHONY", label: "Symphony", description: "Complex musical pattern", icon: Music, value: 4 },
 ] as const;
 
 // Snooze period options (matching mobile app)
