@@ -166,7 +166,7 @@ export default function LoginPage() {
                 disabled={isAnyLoading}
               >
                 {isGoogleLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <GoogleIcon />
                 )}
@@ -180,7 +180,7 @@ export default function LoginPage() {
                 disabled={isAnyLoading}
               >
                 {isAppleLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <AppleIcon />
                 )}
@@ -234,12 +234,12 @@ export default function LoginPage() {
                 >
                   {isEmailLoading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {t("auth.sendingLink")}
                     </>
                   ) : (
                     <>
-                      <Mail className="mr-2 h-4 w-4" />
+                      <Mail className="h-4 w-4" />
                       {t("auth.sendSignInLink")}
                     </>
                   )}

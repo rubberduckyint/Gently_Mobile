@@ -6,14 +6,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   BatteryFull,
+  BatteryLow,
+  BatteryMedium,
   Calendar,
+  CheckCircle2,
   ChevronRight,
+  Clock,
   Eye,
   Home,
-  MoreHorizontal,
+  Loader2,
   Pencil,
+  RefreshCw,
   Share2,
   Users,
+  XCircle,
 } from "lucide-react";
 
 import type { Device } from "@gently/db/schema";
@@ -34,15 +40,82 @@ import {
   DialogHeader as DialogHeaderUI,
   DialogTitle as DialogTitleUI,
 } from "~/_components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/_components/ui/dropdown-menu";
 import { Skeleton } from "~/_components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/_components/ui/tooltip";
 import { useTRPC } from "~/trpc/react";
 import DeviceForm from "./DeviceForm";
+
+// Helper function to get sync status display info
+function getSyncStatusInfo(syncStatus: string, lastSync: Date | string | null) {
+  switch (syncStatus) {
+    case "SYNCED":
+      return {
+        icon: CheckCircle2,
+        color: "text-green-600",
+        bgColor: "bg-green-50",
+        borderColor: "border-green-200",
+        label: "Synced",
+        description: lastSync
+          ? `Last synced ${formatDistanceToNow(new Date(lastSync), { addSuffix: true })}`
+          : "All alarms synced to device",
+      };
+    case "SYNCING":
+      return {
+        icon: Loader2,
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+        borderColor: "border-blue-200",
+        label: "Syncing",
+        description: "Syncing alarms to device...",
+        animate: true,
+      };
+    case "NOT_SYNCED":
+      return {
+        icon: Clock,
+        color: "text-amber-600",
+        bgColor: "bg-amber-50",
+        borderColor: "border-amber-200",
+        label: "Pending Sync",
+        description: "Changes waiting to sync to device",
+      };
+    case "ERROR":
+      return {
+        icon: XCircle,
+        color: "text-red-600",
+        bgColor: "bg-red-50",
+        borderColor: "border-red-200",
+        label: "Sync Error",
+        description: "Failed to sync. Connect device to retry.",
+      };
+    default:
+      return {
+        icon: RefreshCw,
+        color: "text-gray-500",
+        bgColor: "bg-gray-50",
+        borderColor: "border-gray-200",
+        label: syncStatus,
+        description: "Unknown sync status",
+      };
+  }
+}
+
+// Helper function to get battery icon based on level
+function getBatteryIcon(level: number) {
+  if (level <= 20) return BatteryLow;
+  if (level <= 50) return BatteryMedium;
+  return BatteryFull;
+}
+
+function getBatteryColor(level: number) {
+  if (level <= 20) return "text-red-500";
+  if (level <= 50) return "text-amber-500";
+  return "text-green-500";
+}
 
 export function DeviceCard({ deviceId }: { deviceId: string }) {
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -226,58 +299,83 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
           <Card className="-mt-4">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <div className="mb-1">
-                  <Badge
-                    variant={
-                      device.syncStatus === "SYNCED"
-                        ? "default"
-                        : device.syncStatus === "ERROR"
-                          ? "destructive"
-                          : "secondary"
-                    }
-                  >
-                    {device.syncStatus}
-                  </Badge>
-                  {device.lastSync && (
-                    <span className="text-muted-foreground ml-2 text-xs">
-                      Last sync{" "}
-                      {formatDistanceToNow(new Date(device.lastSync), {
-                        addSuffix: true,
-                      })}
-                    </span>
-                  )}
-                </div>
+                {/* Sync Status Badge */}
+                {(() => {
+                  const statusInfo = getSyncStatusInfo(
+                    device.syncStatus,
+                    device.lastSync,
+                  );
+                  const StatusIcon = statusInfo.icon;
+                  return (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={`mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${statusInfo.bgColor} ${statusInfo.borderColor}`}
+                          >
+                            <StatusIcon
+                              className={`h-4 w-4 ${statusInfo.color} ${statusInfo.animate ? "animate-spin" : ""}`}
+                            />
+                            <span
+                              className={`text-sm font-medium ${statusInfo.color}`}
+                            >
+                              {statusInfo.label}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{statusInfo.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                })()}
                 <CardTitle className="flex items-center gap-2 py-2 text-2xl font-bold">
                   {device.title}
                 </CardTitle>
                 <CardDescription>{device.description}</CardDescription>
               </div>
               <CardAction>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Device actions"
-                      onClick={() => setShowEditDialog(true)}
-                    >
-                      <MoreHorizontal />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
-                      Edit Device
-                    </DropdownMenuItem>
-                    {device.isOwned && (
-                      <DropdownMenuItem asChild>
-                        <a href={`/devices/${deviceId}/share`}>
-                          <Share2 className="mr-2 h-4 w-4" />
-                          Share Device
-                        </a>
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-1">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Edit device"
+                          onClick={() => setShowEditDialog(true)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Edit Device</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {device.isOwned && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Share device"
+                            asChild
+                          >
+                            <Link href={`/devices/${deviceId}/share`}>
+                              <Share2 className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Share Device</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
               </CardAction>
             </CardHeader>
             <CardContent>
@@ -287,10 +385,18 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
                   Created{" "}
                   {format(new Date(device.createdAt), "MMMM d, yyyy, h:mm a")}
                 </span>
-                <span className="flex items-center gap-1">
-                  <BatteryFull className="h-4 w-4" />
-                  {device.batteryLevel}%
-                </span>
+                {(() => {
+                  const BatteryIcon = getBatteryIcon(device.batteryLevel ?? 0);
+                  const batteryColor = getBatteryColor(device.batteryLevel ?? 0);
+                  return (
+                    <span className="flex items-center gap-1">
+                      <BatteryIcon className={`h-4 w-4 ${batteryColor}`} />
+                      <span className={batteryColor}>
+                        {device.batteryLevel ?? 0}%
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
             </CardContent>
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

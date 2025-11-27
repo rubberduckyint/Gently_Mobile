@@ -95,7 +95,7 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
           <h2 className="text-foreground text-xl font-semibold">Alarms</h2>
           {canEdit ? (
             <Button size="sm" onClick={() => setIsCreating(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="h-4 w-4" />
               New Alarm
             </Button>
           ) : (
@@ -154,7 +154,7 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
                         size="sm"
                         onClick={() => setIsCreating(true)}
                       >
-                        <Plus className="mr-2 h-4 w-4" />
+                        <Plus className="h-4 w-4" />
                         Create your first alarm
                       </Button>
                     )}

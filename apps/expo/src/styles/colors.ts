@@ -1,54 +1,62 @@
 /**
- * Design System Colors
+ * Design System Colors - Gently Theme
  *
- * Centralized color palette based on the existing app design
- * using Tailwind-inspired color scales for consistency
+ * A soft, calming color palette inspired by the Gently brand.
+ * The theme uses a gentle sky blue as the primary color,
+ * with warm grays and soft accents for a friendly, accessible experience.
+ *
+ * Brand colors from logo:
+ * - #5CC5FF - Sky blue (primary)
+ * - #19304F - Deep navy (dark text)
+ * - #F8FAF9 - Soft white (backgrounds)
+ * - #747E97 - Muted gray-blue (secondary text)
  */
 
 export const colors = {
-  // Primary colors
+  // Primary colors - Gentle Sky Blue
+  // Based on logo's #5CC5FF with accessible variations
   primary: {
-    50: "#eff6ff",
-    100: "#dbeafe",
-    200: "#bfdbfe",
-    300: "#93c5fd",
-    400: "#60a5fa",
-    500: "#3b82f6", // Main primary
-    600: "#2563eb",
-    700: "#1d4ed8",
-    800: "#1e40af",
-    900: "#1e3a8a",
+    50: "#f0f9ff", // Very soft blue tint
+    100: "#e0f4fe", // Light blue wash
+    200: "#b9e8fd", // Soft sky
+    300: "#7cd5fc", // Light sky blue
+    400: "#5CC5FF", // Brand blue (logo color)
+    500: "#38b6f8", // Main primary - slightly darker for better contrast
+    600: "#1c9edf", // Medium blue
+    700: "#1680b8", // Deep sky blue
+    800: "#176893", // Dark blue
+    900: "#195678", // Very dark blue
   },
 
-  // Success colors
+  // Success colors - Soft Teal Green
   success: {
-    50: "#ecfdf5",
-    100: "#d1fae5",
-    200: "#a7f3d0",
-    300: "#6ee7b7",
-    400: "#34d399",
-    500: "#10b981", // Main success
-    600: "#059669",
-    700: "#047857",
-    800: "#065f46",
-    900: "#064e3b",
+    50: "#f0fdfa",
+    100: "#ccfbef",
+    200: "#99f6e0",
+    300: "#5fe8c8",
+    400: "#2ed3ac",
+    500: "#14b894", // Main success - accessible green
+    600: "#0d9479",
+    700: "#0f7763",
+    800: "#115e50",
+    900: "#124d43",
   },
 
-  // Error/Danger colors
+  // Error/Danger colors - Soft Coral Red
   error: {
     50: "#fef2f2",
-    100: "#fee2e2",
-    200: "#fecaca",
-    300: "#fca5a5",
-    400: "#f87171",
-    500: "#ef4444", // Main error
-    600: "#dc2626",
-    700: "#b91c1c",
-    800: "#991b1b",
-    900: "#7f1d1d",
+    100: "#fee5e5",
+    200: "#fecdd0",
+    300: "#fca5ab",
+    400: "#f87179",
+    500: "#ef4452", // Main error - accessible red
+    600: "#dc2635",
+    700: "#b91c2a",
+    800: "#991b26",
+    900: "#7f1d24",
   },
 
-  // Warning colors
+  // Warning colors - Soft Amber
   warning: {
     50: "#fffbeb",
     100: "#fef3c7",
@@ -62,7 +70,7 @@ export const colors = {
     900: "#78350f",
   },
 
-  // Secondary/Shared colors (purple)
+  // Secondary colors - Soft Purple/Lavender
   secondary: {
     50: "#faf5ff",
     100: "#f3e8ff",
@@ -76,69 +84,71 @@ export const colors = {
     900: "#581c87",
   },
 
-  // Gray colors
+  // Gray colors - Warm Gray with slight blue tint
+  // Based on logo's #747E97 for a cohesive feel
   gray: {
-    50: "#f9fafb",
-    100: "#f3f4f6",
-    200: "#e5e7eb",
-    300: "#d1d5db",
-    400: "#9ca3af",
-    500: "#6b7280",
-    600: "#4b5563",
-    700: "#374151",
-    800: "#1f2937",
-    900: "#111827",
+    50: "#f8fafb", // Softest gray (almost white)
+    100: "#f1f4f6", // Very light gray
+    200: "#e4e8ec", // Light gray
+    300: "#d1d7de", // Medium light gray
+    400: "#9ca5b4", // Medium gray
+    500: "#747e97", // Logo gray - main text gray
+    600: "#5a6478", // Dark gray
+    700: "#434c5c", // Darker gray
+    800: "#2d3442", // Very dark gray
+    900: "#19304f", // Logo navy - darkest
   },
 
-  // Background colors
+  // Background colors - Soft, warm tones
   background: {
-    primary: "#f8fafc",
-    secondary: "#ffffff",
-    tertiary: "#f3f4f6",
-    overlay: "rgba(0, 0, 0, 0.5)",
+    primary: "#f8fafb", // Soft off-white (slightly cooler)
+    secondary: "#ffffff", // Pure white for cards
+    tertiary: "#f1f4f6", // Light gray for sections
+    overlay: "rgba(25, 48, 79, 0.5)", // Navy overlay
   },
 
-  // Text colors
+  // Text colors - Using logo navy and gray-blue
   text: {
-    primary: "#1f2937",
-    secondary: "#6b7280",
-    tertiary: "#9ca3af",
+    primary: "#19304f", // Logo navy - high contrast
+    secondary: "#5a6478", // Slightly lighter for secondary
+    tertiary: "#747e97", // Logo gray-blue
     inverse: "#ffffff",
-    link: "#3b82f6",
-    error: "#ef4444",
-    success: "#059669",
+    link: "#1c9edf", // Primary 600 for accessible links
+    error: "#ef4452",
+    success: "#0d9479",
     warning: "#d97706",
   },
 
-  // Border colors
+  // Border colors - Soft, subtle borders
   border: {
-    light: "#f3f4f6",
-    medium: "#d1d5db",
-    dark: "#6b7280",
-    focus: "#3b82f6",
-    error: "#ef4444",
-    success: "#10b981",
+    light: "#f1f4f6",
+    medium: "#d1d7de",
+    dark: "#9ca5b4",
+    focus: "#5CC5FF", // Brand blue for focus states
+    error: "#ef4452",
+    success: "#14b894",
   },
 
   // Battery level colors (for devices)
   battery: {
-    high: "#10b981", // green
-    medium: "#f59e0b", // amber
-    low: "#ef4444", // red
+    high: "#14b894", // Success green
+    medium: "#f59e0b", // Warning amber
+    low: "#ef4452", // Error red
   },
 
   // Status colors (for sync status, etc.)
   status: {
-    synced: "#059669",
-    syncing: "#3b82f6",
-    error: "#dc2626",
-    pending: "#6b7280",
+    synced: "#0d9479",
+    syncing: "#1c9edf",
+    error: "#dc2635",
+    pending: "#747e97",
   },
 } as const;
 
 // Semantic color aliases for easier usage
 export const semanticColors = {
   primary: colors.primary[500],
+  primaryBrand: colors.primary[400], // Logo blue
   success: colors.success[500],
   error: colors.error[500],
   warning: colors.warning[500],
@@ -147,4 +157,12 @@ export const semanticColors = {
   textPrimary: colors.text.primary,
   textSecondary: colors.text.secondary,
   borderDefault: colors.border.medium,
+} as const;
+
+// Brand colors - direct from logo
+export const brandColors = {
+  skyBlue: "#5CC5FF",
+  navy: "#19304F",
+  softWhite: "#F8FAF9",
+  mutedGray: "#747E97",
 } as const;

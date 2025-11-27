@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import type { DbClient } from "@gently/db";
 import {
   Alarm,
   AlarmListSchema,
@@ -17,11 +18,12 @@ import {
 } from "@gently/db/schema";
 
 import { protectedProcedure } from "../trpc";
+import { sendPushNotificationToUser } from "./notification";
 
 // Helper function to check if a user can modify alarms for a device
 // Returns { canEdit: boolean, isOwner: boolean, deviceOwnerId?: string }
 async function checkDeviceEditPermission(
-  db: Parameters<Parameters<typeof protectedProcedure.query>[0]>[0]["ctx"]["db"],
+  db: DbClient,
   deviceId: string,
   userId: string,
 ): Promise<{ canEdit: boolean; isOwner: boolean; deviceOwnerId?: string }> {
@@ -56,7 +58,7 @@ async function checkDeviceEditPermission(
 
 // Helper function to notify device owner about alarm changes by shared user
 async function notifyDeviceOwnerOfChange(
-  db: Parameters<Parameters<typeof protectedProcedure.query>[0]>[0]["ctx"]["db"],
+  db: DbClient,
   deviceOwnerId: string,
   sharedUserId: string,
   deviceId: string,
@@ -76,11 +78,26 @@ async function notifyDeviceOwnerOfChange(
     const sharedUserName = sharedUser?.name ?? sharedUser?.email ?? "A shared user";
     const deviceName = device?.title ?? "your device";
 
-    // Log the notification (since push tokens aren't fully implemented yet)
-    console.log(`[NOTIFICATION] Device owner ${deviceOwnerId}: ${sharedUserName} ${action} alarm "${alarmTitle}" on ${deviceName}`);
+    // Build the notification message
+    const actionVerb = action === "created" ? "added" : action === "updated" ? "modified" : "removed";
+    const title = `Alarm ${actionVerb} on ${deviceName}`;
+    const body = `${sharedUserName} ${actionVerb} the alarm "${alarmTitle}"`;
 
-    // TODO: When push tokens are properly stored, send actual push notification here
-    // TODO: When email preferences are set up for device owners, send email notification here
+    // Send push notification to device owner
+    const result = await sendPushNotificationToUser(db, deviceOwnerId, {
+      title,
+      body,
+      data: {
+        type: "shared_alarm_change",
+        action,
+        deviceId,
+        alarmTitle,
+        sharedUserId,
+        sharedUserName,
+      },
+    });
+
+    console.log(`[NOTIFICATION] Device owner ${deviceOwnerId}: ${body}`, result);
   } catch (error) {
     // Don't fail the alarm operation if notification fails
     console.error("Failed to notify device owner:", error);

@@ -96,7 +96,7 @@ export function UserDetailsView({ userId }: UserDetailsViewProps) {
           size="sm"
           onClick={() => router.push("/admin/users")}
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           Back to Users
         </Button>
       </div>

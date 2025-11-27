@@ -222,7 +222,7 @@ export function ShareDeviceContent({ deviceId }: { deviceId: string }) {
         </CardHeader>
         <CardContent>
           <Button onClick={() => setIsInviteDialogOpen(true)}>
-            <Send className="mr-2 h-4 w-4" />
+            <Send className="h-4 w-4" />
             Invite Someone
           </Button>
         </CardContent>
@@ -336,12 +336,12 @@ export function ShareDeviceContent({ deviceId }: { deviceId: string }) {
                       >
                         {share.permission === "WRITE" ? (
                           <>
-                            <Eye className="mr-2 h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                             Change to View Only
                           </>
                         ) : (
                           <>
-                            <Pencil className="mr-2 h-4 w-4" />
+                            <Pencil className="h-4 w-4" />
                             Change to Full Access
                           </>
                         )}
@@ -352,7 +352,7 @@ export function ShareDeviceContent({ deviceId }: { deviceId: string }) {
                             resendMutation.mutate({ shareId: share.id })
                           }
                         >
-                          <RefreshCw className="mr-2 h-4 w-4" />
+                          <RefreshCw className="h-4 w-4" />
                           Resend Invitation
                         </DropdownMenuItem>
                       )}
@@ -366,7 +366,7 @@ export function ShareDeviceContent({ deviceId }: { deviceId: string }) {
                           })
                         }
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                         Revoke Access
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -448,12 +448,12 @@ export function ShareDeviceContent({ deviceId }: { deviceId: string }) {
             >
               {inviteMutation.isPending ? (
                 <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  <RefreshCw className="h-4 w-4 animate-spin" />
                   Sending...
                 </>
               ) : (
                 <>
-                  <Send className="mr-2 h-4 w-4" />
+                  <Send className="h-4 w-4" />
                   Send Invitation
                 </>
               )}

@@ -201,14 +201,14 @@ export function InvitationsContent() {
                   </p>
 
                   {/* Action buttons */}
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 pt-2">
                     <Button
                       variant="outline"
                       className="flex-1"
                       onClick={() => handleRespond(invitation.id, false)}
                       disabled={respondMutation.isPending}
                     >
-                      <X className="mr-2 h-4 w-4" />
+                      <X className="h-4 w-4" />
                       Decline
                     </Button>
                     <Button
@@ -216,7 +216,7 @@ export function InvitationsContent() {
                       onClick={() => handleRespond(invitation.id, true)}
                       disabled={respondMutation.isPending}
                     >
-                      <Check className="mr-2 h-4 w-4" />
+                      <Check className="h-4 w-4" />
                       Accept
                     </Button>
                   </div>

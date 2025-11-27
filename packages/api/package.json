@@ -25,6 +25,7 @@
     "@gently/validators": "workspace:*",
     "@react-email/components": "^0.0.34",
     "@trpc/server": "catalog:",
+    "expo-server-sdk": "^4.0.0",
     "minimatch": "catalog:",
     "superjson": "catalog:",
     "zod": "catalog:"
