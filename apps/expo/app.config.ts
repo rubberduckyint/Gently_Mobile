@@ -20,7 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
   ios: {
-    bundleIdentifier: "com.gentlyus.gently-dev",
+    bundleIdentifier: "com.gentlyus.mobile",
     supportsTablet: true,
     icon: {
       light: "./assets/gently-ios-blue.png",
