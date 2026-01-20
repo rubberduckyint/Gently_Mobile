@@ -58,7 +58,12 @@ function getBatteryInfo(status: BatteryStatus): {
     { color: colors.success[600], text: "Full", icon: "battery-full" as const },
   ];
 
-  const config = configs[status.level] ?? configs[0]!;
+  const config = configs[status.level] ??
+    configs[0] ?? {
+      color: colors.gray[600],
+      text: "Unknown",
+      icon: "battery-dead-outline" as const,
+    };
 
   return {
     color: config.color,

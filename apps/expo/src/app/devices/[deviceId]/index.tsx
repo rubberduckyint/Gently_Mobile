@@ -110,7 +110,7 @@ export default function DeviceDetailPage() {
       cancelAnimation(pulseScale);
       pulseScale.value = withTiming(1, { duration: 200 });
     }
-  }, [connectionState, connectionProgress]);
+  }, [connectionState, connectionProgress, pulseScale]);
 
   const pulseAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -662,20 +662,22 @@ export default function DeviceDetailPage() {
         {
           text: "Leave",
           style: "destructive",
-          onPress: async () => {
-            if (!deviceId) return;
-            try {
-              await trpc.deviceShare.removeMyAccess.mutate({ deviceId });
-              void queryClient.invalidateQueries({ queryKey: ["device"] });
-              router.replace("/");
-            } catch (error) {
-              Alert.alert(
-                "Error",
-                error instanceof Error
-                  ? error.message
-                  : "Failed to leave device",
-              );
-            }
+          onPress: () => {
+            void (async () => {
+              if (!deviceId) return;
+              try {
+                await trpc.deviceShare.removeMyAccess.mutate({ deviceId });
+                void queryClient.invalidateQueries({ queryKey: ["device"] });
+                router.replace("/");
+              } catch (error) {
+                Alert.alert(
+                  "Error",
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to leave device",
+                );
+              }
+            })();
           },
         },
       ],

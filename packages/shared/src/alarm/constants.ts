@@ -5,7 +5,11 @@
  * These define the options for LED patterns, colors, vibration settings, etc.
  */
 
+// ============================================================================
+// Default Form Values
+// ============================================================================
 import type {
+  AlarmFormData,
   ColorOption,
   LabeledOption,
   LedColor,
@@ -244,12 +248,6 @@ export function getVibrationPatternLabel(pattern: number): string {
 
 export const SNOOZE_PERIOD_OPTIONS = [1, 3, 5, 10, 15] as const;
 export type SnoozePeriod = (typeof SNOOZE_PERIOD_OPTIONS)[number];
-
-// ============================================================================
-// Default Form Values
-// ============================================================================
-
-import type { AlarmFormData } from "./types";
 
 export const DEFAULT_ALARM_FORM_VALUES: Omit<AlarmFormData, "startDate"> = {
   title: "",

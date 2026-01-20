@@ -81,7 +81,6 @@ export function AlarmCard({
       cronExpression: alarm.cronExpression,
     });
   }, [
-    alarm.id,
     alarm.isActive,
     safeStartDate,
     safeEndDate,

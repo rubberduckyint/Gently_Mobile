@@ -109,8 +109,8 @@ export function AlarmNotificationModal() {
       }
     };
 
-    sendEmailNotification();
-  }, [activeAlarm?.eventIndex, activeAlarm?.eventState, alarmDetails]);
+    void sendEmailNotification();
+  }, [activeAlarm, alarmDetails]);
 
   // Vibrate the phone when alarm modal appears
   useEffect(() => {
@@ -131,7 +131,7 @@ export function AlarmNotificationModal() {
     if (activeAlarm) {
       setIsDismissed(false);
     }
-  }, [activeAlarm?.eventIndex, activeAlarm?.timestamp]);
+  }, [activeAlarm]);
 
   if (!activeAlarm || isDismissed) return null;
 

@@ -375,7 +375,7 @@ export function BLEProvider({ children }: BLEProviderProps) {
               try {
                 const deviceName =
                   connectedDeviceRef.current?.name ?? "Gently Device";
-                NotificationService.showAlarmNotification(
+                void NotificationService.showAlarmNotification(
                   alarmTitle ?? `Alarm #${eventNotification.eventIndex + 1}`,
                   deviceName,
                   eventNotification.eventIndex,

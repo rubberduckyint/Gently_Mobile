@@ -1,13 +1,17 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
+const IS_DEV = process.env.APP_VARIANT === "development";
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Gently",
+  name: IS_DEV ? "Gently - DEV" : "Gently",
   slug: "gently",
   scheme: "gently",
   version: "0.1.0",
   orientation: "portrait",
-  icon: "./assets/gently-ios-blue.png",
+  icon: IS_DEV
+    ? "./assets/gently-ios-blue-dev.png"
+    : "./assets/gently-ios-blue.png",
   userInterfaceStyle: "automatic",
   splash: {
     image: "./assets/gently-splash-logo.png",
@@ -20,12 +24,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
   ios: {
-    bundleIdentifier: "com.gentlyus.mobile",
+    bundleIdentifier: IS_DEV
+      ? "com.gentlyus.mobile-dev"
+      : "com.gentlyus.mobile",
     supportsTablet: true,
-    icon: {
-      light: "./assets/gently-ios-blue.png",
-      dark: "./assets/gently-ios-dark.png",
-    },
+    icon: IS_DEV
+      ? {
+          light: "./assets/gently-ios-blue-dev.png",
+          dark: "./assets/gently-ios-dark-dev.png",
+        }
+      : {
+          light: "./assets/gently-ios-blue.png",
+          dark: "./assets/gently-ios-dark.png",
+        },
     infoPlist: {
       NSBluetoothAlwaysUsageDescription:
         "This app uses Bluetooth to connect to your Gently devices for monitoring and control.",
@@ -40,9 +51,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    package: "com.gentlyus.gently",
+    package: IS_DEV ? "com.gentlyus.gently.dev" : "com.gentlyus.gently",
     adaptiveIcon: {
-      foregroundImage: "./assets/gently-white-no-background.png",
+      foregroundImage: IS_DEV
+        ? "./assets/gently-white-no-background-dev.png"
+        : "./assets/gently-white-no-background.png",
       backgroundColor: "#51b0d6",
     },
     edgeToEdgeEnabled: true,

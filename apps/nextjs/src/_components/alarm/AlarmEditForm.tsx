@@ -1,5 +1,7 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   Bell,
@@ -10,8 +12,6 @@ import {
   Watch,
   Zap,
 } from "lucide-react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -19,9 +19,13 @@ import { z } from "zod";
 
 import type { Alarm } from "@gently/db";
 
-import { cn } from "~/lib/utils";
 import { Button } from "~/_components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/_components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "~/_components/ui/card";
 import { DialogClose, DialogFooter } from "~/_components/ui/dialog";
 import {
   Form,
@@ -44,16 +48,42 @@ import {
 import { Switch } from "~/_components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "~/_components/ui/toggle-group";
 import { authClient } from "~/auth/client";
+import { cn } from "~/lib/utils";
 import { useTRPC } from "~/trpc/react";
 
 // LED Pattern options with icons (matching mobile app)
 const LED_PATTERNS = [
   { key: "OFF", label: "Off", description: "LED disabled", icon: CircleOff },
-  { key: "SOLID", label: "Solid", description: "Continuous steady light", icon: Circle },
-  { key: "BLINK_SLOW", label: "Slow", description: "Gentle pulsing light", icon: Circle },
-  { key: "BLINK_FAST", label: "Fast", description: "Rapid attention-getting flashes", icon: Zap },
-  { key: "PULSE", label: "Pulse", description: "Smooth breathing effect", icon: Heart },
-  { key: "STROBE", label: "Strobe", description: "Intense flashing pattern", icon: Zap },
+  {
+    key: "SOLID",
+    label: "Solid",
+    description: "Continuous steady light",
+    icon: Circle,
+  },
+  {
+    key: "BLINK_SLOW",
+    label: "Slow",
+    description: "Gentle pulsing light",
+    icon: Circle,
+  },
+  {
+    key: "BLINK_FAST",
+    label: "Fast",
+    description: "Rapid attention-getting flashes",
+    icon: Zap,
+  },
+  {
+    key: "PULSE",
+    label: "Pulse",
+    description: "Smooth breathing effect",
+    icon: Heart,
+  },
+  {
+    key: "STROBE",
+    label: "Strobe",
+    description: "Intense flashing pattern",
+    icon: Zap,
+  },
 ] as const;
 
 // LED Color options (matching mobile app)
@@ -77,10 +107,34 @@ const VIBRATION_INTENSITIES = [
 
 // Vibration pattern options (matching mobile app)
 const VIBRATION_PATTERNS = [
-  { key: "QUICK", label: "Quick", description: "Short, sharp vibrations", icon: Zap, value: 1 },
-  { key: "HEARTBEAT", label: "Heart", description: "Rhythmic double pulses", icon: Heart, value: 2 },
-  { key: "RAPID", label: "Rapid", description: "Fast continuous pulses", icon: Activity, value: 3 },
-  { key: "SYMPHONY", label: "Symphony", description: "Complex musical pattern", icon: Music, value: 4 },
+  {
+    key: "QUICK",
+    label: "Quick",
+    description: "Short, sharp vibrations",
+    icon: Zap,
+    value: 1,
+  },
+  {
+    key: "HEARTBEAT",
+    label: "Heart",
+    description: "Rhythmic double pulses",
+    icon: Heart,
+    value: 2,
+  },
+  {
+    key: "RAPID",
+    label: "Rapid",
+    description: "Fast continuous pulses",
+    icon: Activity,
+    value: 3,
+  },
+  {
+    key: "SYMPHONY",
+    label: "Symphony",
+    description: "Complex musical pattern",
+    icon: Music,
+    value: 4,
+  },
 ] as const;
 
 // Snooze period options (matching mobile app)
@@ -299,19 +353,6 @@ export function AlarmEditForm({
   const DAYS_OF_WEEK = getDaysOfWeek(t);
   const REPEAT_TYPE_OPTIONS = getRepeatTypeOptions(t);
 
-  // Get current LED pattern for description display
-  const watchedLedPattern = form.watch("ledPattern");
-  const watchedVibrationIntensity = form.watch("vibrationIntensity");
-  const watchedVibrationPattern = form.watch("vibrationPattern");
-
-  const currentLedPattern = LED_PATTERNS.find((p) => p.key === watchedLedPattern);
-  const currentVibrationIntensity = VIBRATION_INTENSITIES.find(
-    (i) => i.key === watchedVibrationIntensity
-  );
-  const currentVibrationPatternObj = VIBRATION_PATTERNS.find(
-    (p) => p.value === watchedVibrationPattern
-  );
-
   // Generate default values
   const getDefaultValues = (): AlarmFormValues => {
     const now = new Date();
@@ -374,6 +415,21 @@ export function AlarmEditForm({
   const repeatType = watch("repeatType");
   const ends = watch("ends");
 
+  // Get current LED pattern for description display
+  const watchedLedPattern = watch("ledPattern");
+  const watchedVibrationIntensity = watch("vibrationIntensity");
+  const watchedVibrationPattern = watch("vibrationPattern");
+
+  const currentLedPattern = LED_PATTERNS.find(
+    (p) => p.key === watchedLedPattern,
+  );
+  const currentVibrationIntensity = VIBRATION_INTENSITIES.find(
+    (i) => i.key === watchedVibrationIntensity,
+  );
+  const currentVibrationPatternObj = VIBRATION_PATTERNS.find(
+    (p) => p.value === watchedVibrationPattern,
+  );
+
   const handleSubmit = (values: AlarmFormValues) => {
     try {
       const cronExpression = generateCronExpression(values);
@@ -434,7 +490,7 @@ export function AlarmEditForm({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base font-medium">
-              <Bell className="h-5 w-5 text-primary" />
+              <Bell className="text-primary h-5 w-5" />
               {t("alarms.form.title")}
             </CardTitle>
           </CardHeader>
@@ -517,7 +573,9 @@ export function AlarmEditForm({
                             max={999}
                             className="w-20"
                             {...field}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
+                            onChange={(e) =>
+                              field.onChange(Number(e.target.value))
+                            }
                           />
                         </FormControl>
                         <FormMessage />
@@ -539,7 +597,10 @@ export function AlarmEditForm({
                             </SelectTrigger>
                             <SelectContent>
                               {REPEAT_TYPE_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
                                   {option.label}
                                 </SelectItem>
                               ))}
@@ -696,7 +757,7 @@ export function AlarmEditForm({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base font-medium">
-              <Watch className="h-5 w-5 text-primary" />
+              <Watch className="text-primary h-5 w-5" />
               {t("alarms.braceletSettings") || "Bracelet Settings"}
             </CardTitle>
           </CardHeader>
@@ -707,14 +768,18 @@ export function AlarmEditForm({
               name="snoozePeriod"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("alarms.form.snoozePeriod") || "Snooze Period"}</FormLabel>
+                  <FormLabel>
+                    {t("alarms.form.snoozePeriod") || "Snooze Period"}
+                  </FormLabel>
                   <FormControl>
                     <div className="flex gap-2">
                       {SNOOZE_OPTIONS.map((minutes) => (
                         <Button
                           key={minutes}
                           type="button"
-                          variant={field.value === minutes ? "default" : "outline"}
+                          variant={
+                            field.value === minutes ? "default" : "outline"
+                          }
                           className="flex-1"
                           onClick={() => field.onChange(minutes)}
                         >
@@ -734,7 +799,9 @@ export function AlarmEditForm({
               name="ledPattern"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("alarms.form.ledPattern") || "Light Pattern"}</FormLabel>
+                  <FormLabel>
+                    {t("alarms.form.ledPattern") || "Light Pattern"}
+                  </FormLabel>
                   <FormControl>
                     <div className="flex gap-2">
                       {LED_PATTERNS.map((pattern) => {
@@ -743,7 +810,11 @@ export function AlarmEditForm({
                           <Button
                             key={pattern.key}
                             type="button"
-                            variant={field.value === pattern.key ? "default" : "outline"}
+                            variant={
+                              field.value === pattern.key
+                                ? "default"
+                                : "outline"
+                            }
                             className="flex-1 p-2"
                             onClick={() => field.onChange(pattern.key)}
                             title={pattern.label}
@@ -771,7 +842,9 @@ export function AlarmEditForm({
                 name="ledColor"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("alarms.form.ledColor") || "Light Color"}</FormLabel>
+                    <FormLabel>
+                      {t("alarms.form.ledColor") || "Light Color"}
+                    </FormLabel>
                     <FormControl>
                       <div className="flex gap-2">
                         {LED_COLORS.map((colorOption) => (
@@ -781,8 +854,8 @@ export function AlarmEditForm({
                             className={cn(
                               "h-10 w-10 rounded-full border-2 transition-all",
                               field.value === colorOption.key
-                                ? "border-primary ring-2 ring-primary ring-offset-2"
-                                : "border-muted"
+                                ? "border-primary ring-primary ring-2 ring-offset-2"
+                                : "border-muted",
                             )}
                             style={{ backgroundColor: colorOption.color }}
                             onClick={() => field.onChange(colorOption.key)}
@@ -804,7 +877,8 @@ export function AlarmEditForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    {t("alarms.form.vibrationIntensity") || "Vibration Strength"}
+                    {t("alarms.form.vibrationIntensity") ||
+                      "Vibration Strength"}
                   </FormLabel>
                   <FormControl>
                     <div className="flex gap-2">
@@ -812,7 +886,11 @@ export function AlarmEditForm({
                         <Button
                           key={intensity.key}
                           type="button"
-                          variant={field.value === intensity.key ? "default" : "outline"}
+                          variant={
+                            field.value === intensity.key
+                              ? "default"
+                              : "outline"
+                          }
                           className="flex-1"
                           onClick={() => field.onChange(intensity.key)}
                         >
@@ -848,7 +926,11 @@ export function AlarmEditForm({
                           <Button
                             key={pattern.key}
                             type="button"
-                            variant={field.value === pattern.value ? "default" : "outline"}
+                            variant={
+                              field.value === pattern.value
+                                ? "default"
+                                : "outline"
+                            }
                             className="flex-1 p-2"
                             onClick={() => field.onChange(pattern.value)}
                             title={pattern.label}

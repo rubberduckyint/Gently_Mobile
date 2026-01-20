@@ -419,10 +419,13 @@ export default function SelectEventsPage() {
       const newMap = new Map(prev);
       group.instances.forEach((e) => {
         if (newMap.has(e.id)) {
-          newMap.set(e.id, {
-            ...newMap.get(e.id)!,
-            alarmMinutesBefore: minutes,
-          });
+          const existing = newMap.get(e.id);
+          if (existing) {
+            newMap.set(e.id, {
+              ...existing,
+              alarmMinutesBefore: minutes,
+            });
+          }
         }
       });
       return newMap;
@@ -442,9 +445,10 @@ export default function SelectEventsPage() {
     const selectedInstance = group.instances.find((e) =>
       selectedEvents.has(e.id),
     );
-    return selectedInstance
-      ? selectedEvents.get(selectedInstance.id)!.alarmMinutesBefore
-      : 15;
+    const alarmData = selectedInstance
+      ? selectedEvents.get(selectedInstance.id)
+      : undefined;
+    return alarmData?.alarmMinutesBefore ?? 15;
   };
 
   const updateAlarmTime = (eventId: string, minutes: number) => {
@@ -1286,14 +1290,14 @@ export default function SelectEventsPage() {
         }
         onScrollToIndexFailed={(info) => {
           // Handle scroll to index failure gracefully
-          const wait = new Promise((resolve) => setTimeout(resolve, 100));
-          wait.then(() => {
+          void (async () => {
+            await new Promise((resolve) => setTimeout(resolve, 100));
             flatListRef.current?.scrollToIndex({
               index: info.index,
               animated: true,
               viewOffset: 50,
             });
-          });
+          })();
         }}
         style={containers.content}
         contentContainerStyle={{

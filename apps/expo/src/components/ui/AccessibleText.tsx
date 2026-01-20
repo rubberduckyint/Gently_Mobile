@@ -104,7 +104,7 @@ export function AccessibleText({
 
   // Get base style for variant
   const baseStyle = variantStyles[variant];
-  const baseFontSize = baseStyle.fontSize!;
+  const baseFontSize = baseStyle.fontSize ?? 16;
 
   // Calculate scaled font size (RN auto-scales, but we want to cap it)
   // We need to divide by fontScale and multiply by cappedFontScale
@@ -112,7 +112,7 @@ export function AccessibleText({
   const scaledFontSize = baseFontSize * (cappedFontScale / fontScale);
 
   // Scale line height proportionally
-  const baseLineHeight = baseStyle.lineHeight!;
+  const baseLineHeight = baseStyle.lineHeight ?? 24;
   const scaledLineHeight = baseLineHeight * (cappedFontScale / fontScale);
 
   return (

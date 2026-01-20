@@ -1,12 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  format,
-  formatDistanceToNow,
-  isToday,
-  isTomorrow,
-} from "date-fns";
+import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
   Bell,
   BellOff,
@@ -286,7 +281,10 @@ export function AlarmCard({
 
       {/* Expired Badge */}
       {isExpired && (
-        <Badge variant="outline" className="text-muted-foreground w-fit text-[10px]">
+        <Badge
+          variant="outline"
+          className="text-muted-foreground w-fit text-[10px]"
+        >
           EXPIRED
         </Badge>
       )}
@@ -304,7 +302,7 @@ export function AlarmCard({
       {/* Icon Row - Settings Display */}
       <div className="border-border flex items-start justify-between border-t pt-3">
         {/* LED Group */}
-        <div className="flex flex-1.5 flex-col items-center">
+        <div className="flex-1.5 flex flex-col items-center">
           <span className="text-muted-foreground mb-1 text-[8px] font-semibold uppercase">
             LED
           </span>
@@ -331,7 +329,7 @@ export function AlarmCard({
         </div>
 
         {/* Vibration Group */}
-        <div className="flex flex-1.5 flex-col items-center">
+        <div className="flex-1.5 flex flex-col items-center">
           <span className="text-muted-foreground mb-1 text-[8px] font-semibold uppercase">
             Vibration
           </span>
