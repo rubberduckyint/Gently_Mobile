@@ -22,16 +22,6 @@ export function AlarmCard({
   onPress,
   isExpired = false,
 }: AlarmCardProps) {
-  // Check if calendarEventAlarm is present and get calendar connection info
-  const calendarEventAlarm = (
-    alarm as {
-      calendarEventAlarm?: { calendarConnection?: { accountEmail?: string } };
-    }
-  ).calendarEventAlarm;
-  const isCalendarSynced = !!calendarEventAlarm;
-  const calendarAccountEmail =
-    calendarEventAlarm?.calendarConnection?.accountEmail;
-
   // Safely convert dates, providing defaults for invalid values
   const safeStartDate = useMemo(() => {
     let date: Date;
@@ -188,11 +178,6 @@ export function AlarmCard({
     parts.push(alarm.title);
     parts.push(alarm.isActive ? "Active" : "Disabled");
 
-    // Calendar sync status
-    if (isCalendarSynced) {
-      parts.push("Synced with calendar");
-    }
-
     // Schedule info
     if (isExpired) {
       parts.push("Expired");
@@ -207,7 +192,6 @@ export function AlarmCard({
   }, [
     alarm.title,
     alarm.isActive,
-    isCalendarSynced,
     isExpired,
     scheduleInfo.timeUntilNext,
     syncConfig.text,
@@ -267,41 +251,6 @@ export function AlarmCard({
             >
               {alarm.title}
             </Text>
-
-            {/* Calendar Sync Indicator */}
-            {isCalendarSynced && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: colors.primary[50],
-                  paddingHorizontal: spacing[2],
-                  paddingVertical: 2,
-                  borderRadius: 4,
-                  marginLeft: spacing[2],
-                  maxWidth: 120,
-                }}
-              >
-                <Ionicons
-                  name="calendar"
-                  size={12}
-                  color={colors.primary[500]}
-                  style={{ marginRight: 2 }}
-                />
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontWeight: "600",
-                    color: colors.primary[600],
-                  }}
-                  numberOfLines={1}
-                >
-                  {calendarAccountEmail
-                    ? calendarAccountEmail.split("@")[0]
-                    : "Synced"}
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* Chevron */}

@@ -49,39 +49,10 @@ export function AlarmNotificationModal() {
       alarm.deviceIndex === activeAlarm?.eventIndex,
   ) as
     | {
+        id?: string;
         title?: string;
-        calendarEventAlarm?: {
-          calendarConnection?: {
-            accountEmail?: string;
-          };
-        };
       }
     | undefined;
-
-  // For calendar info, we need to fetch the specific alarm with relations
-  const { data: alarmWithCalendar } = useQuery({
-    queryKey: [
-      "alarm",
-      "getById",
-      { id: (alarmDetails as { id?: string })?.id },
-    ],
-    queryFn: async () => {
-      const id = (alarmDetails as { id?: string })?.id;
-      if (!id) return null;
-      return await trpc.alarm.getById.query({ id });
-    },
-    enabled: !!(alarmDetails as { id?: string })?.id,
-    staleTime: 30000,
-  });
-
-  const calendarEventAlarm = (
-    alarmWithCalendar as {
-      calendarEventAlarm?: { calendarConnection?: { accountEmail?: string } };
-    }
-  )?.calendarEventAlarm;
-  const calendarAccountEmail =
-    calendarEventAlarm?.calendarConnection?.accountEmail;
-  const isCalendarSynced = !!calendarEventAlarm;
 
   // Send email notification when alarm triggers (if enabled)
   useEffect(() => {
@@ -247,37 +218,6 @@ export function AlarmNotificationModal() {
           >
             {alarmDetails?.title ?? activeAlarm.alarmTitle ?? "Alarm Active"}
           </Text>
-
-          {/* Calendar Sync Indicator */}
-          {isCalendarSynced && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: colors.primary[50],
-                paddingHorizontal: spacing[3],
-                paddingVertical: spacing[2],
-                borderRadius: 8,
-                marginBottom: spacing[2],
-              }}
-            >
-              <Ionicons
-                name="calendar"
-                size={16}
-                color={colors.primary[500]}
-                style={{ marginRight: spacing[2] }}
-              />
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: "600",
-                  color: colors.primary[600],
-                }}
-              >
-                {calendarAccountEmail ?? "Google Calendar"}
-              </Text>
-            </View>
-          )}
 
           {/* State */}
           <Text

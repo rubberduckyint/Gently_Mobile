@@ -43,9 +43,6 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
   } = useQuery(trpc.device.getById.queryOptions({ id: deviceId }));
   const alarms = device?.alarms ?? [];
 
-  // Check if user can edit alarms (owner or shared with WRITE permission)
-  const canEdit = device?.isOwned ?? device?.shareInfo?.permission === "WRITE";
-
   // Separate active and expired alarms
   const activeAlarms = alarms.filter(
     (alarm) => !formatCronExpressionWithStartEnd(alarm).isExpired,
@@ -93,14 +90,10 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-foreground text-xl font-semibold">Alarms</h2>
-          {canEdit ? (
-            <Button size="sm" onClick={() => setIsCreating(true)}>
-              <Plus className="h-4 w-4" />
-              New Alarm
-            </Button>
-          ) : (
-            <p className="text-muted-foreground text-sm">View only</p>
-          )}
+          <Button size="sm" onClick={() => setIsCreating(true)}>
+            <Plus className="h-4 w-4" />
+            New Alarm
+          </Button>
         </div>
 
         <Tabs
@@ -128,18 +121,15 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
                           formatCronExpressionWithStartEnd
                         }
                         showExpiredBadge={false}
-                        canEdit={canEdit}
                       />
                     </div>
-                    {canEdit && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setEditingAlarm(alarm.id)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setEditingAlarm(alarm.id)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </div>
                 </li>
               ))}
@@ -148,16 +138,14 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
                   <div className="flex flex-col items-center gap-2">
                     <Clock className="text-muted-foreground h-8 w-8" />
                     <p className="text-sm">No active alarms.</p>
-                    {canEdit && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsCreating(true)}
-                      >
-                        <Plus className="h-4 w-4" />
-                        Create your first alarm
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsCreating(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create your first alarm
+                    </Button>
                   </div>
                 </li>
               )}
@@ -176,18 +164,15 @@ export default function AlarmsList({ deviceId }: AlarmsListProps) {
                           formatCronExpressionWithStartEnd
                         }
                         showExpiredBadge={true}
-                        canEdit={canEdit}
                       />
                     </div>
-                    {canEdit && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setEditingAlarm(alarm.id)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setEditingAlarm(alarm.id)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </div>
                 </li>
               ))}

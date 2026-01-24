@@ -11,9 +11,6 @@ import type { RouterOutputs } from "~/utils/api";
 // Infer database types from the API router outputs
 export type Device = RouterOutputs["device"]["getById"];
 export type Alarm = NonNullable<Device>["alarms"][number];
-export type CalendarConnection =
-  RouterOutputs["calendar"]["getConnections"][number];
-export type CalendarEventAlarm = NonNullable<Alarm["calendarEventAlarm"]>;
 
 // Re-export enum types from the schema
 // These are the canonical source of truth for BLE protocol values
@@ -124,18 +121,6 @@ export interface ActiveAlarmNotification {
   eventStateText: string;
   timestamp: Date;
   alarmTitle?: string;
-}
-
-/**
- * Calendar event for sync
- */
-export interface CalendarEvent {
-  id: string;
-  summary: string;
-  startTime: Date;
-  endTime?: Date;
-  location?: string;
-  description?: string;
 }
 
 /**

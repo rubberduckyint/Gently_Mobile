@@ -24,8 +24,6 @@ export interface AlarmFormProps {
   saveButtonText?: string;
   isLoading?: boolean;
   showTemplates?: boolean;
-  /** Disable schedule/time editing (used for calendar-synced alarms) */
-  disableScheduleEditing?: boolean;
   /** Optional banner to show at the top of the form */
   topBanner?: React.ReactNode;
 }
@@ -37,7 +35,6 @@ export function AlarmForm({
   saveButtonText = "Save Alarm",
   isLoading = false,
   showTemplates = true,
-  disableScheduleEditing = false,
   topBanner,
 }: AlarmFormProps) {
   const [formData, setFormData] = useState<AlarmFormData>(initialData);
@@ -118,7 +115,6 @@ export function AlarmForm({
           onToggleEndDatePicker={() => setShowEndDatePicker(!showEndDatePicker)}
           showEndTimePicker={showEndTimePicker}
           onToggleEndTimePicker={() => setShowEndTimePicker(!showEndTimePicker)}
-          disabled={disableScheduleEditing}
         />
 
         {/* Notifications Section */}

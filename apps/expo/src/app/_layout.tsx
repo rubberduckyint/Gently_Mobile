@@ -122,34 +122,6 @@ export default function RootLayout() {
               headerShown: false,
             }}
           />
-          <Stack.Screen
-            name="calendar/index"
-            options={{
-              title: "Calendar",
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="calendar/select-events"
-            options={{
-              title: "Calendar Events",
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="invitations"
-            options={{
-              title: "Invitations",
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="devices/[deviceId]/share"
-            options={{
-              title: "Share Device",
-              headerShown: false,
-            }}
-          />
         </Stack>
         <StatusBar style="dark" />
         {/* Global alarm notification modal - shows when BLE context has activeAlarm */}

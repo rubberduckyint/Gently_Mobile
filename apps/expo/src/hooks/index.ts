@@ -8,10 +8,6 @@
 export { useAlarmSync } from "./useAlarmSync";
 export { usePatternPreview } from "./usePatternPreview";
 
-// Calendar hooks
-export { useCalendarSync } from "./useCalendarSync";
-export { useWebhookRenewal } from "./useWebhookRenewal";
-
 // BLE hooks
 export { useBLEScanning } from "./useBLEScanning";
 export { useBLEConnection } from "./useBLEConnection";

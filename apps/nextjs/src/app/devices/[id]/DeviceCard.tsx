@@ -12,19 +12,15 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
-  Eye,
   Home,
   Loader2,
   Pencil,
   RefreshCw,
-  Share2,
-  Users,
   XCircle,
 } from "lucide-react";
 
 import type { Device } from "@gently/db/schema";
 
-import { Badge } from "~/_components/ui/badge";
 import { Button } from "~/_components/ui/button";
 import {
   Card,
@@ -133,17 +129,6 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
     }),
   );
 
-  // Get shares for this device (only if owned)
-  const { data: allShares } = useQuery({
-    ...trpc.deviceShare.getMyDeviceShares.queryOptions(),
-    enabled: !!device?.isOwned,
-  });
-
-  // Filter shares for this specific device
-  const deviceShares = allShares?.filter((s) => s.deviceId === deviceId) ?? [];
-  const acceptedShares = deviceShares.filter((s) => s.status === "ACCEPTED");
-  const pendingShares = deviceShares.filter((s) => s.status === "PENDING");
-
   const handleSave = async () => {
     setShowEditDialog(false);
     await queryClient.invalidateQueries({
@@ -212,90 +197,6 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
         </Card>
       ) : (
         <>
-          {/* Shared Device Banner - for devices shared WITH you */}
-          {device.isShared && device.shareInfo && (
-            <Card className="border-primary/30 bg-primary/5 -mt-4 mb-4">
-              <CardContent className="flex items-center gap-3 py-3">
-                <Users className="text-primary h-5 w-5" />
-                <div>
-                  <p className="text-sm font-medium">
-                    Shared by{" "}
-                    {device.shareInfo.ownerName
-                      ? device.shareInfo.ownerName
-                      : device.shareInfo.ownerEmail}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    You have{" "}
-                    {device.shareInfo.permission === "WRITE"
-                      ? "full"
-                      : "view-only"}{" "}
-                    access
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Sharing Status Banner - for devices YOU own */}
-          {device.isOwned && deviceShares.length > 0 && (
-            <a href={`/devices/${deviceId}/share`}>
-              <Card className="-mt-4 mb-4 cursor-pointer border-blue-500/30 bg-blue-500/5 transition-colors hover:bg-blue-500/10">
-                <CardContent className="flex items-center justify-between py-3">
-                  <div className="flex items-center gap-3">
-                    <Share2 className="h-5 w-5 text-blue-500" />
-                    <div>
-                      <p className="text-sm font-medium">
-                        Shared with {deviceShares.length}{" "}
-                        {deviceShares.length === 1 ? "person" : "people"}
-                      </p>
-                      <div className="text-muted-foreground flex items-center gap-2 text-xs">
-                        {acceptedShares.length > 0 && (
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {acceptedShares.length} active
-                          </span>
-                        )}
-                        {pendingShares.length > 0 && (
-                          <span className="flex items-center gap-1 text-amber-600">
-                            • {pendingShares.length} pending
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* Show permission breakdown */}
-                    <div className="flex gap-1">
-                      {acceptedShares.filter((s) => s.permission === "WRITE")
-                        .length > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          <Pencil className="mr-1 h-3 w-3" />
-                          {
-                            acceptedShares.filter(
-                              (s) => s.permission === "WRITE",
-                            ).length
-                          }
-                        </Badge>
-                      )}
-                      {acceptedShares.filter((s) => s.permission === "READ")
-                        .length > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          <Eye className="mr-1 h-3 w-3" />
-                          {
-                            acceptedShares.filter(
-                              (s) => s.permission === "READ",
-                            ).length
-                          }
-                        </Badge>
-                      )}
-                    </div>
-                    <ChevronRight className="text-muted-foreground h-4 w-4" />
-                  </div>
-                </CardContent>
-              </Card>
-            </a>
-          )}
-
           <Card className="-mt-4">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -354,27 +255,6 @@ export function DeviceCard({ deviceId }: { deviceId: string }) {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  {device.isOwned && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Share device"
-                            asChild
-                          >
-                            <Link href={`/devices/${deviceId}/share`}>
-                              <Share2 className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Share Device</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
                 </div>
               </CardAction>
             </CardHeader>

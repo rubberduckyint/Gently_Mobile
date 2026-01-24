@@ -3,12 +3,12 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { Alarm, Device, DeviceShare } from "@gently/db/schema";
+import { Alarm, Device } from "@gently/db/schema";
 
 import { protectedProcedure } from "../trpc";
 
 export const deviceRouter = {
-  // Get all devices for current user (owned + shared)
+  // Get all devices for current user
   getAll: protectedProcedure.input(z.object({})).query(async ({ ctx }) => {
     // Get owned devices
     const ownedDevices = await ctx.db
@@ -16,49 +16,13 @@ export const deviceRouter = {
       .from(Device)
       .where(eq(Device.userId, ctx.session.user.id));
 
-    // Get shared devices (accepted shares only)
-    const sharedDeviceRecords = await ctx.db.query.DeviceShare.findMany({
-      where: and(
-        eq(DeviceShare.sharedWithUserId, ctx.session.user.id),
-        eq(DeviceShare.status, "ACCEPTED"),
-      ),
-      with: {
-        device: {
-          with: {
-            user: true,
-          },
-        },
-      },
-    });
-
-    // Combine devices with ownership info
-    const allDevices = [
-      ...ownedDevices.map((device) => ({
-        ...device,
-        isOwned: true as const,
-        isShared: false as const,
-        shareInfo: null,
-      })),
-      ...sharedDeviceRecords.map((share) => ({
-        ...share.device,
-        isOwned: false as const,
-        isShared: true as const,
-        shareInfo: {
-          shareId: share.id,
-          permission: share.permission,
-          ownerName: share.device.user.name,
-          ownerEmail: share.device.user.email,
-        },
-      })),
-    ];
-
-    if (allDevices.length === 0) {
+    if (ownedDevices.length === 0) {
       return [];
     }
 
     // Get alarm counts efficiently
     const devicesWithCounts = await Promise.all(
-      allDevices.map(async (device) => {
+      ownedDevices.map(async (device) => {
         const alarmCount = await ctx.db
           .select({ count: count() })
           .from(Alarm)
@@ -84,7 +48,7 @@ export const deviceRouter = {
       }),
     )
     .query(async ({ input, ctx }) => {
-      // First check if user owns the device
+      // Check if user owns the device
       const ownedDevice = await ctx.db
         .select()
         .from(Device)
@@ -93,41 +57,7 @@ export const deviceRouter = {
         )
         .limit(1);
 
-      let device: (typeof ownedDevice)[0] | null = ownedDevice[0] ?? null;
-      let shareInfo: {
-        shareId: string;
-        permission: "READ" | "WRITE";
-        ownerName: string;
-        ownerEmail: string;
-      } | null = null;
-
-      // If not owned, check if shared with user
-      if (!device) {
-        const share = await ctx.db.query.DeviceShare.findFirst({
-          where: and(
-            eq(DeviceShare.deviceId, input.id),
-            eq(DeviceShare.sharedWithUserId, ctx.session.user.id),
-            eq(DeviceShare.status, "ACCEPTED"),
-          ),
-          with: {
-            device: {
-              with: {
-                user: true,
-              },
-            },
-          },
-        });
-
-        if (share) {
-          device = share.device;
-          shareInfo = {
-            shareId: share.id,
-            permission: share.permission,
-            ownerName: share.device.user.name,
-            ownerEmail: share.device.user.email,
-          };
-        }
-      }
+      const device = ownedDevice[0];
 
       if (!device) {
         throw new TRPCError({
@@ -136,16 +66,9 @@ export const deviceRouter = {
         });
       }
 
-      // Get related alarms with calendar event info
+      // Get related alarms
       const alarms = await ctx.db.query.Alarm.findMany({
         where: eq(Alarm.deviceId, input.id),
-        with: {
-          calendarEventAlarm: {
-            with: {
-              calendarConnection: true,
-            },
-          },
-        },
       });
 
       // Get alarm count
@@ -156,9 +79,6 @@ export const deviceRouter = {
 
       return {
         ...device,
-        isOwned: !shareInfo,
-        isShared: !!shareInfo,
-        shareInfo,
         alarms,
         _count: {
           alarms: alarmCount[0]?.count ?? 0,

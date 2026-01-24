@@ -65,11 +65,6 @@ function DeviceCard({
   device: DeviceWithAlarmsCount;
   alarms: Alarm[];
 }) {
-  // Check if this is a shared device
-  const isShared = device.isShared;
-  const shareInfo = device.shareInfo;
-  const isReadOnly = shareInfo?.permission === "READ";
-
   // Filter alarms for this device
   const deviceAlarms = useMemo(() => {
     return alarms.filter((alarm) => alarm.deviceId === device.id);
@@ -208,9 +203,7 @@ function DeviceCard({
               left: 0,
               right: 0,
               height: 4,
-              backgroundColor: isShared
-                ? colors.secondary[500]
-                : colors.primary[500],
+              backgroundColor: colors.primary[500],
             }}
           />
           {/* Device Header */}
@@ -222,15 +215,13 @@ function DeviceCard({
               marginTop: spacing[2],
             }}
           >
-            {/* Device Icon with shared badge */}
+            {/* Device Icon */}
             <View
               style={{
                 width: 56,
                 height: 56,
                 borderRadius: 16,
-                backgroundColor: isShared
-                  ? colors.secondary[50]
-                  : colors.primary[50],
+                backgroundColor: colors.primary[50],
                 alignItems: "center",
                 justifyContent: "center",
                 marginRight: spacing[4],
@@ -240,34 +231,8 @@ function DeviceCard({
               <Ionicons
                 name="watch-outline"
                 size={28}
-                color={isShared ? colors.secondary[600] : colors.primary[600]}
+                color={colors.primary[600]}
               />
-              {/* Shared badge */}
-              {isShared && (
-                <View
-                  style={{
-                    position: "absolute",
-                    bottom: -4,
-                    right: -4,
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    backgroundColor: isReadOnly
-                      ? colors.warning[500]
-                      : colors.success[500],
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: 2,
-                    borderColor: "#FFFFFF",
-                  }}
-                >
-                  <Ionicons
-                    name={isReadOnly ? "eye" : "pencil"}
-                    size={12}
-                    color="#FFFFFF"
-                  />
-                </View>
-              )}
             </View>
 
             {/* Device Info */}
@@ -293,47 +258,7 @@ function DeviceCard({
                 >
                   {device.title}
                 </Text>
-                {isShared && (
-                  <View
-                    style={{
-                      backgroundColor: isReadOnly
-                        ? colors.warning[100]
-                        : colors.success[100],
-                      paddingHorizontal: spacing[2],
-                      paddingVertical: spacing[1],
-                      borderRadius: 8,
-                    }}
-                  >
-                    <Text
-                      style={[
-                        typography.caption,
-                        {
-                          color: isReadOnly
-                            ? colors.warning[700]
-                            : colors.success[700],
-                          fontWeight: "600",
-                          fontSize: 10,
-                        },
-                      ]}
-                    >
-                      {isReadOnly ? "VIEW ONLY" : "SHARED"}
-                    </Text>
-                  </View>
-                )}
               </View>
-
-              {/* Shared owner info */}
-              {isShared && shareInfo && (
-                <Text
-                  style={[
-                    typography.caption,
-                    { color: colors.text.tertiary, marginBottom: spacing[1] },
-                  ]}
-                  numberOfLines={1}
-                >
-                  Shared by {shareInfo.ownerName}
-                </Text>
-              )}
 
               {/* Alarm Count with breakdown */}
               <View
@@ -564,16 +489,6 @@ export default function DashboardPage() {
     gcTime: 0,
   });
 
-  // Fetch pending invitations count
-  const { data: pendingInvitations } = useQuery({
-    queryKey: ["deviceShare", "getPendingInvitations"],
-    queryFn: () => trpc.deviceShare.getPendingInvitations.query(),
-    enabled: !!session?.user,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    staleTime: 30000, // Consider stale after 30 seconds
-  });
-
   const signOutMutation = useMutation({
     mutationFn: async () => {
       // Reset user preferences on logout
@@ -718,15 +633,6 @@ export default function DashboardPage() {
                 icon: "help-circle",
               },
               {
-                label:
-                  pendingInvitations && pendingInvitations.length > 0
-                    ? `Invitations (${pendingInvitations.length})`
-                    : "Invitations",
-                onPress: () => router.push("/invitations"),
-                icon: "mail",
-                badge: pendingInvitations?.length ?? 0,
-              },
-              {
                 label: "User Settings",
                 onPress: handleUserProfile,
                 icon: "settings",
@@ -777,76 +683,14 @@ export default function DashboardPage() {
             </Pressable>
           </View>
         ) : (
-          /* Device List with sections */
+          /* Device List */
           <ScrollView
             style={{ paddingVertical: spacing[4] }}
             showsVerticalScrollIndicator={false}
           >
-            {/* Owned devices section */}
-            {devices.filter((d) => d.isOwned).length > 0 && (
-              <>
-                {devices.filter((d) => d.isShared).length > 0 && (
-                  <Text
-                    style={[
-                      typography.caption,
-                      {
-                        color: colors.text.tertiary,
-                        fontWeight: "600",
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                        marginBottom: spacing[3],
-                        marginLeft: spacing[2],
-                      },
-                    ]}
-                  >
-                    My Devices
-                  </Text>
-                )}
-                {devices
-                  .filter((d) => d.isOwned)
-                  .map((device) => (
-                    <DeviceCard
-                      key={device.id}
-                      device={device}
-                      alarms={allAlarms}
-                    />
-                  ))}
-              </>
-            )}
-
-            {/* Shared devices section */}
-            {devices.filter((d) => d.isShared).length > 0 && (
-              <>
-                <Text
-                  style={[
-                    typography.caption,
-                    {
-                      color: colors.text.tertiary,
-                      fontWeight: "600",
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                      marginTop:
-                        devices.filter((d) => d.isOwned).length > 0
-                          ? spacing[6]
-                          : 0,
-                      marginBottom: spacing[3],
-                      marginLeft: spacing[2],
-                    },
-                  ]}
-                >
-                  Shared With Me
-                </Text>
-                {devices
-                  .filter((d) => d.isShared)
-                  .map((device) => (
-                    <DeviceCard
-                      key={device.id}
-                      device={device}
-                      alarms={allAlarms}
-                    />
-                  ))}
-              </>
-            )}
+            {devices.map((device) => (
+              <DeviceCard key={device.id} device={device} alarms={allAlarms} />
+            ))}
 
             {/* Add device button */}
             <Pressable

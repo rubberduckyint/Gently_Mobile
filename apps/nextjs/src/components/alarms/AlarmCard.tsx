@@ -5,7 +5,6 @@ import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
   Bell,
   BellOff,
-  Calendar,
   ChevronRight,
   Circle,
   CircleDot,
@@ -35,11 +34,6 @@ interface AlarmCardProps {
     startDate: Date | null;
     endDate: Date | null;
     repeat: boolean;
-    calendarEventAlarm?: {
-      calendarConnection?: {
-        accountEmail?: string;
-      };
-    } | null;
   };
   formatCronExpressionWithStartEnd: (alarm: {
     startDate: Date | null;
@@ -52,7 +46,6 @@ interface AlarmCardProps {
     isExpired: boolean;
   };
   showExpiredBadge?: boolean;
-  canEdit?: boolean;
   className?: string;
   onClick?: () => void;
 }
@@ -156,18 +149,12 @@ export function AlarmCard({
   alarm,
   formatCronExpressionWithStartEnd,
   showExpiredBadge = false,
-  canEdit = false,
   className = "",
   onClick,
 }: AlarmCardProps) {
   const scheduleInfo = formatCronExpressionWithStartEnd(alarm);
   const isExpired = showExpiredBadge && scheduleInfo.isExpired;
   const syncConfig = getSyncStatusConfig(alarm.syncStatus);
-
-  // Calendar sync info
-  const isCalendarSynced = !!alarm.calendarEventAlarm;
-  const calendarAccountEmail =
-    alarm.calendarEventAlarm?.calendarConnection?.accountEmail;
 
   // Format date with time helper
   const formatDateWithTime = (date: Date) => {
@@ -247,18 +234,6 @@ export function AlarmCard({
           >
             {alarm.title}
           </h3>
-
-          {/* Calendar Sync Indicator */}
-          {isCalendarSynced && (
-            <div className="bg-primary/10 flex shrink-0 items-center gap-1 rounded px-2 py-0.5">
-              <Calendar className="text-primary h-3 w-3" />
-              <span className="text-primary text-[10px] font-semibold">
-                {calendarAccountEmail
-                  ? calendarAccountEmail.split("@")[0]
-                  : "Synced"}
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Chevron */}
@@ -375,22 +350,14 @@ export function AlarmCard({
         </div>
       </div>
 
-      {/* Sync status notice for editable alarms */}
-      {canEdit && alarm.syncStatus === "NOT_SYNCED" && (
+      {/* Sync status notice */}
+      {alarm.syncStatus === "NOT_SYNCED" && (
         <div className="border-warning/30 bg-warning/10 rounded-md border px-3 py-2">
           <p className="text-warning-foreground text-xs font-medium">
             ⏳ Pending sync - Changes will be applied when you open the mobile
             app
           </p>
         </div>
-      )}
-
-      {/* Read-only notice for non-editable alarms */}
-      {!canEdit && (
-        <p className="text-muted-foreground pt-2 text-xs italic">
-          Alarms can only be managed by the device owner or users with write
-          access
-        </p>
       )}
     </div>
   );

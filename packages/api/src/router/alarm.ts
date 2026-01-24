@@ -11,7 +11,6 @@ import {
   AlarmWhereUniqueSchema,
   CreateAlarmSchema,
   Device,
-  DeviceShare,
   UpdateAlarmSchema,
   user,
   UserPreferences,
@@ -34,27 +33,6 @@ async function checkDeviceEditPermission(
 
   if (device) {
     return { canEdit: true, isOwner: true, deviceOwnerId: userId };
-  }
-
-  // Check if user has WRITE permission via DeviceShare
-  const share = await db.query.DeviceShare.findFirst({
-    where: and(
-      eq(DeviceShare.deviceId, deviceId),
-      eq(DeviceShare.sharedWithUserId, userId),
-      eq(DeviceShare.status, "ACCEPTED"),
-      eq(DeviceShare.permission, "WRITE"),
-    ),
-    with: {
-      device: true,
-    },
-  });
-
-  if (share) {
-    return {
-      canEdit: true,
-      isOwner: false,
-      deviceOwnerId: share.device.userId,
-    };
   }
 
   return { canEdit: false, isOwner: false };
@@ -127,11 +105,6 @@ export const alarmRouter = {
         where: eq(Alarm.userId, ctx.session.user.id),
         with: {
           device: true,
-          calendarEventAlarm: {
-            with: {
-              calendarConnection: true,
-            },
-          },
         },
       });
     }),
@@ -145,13 +118,6 @@ export const alarmRouter = {
           eq(Alarm.id, input.id),
           eq(Alarm.userId, ctx.session.user.id),
         ),
-        with: {
-          calendarEventAlarm: {
-            with: {
-              calendarConnection: true,
-            },
-          },
-        },
       });
 
       if (!alarm) {

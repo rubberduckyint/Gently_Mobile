@@ -28,7 +28,6 @@ import { Header } from "~/components/ui/Header";
 import { HelpModal } from "~/components/ui/HelpModal";
 import { useBLE } from "~/contexts/BLEContext";
 import { useAlarmSync } from "~/hooks/useAlarmSync";
-import { useCalendarSync } from "~/hooks/useCalendarSync";
 import {
   buttons,
   cards,
@@ -234,7 +233,7 @@ export default function DeviceDetailPage() {
     },
   });
 
-  // Refetch device data when screen comes into focus (e.g., after adding calendar alarms)
+  // Refetch device data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       void refetch();
@@ -249,44 +248,6 @@ export default function DeviceDetailPage() {
       void queryClient.invalidateQueries({
         queryKey: ["device", "getById", { id: initialDeviceId }],
       });
-    },
-  });
-
-  // Calendar sync hook - monitors for calendar event changes and triggers device re-sync
-  useCalendarSync({
-    autoSync: true,
-    showAlerts: false,
-    onDeviceSyncNeeded: async () => {
-      // When calendar events change (cancelled, rescheduled), re-fetch device data
-      // and sync the updated alarms to the device
-      console.log(
-        "📅 Calendar sync detected changes - triggering device re-sync",
-      );
-
-      // First, refetch the device data to get the updated alarms
-      const result = await refetch();
-
-      if (result.data?.alarms && connectionState === "connected") {
-        // Filter out expired alarms and sync to device
-        const activeAlarms = result.data.alarms.filter((alarm) => {
-          const scheduleInfo = calculateNextAlarmOccurrence({
-            isActive: alarm.isActive,
-            startDate: alarm.startDate,
-            endDate: alarm.endDate,
-            repeat: alarm.repeat,
-            cronExpression: alarm.cronExpression,
-          });
-          return (
-            scheduleInfo.status !== "completed" &&
-            scheduleInfo.status !== "overdue"
-          );
-        });
-
-        console.log(
-          `📅 Syncing ${activeAlarms.length} active alarms to device after calendar change`,
-        );
-        await alarmSync.performSync(activeAlarms);
-      }
     },
   });
 
@@ -653,37 +614,6 @@ export default function DeviceDetailPage() {
     router.push(`/devices/${deviceId}/delete`);
   };
 
-  const handleLeaveSharedDevice = () => {
-    Alert.alert(
-      "Leave Shared Device",
-      "Are you sure you want to remove your access to this shared device? You will no longer be able to view it.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Leave",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              if (!deviceId) return;
-              try {
-                await trpc.deviceShare.removeMyAccess.mutate({ deviceId });
-                void queryClient.invalidateQueries({ queryKey: ["device"] });
-                router.replace("/");
-              } catch (error) {
-                Alert.alert(
-                  "Error",
-                  error instanceof Error
-                    ? error.message
-                    : "Failed to leave device",
-                );
-              }
-            })();
-          },
-        },
-      ],
-    );
-  };
-
   if (isLoading) {
     return (
       <SafeAreaView style={containers.safeArea}>
@@ -811,24 +741,10 @@ export default function DeviceDetailPage() {
                 icon: "help-circle",
               },
               {
-                label: "Calendar Sync",
-                onPress: () => router.push(`/calendar?deviceId=${deviceId}`),
-                icon: "calendar",
-              },
-              {
                 label: "User Settings",
                 onPress: () => router.push("/settings"),
                 icon: "settings",
               },
-              ...(device.isOwned !== false
-                ? [
-                    {
-                      label: "Share Device",
-                      onPress: () => router.push(`/devices/${deviceId}/share`),
-                      icon: "people" as const,
-                    },
-                  ]
-                : []),
               {
                 label: "Edit Device",
                 onPress: () => router.push(`/devices/${deviceId}/edit`),
@@ -839,23 +755,12 @@ export default function DeviceDetailPage() {
                 onPress: () => router.push(`/devices/${deviceId}/ble-test`),
                 icon: "bluetooth",
               },
-              ...(device.isOwned !== false
-                ? [
-                    {
-                      label: "Delete Device",
-                      onPress: handleDeleteDevice,
-                      icon: "trash" as const,
-                      destructive: true,
-                    },
-                  ]
-                : [
-                    {
-                      label: "Leave Shared Device",
-                      onPress: handleLeaveSharedDevice,
-                      icon: "exit" as const,
-                      destructive: true,
-                    },
-                  ]),
+              {
+                label: "Delete Device",
+                onPress: handleDeleteDevice,
+                icon: "trash" as const,
+                destructive: true,
+              },
             ]}
           />
         }
@@ -996,52 +901,6 @@ export default function DeviceDetailPage() {
         style={containers.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Shared Device Banner */}
-        {device.isShared && (
-          <View
-            style={{
-              backgroundColor: colors.secondary[50],
-              borderLeftWidth: 4,
-              borderLeftColor: colors.secondary[500],
-              paddingHorizontal: spacing[4],
-              paddingVertical: spacing[3],
-              marginHorizontal: spacing[4],
-              marginTop: spacing[3],
-              borderRadius: 8,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: spacing[1],
-              }}
-            >
-              <Ionicons
-                name="people"
-                size={16}
-                color={colors.secondary[600]}
-                style={{ marginRight: spacing[2] }}
-              />
-              <Text
-                style={[
-                  typography.label,
-                  { color: colors.secondary[700], fontWeight: "600" },
-                ]}
-              >
-                Shared with you by {device.shareInfo?.ownerEmail}
-              </Text>
-            </View>
-            <Text
-              style={[typography.caption, { color: colors.secondary[600] }]}
-            >
-              {device.shareInfo?.permission === "WRITE"
-                ? "You have write access - you can create and modify alarms"
-                : "You have read-only access - you can view alarms but not modify them"}
-            </Text>
-          </View>
-        )}
-
         {/* Alarms Section */}
         <View style={[containers.section, { paddingTop: spacing[3] }]}>
           <View
@@ -1085,62 +944,60 @@ export default function DeviceDetailPage() {
                 )
               </Text>
             </View>
-            {/* Only show alarm action buttons for owners or users with write permission */}
-            {(!device.isShared || device.shareInfo?.permission === "WRITE") && (
-              <View style={{ flexDirection: "row", gap: spacing[2] }}>
-                <Pressable
-                  style={[
-                    buttons.base,
-                    buttons.primary,
-                    {
-                      paddingVertical: spacing[2],
-                      paddingHorizontal: spacing[3],
-                    },
-                  ]}
-                  onPress={() => setShowQuickReminderModal(true)}
+            <View style={{ flexDirection: "row", gap: spacing[2] }}>
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.primary,
+                  {
+                    paddingVertical: spacing[2],
+                    paddingHorizontal: spacing[3],
+                  },
+                ]}
+                onPress={() => setShowQuickReminderModal(true)}
+              >
+                <Ionicons
+                  name="time"
+                  size={16}
+                  color={colors.text.inverse}
+                  style={{ marginRight: spacing[1] }}
+                />
+                <Text
+                  style={[typography.label, { color: colors.text.inverse }]}
                 >
-                  <Ionicons
-                    name="time"
-                    size={16}
-                    color={colors.text.inverse}
-                    style={{ marginRight: spacing[1] }}
-                  />
-                  <Text
-                    style={[typography.label, { color: colors.text.inverse }]}
-                  >
-                    Remind
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    buttons.base,
-                    buttons.success,
-                    {
-                      paddingVertical: spacing[2],
-                      paddingHorizontal: spacing[3],
-                    },
-                  ]}
-                  onPress={() => router.push(`/devices/${deviceId}/alarms/add`)}
+                  Remind
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  buttons.base,
+                  buttons.success,
+                  {
+                    paddingVertical: spacing[2],
+                    paddingHorizontal: spacing[3],
+                  },
+                ]}
+                onPress={() => router.push(`/devices/${deviceId}/alarms/add`)}
+              >
+                <Ionicons
+                  name="add"
+                  size={16}
+                  color={colors.text.inverse}
+                  style={{ marginRight: spacing[1] }}
+                />
+                <Text
+                  style={[typography.label, { color: colors.text.inverse }]}
                 >
-                  <Ionicons
-                    name="add"
-                    size={16}
-                    color={colors.text.inverse}
-                    style={{ marginRight: spacing[1] }}
-                  />
-                  <Text
-                    style={[typography.label, { color: colors.text.inverse }]}
-                  >
-                    Alarm
-                  </Text>
-                </Pressable>
-              </View>
-            )}
+                  Add Alarm
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
+          {/* Alarms List */}
           {(() => {
-            // Separate alarms into active and expired to determine what to show
-            const sortedAlarms = device.alarms.slice().map((alarm) => {
+            // First, map all alarms with their schedule information
+            const sortedAlarms = device.alarms.map((alarm) => {
               const scheduleInfo = calculateNextAlarmOccurrence({
                 isActive: alarm.isActive,
                 startDate: new Date(alarm.startDate),
