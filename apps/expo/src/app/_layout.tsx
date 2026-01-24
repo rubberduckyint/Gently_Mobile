@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { vexo } from "vexo-analytics";
 
 import "react-native-reanimated";
 
@@ -9,6 +10,18 @@ import { AlarmNotificationModal } from "~/components/AlarmNotificationModal";
 import { BLEProvider } from "~/contexts/BLEContext";
 import { NotificationService } from "~/services/notifications";
 import { queryClient } from "~/utils/api";
+
+// Initialize Vexo Analytics at module level (before component renders)
+// Only run in production to avoid polluting analytics during development
+if (!__DEV__) {
+  const vexoApiKey = process.env.EXPO_PUBLIC_VEXO_API_KEY;
+  if (vexoApiKey) {
+    vexo(vexoApiKey);
+    console.log("📊 Vexo Analytics initialized");
+  } else {
+    console.warn("📊 Vexo Analytics: EXPO_PUBLIC_VEXO_API_KEY not set");
+  }
+}
 
 // This is the main layout of the app
 // It wraps your pages with the providers they need

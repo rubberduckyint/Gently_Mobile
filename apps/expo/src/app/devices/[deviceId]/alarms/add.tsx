@@ -13,6 +13,7 @@ import type { AlarmFormData } from "~/components/alarms";
 import { AlarmForm } from "~/components/alarms";
 import { Header } from "~/components/ui/Header";
 import { useBLE } from "~/contexts/BLEContext";
+import { trackAlarmCreated } from "~/services/analytics";
 import { colors, containers, spacing, typography } from "~/styles";
 import { trpc } from "~/utils/api";
 import { mapVibrationPatternToLegacyNumber } from "~/utils/bleAlarmUtils";
@@ -174,6 +175,17 @@ export default function AddAlarmPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["device", "getById", { id: deviceId }],
+      });
+
+      // Track alarm creation
+      trackAlarmCreated({
+        hasRepeat: createAlarmMutation.variables?.repeat ?? false,
+        repeatType: createAlarmMutation.variables?.repeatType,
+        severityLevel:
+          createAlarmMutation.variables?.severityLevel ?? "INFORMATIONAL",
+        hasNotifications:
+          (createAlarmMutation.variables?.pushNotification ?? false) ||
+          (createAlarmMutation.variables?.emailNotification ?? false),
       });
 
       // Check if device is connected

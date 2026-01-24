@@ -24,6 +24,12 @@ import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { Header } from "~/components/ui/Header";
 import { HelpModal } from "~/components/ui/HelpModal";
 import { YearOfBirthModal } from "~/components/ui/YearOfBirthModal";
+import {
+  clearUserIdentity,
+  identifyUser,
+  trackLogout,
+  trackOnboardingCompleted,
+} from "~/services/analytics";
 // Import the new design system
 import {
   buttons,
@@ -443,6 +449,13 @@ export default function DashboardPage() {
     enabled: !!session?.user,
   });
 
+  // Identify user for analytics when session is available
+  useEffect(() => {
+    if (session?.user?.id) {
+      void identifyUser(session.user.id);
+    }
+  }, [session?.user?.id]);
+
   // Check if user needs to provide year of birth and/or see onboarding
   useEffect(() => {
     const checkUserStatus = async () => {
@@ -491,6 +504,10 @@ export default function DashboardPage() {
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
+      // Track logout event
+      trackLogout();
+      // Clear user identity from analytics
+      await clearUserIdentity();
       // Reset user preferences on logout
       await resetOnboarding();
       await authClient.signOut();
@@ -721,6 +738,7 @@ export default function DashboardPage() {
         onClose={async () => {
           setShowHelpModal(false);
           await markOnboardingComplete();
+          trackOnboardingCompleted();
         }}
       />
     </SafeAreaView>

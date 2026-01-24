@@ -24,6 +24,10 @@ import type { LedColor, LedPattern, VibrationIntensity } from "~/types";
 import { AlarmPreferencesSection } from "~/components/AlarmPreferencesSection";
 import { Header } from "~/components/ui/Header";
 import {
+  trackAlarmPreferencesChanged,
+  trackSettingsUpdated,
+} from "~/services/analytics";
+import {
   buttons,
   buttonText,
   cards,
@@ -154,6 +158,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["userPreferences"] });
+      trackAlarmPreferencesChanged();
       Alert.alert("Success", "Preferences updated successfully!");
     },
     onError: (error: Error) => {
@@ -168,6 +173,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+      trackSettingsUpdated("profile");
       Alert.alert("Success", "Profile updated successfully!");
     },
     onError: (error: Error) => {

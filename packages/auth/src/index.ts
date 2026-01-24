@@ -7,6 +7,14 @@ import { emailOTP, magicLink } from "better-auth/plugins";
 import { db } from "@gently/db/client";
 import { EmailSender, MagicLinkService, OTPService } from "@gently/email";
 
+// Test user configuration for Apple App Review
+const TEST_USER_EMAIL = "extraspecialtestuser@gentlyus.com";
+const TEST_USER_OTP = "123456";
+
+function isTestUser(email: string): boolean {
+  return email.toLowerCase().trim() === TEST_USER_EMAIL.toLowerCase();
+}
+
 export function initAuth(options: {
   baseUrl: string;
   productionUrl: string;
@@ -90,6 +98,15 @@ export function initAuth(options: {
             type,
           });
 
+          // Skip sending email for test user (Apple App Review)
+          if (isTestUser(email)) {
+            console.log(
+              `🧪 [Test Mode] Test user detected, skipping email send`,
+            );
+            console.log(`🧪 [Test Mode] Use OTP: ${TEST_USER_OTP}`);
+            return;
+          }
+
           try {
             if (otpService) {
               console.log(`📧 Using email service to send OTP`);
@@ -110,6 +127,15 @@ export function initAuth(options: {
             console.error("❌ Failed to send OTP:", error);
             throw error;
           }
+        },
+        // Generate a fixed OTP for test user, random for others
+        generateOTP({ email }) {
+          if (isTestUser(email)) {
+            console.log(`🧪 [Test Mode] Generating fixed OTP for test user`);
+            return TEST_USER_OTP;
+          }
+          // Default random 6-digit OTP
+          return Math.floor(100000 + Math.random() * 900000).toString();
         },
         // Enable OTP storage and validation to prevent accepting any OTP
         storeOTP: "hashed",

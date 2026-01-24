@@ -13,6 +13,7 @@ A comprehensive health management platform featuring a React Native mobile app a
 - [Mobile Development](#mobile-development)
 - [BLE Protocol](#ble-protocol)
 - [Authentication](#authentication)
+- [Apple App Review Test Mode](#apple-app-review-test-mode)
 - [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -377,6 +378,53 @@ The app uses Better-Auth for authentication with multiple sign-in options:
 - **Email Service**: Replace MailHog with production SMTP service (AWS SES, SendGrid, etc.)
 - **OAuth Domains**: Configure production URLs in Google/Apple developer consoles
 - **Security**: Ensure all secrets are properly secured in production environment
+
+## Apple App Review Test Mode
+
+The app includes a special test mode designed for Apple App Store review. This allows Apple reviewers to test the full app functionality without requiring a physical Gently device or access to a real email account.
+
+### Test User Credentials
+
+| Field | Value |
+|-------|-------|
+| **Email** | `extraspecialtestuser@gentlyus.com` |
+| **OTP Code** | `123456` |
+
+### How It Works
+
+1. **Login Flow**:
+   - Enter the test email address on the login screen
+   - Tap "Send Verification Code" (no actual email is sent)
+   - Enter `123456` as the OTP code
+   - The test user is authenticated and redirected to the dashboard
+
+2. **Device Pairing**:
+   - Navigate to "Add a Gently" screen
+   - A yellow "Test Mode" section appears (only visible for the test user)
+   - Tap "Simulate Device Pairing" to create a mock device
+   - The simulated device appears with realistic dummy data (85% battery, firmware 1.0.0)
+   - Name the device and it's added to the account
+
+3. **Full Functionality**:
+   - Create, edit, and delete alarms on the simulated device
+   - All app features work normally with the test device
+   - No physical Gently bracelet or BLE connection required
+
+### Technical Implementation
+
+The test mode is implemented across several files:
+
+- **`apps/expo/src/utils/testMode.ts`** - Test user constants and helper functions
+- **`packages/auth/src/index.ts`** - Server-side OTP generation for test user
+- **`apps/expo/src/app/index.tsx`** - Client-side login handling
+- **`apps/expo/src/app/add-device/index.tsx`** - Simulated device pairing UI
+
+### Security Notes
+
+- Test mode only activates for the exact email `extraspecialtestuser@gentlyus.com`
+- The fixed OTP (`123456`) is only generated server-side for this specific email
+- Regular users always receive randomly generated OTPs via email
+- Test mode UI elements are only visible when logged in as the test user
 
 ## Deployment
 

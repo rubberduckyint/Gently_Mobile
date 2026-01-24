@@ -15,6 +15,14 @@ import { FontAwesome } from "@expo/vector-icons";
 
 import { GoogleIcon } from "~/components/GoogleIcon";
 import {
+  identifyUser,
+  trackLoginAttempt,
+  trackLoginError,
+  trackLoginSuccess,
+  trackOtpSent,
+  trackOtpVerified,
+} from "~/services/analytics";
+import {
   buttons,
   buttonText,
   colors,
@@ -28,6 +36,7 @@ import {
 } from "~/styles";
 import { completeAppleSignIn, isAppleAuthAvailable } from "~/utils/appleAuth";
 import { authClient, GoogleSignin } from "~/utils/auth";
+import { isTestUser, isValidTestOtp, TEST_USER_OTP } from "~/utils/testMode";
 
 export default function LoginPage() {
   const { data: session, isPending } = authClient.useSession();
@@ -54,6 +63,17 @@ export default function LoginPage() {
 
     setIsLoading(true);
     console.log("🔐 Sending OTP to:", email.trim());
+    trackLoginAttempt("email");
+
+    // Special handling for Apple review test user
+    if (isTestUser(email.trim())) {
+      console.log("🧪 [Test Mode] Test user detected, skipping OTP send");
+      console.log(`🧪 [Test Mode] Use OTP: ${TEST_USER_OTP}`);
+      trackOtpSent(email.trim());
+      setOtpSent(true);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const result = await authClient.emailOtp.sendVerificationOtp({
@@ -62,6 +82,7 @@ export default function LoginPage() {
       });
 
       console.log("✅ OTP send result:", result);
+      trackOtpSent(email.trim());
       setOtpSent(true);
     } catch (error: unknown) {
       console.error("❌ Failed to send OTP:", error);
@@ -98,6 +119,47 @@ export default function LoginPage() {
       otpLength: otpString.length,
     });
 
+    // Special handling for Apple review test user
+    if (isTestUser(email.trim())) {
+      console.log("🧪 [Test Mode] Verifying test user OTP");
+
+      if (!isValidTestOtp(otpString)) {
+        console.log("🧪 [Test Mode] Invalid test OTP provided");
+        setOtpError(`Invalid verification code. Use: ${TEST_USER_OTP}`);
+        setOtpLoading(false);
+        return;
+      }
+
+      // For test user, use the special test verification endpoint
+      try {
+        const { data, error } = await authClient.signIn.emailOtp({
+          email: email.trim(),
+          otp: otpString,
+        });
+
+        if (error) {
+          console.error("🧪 [Test Mode] Verification failed:", error);
+          setOtpError("Test user verification failed. Please try again.");
+          setOtpLoading(false);
+          return;
+        }
+
+        console.log("🧪 [Test Mode] Test user authenticated successfully");
+        trackOtpVerified();
+        trackLoginSuccess("email");
+        if (data?.user?.id) {
+          void identifyUser(data.user.id);
+        }
+        router.replace("/dashboard");
+      } catch (error) {
+        console.error("🧪 [Test Mode] Error:", error);
+        setOtpError("Test user verification failed.");
+      } finally {
+        setOtpLoading(false);
+      }
+      return;
+    }
+
     try {
       const { data, error } = await authClient.signIn.emailOtp({
         email: email.trim(),
@@ -129,6 +191,12 @@ export default function LoginPage() {
       }
 
       console.log("✅ OTP verification successful:", data);
+      trackOtpVerified();
+      trackLoginSuccess("email");
+      // Identify user for analytics
+      if (data?.user?.id) {
+        void identifyUser(data.user.id);
+      }
       router.replace("/dashboard");
     } catch (error: unknown) {
       console.error("❌ Unexpected error during OTP verification:", error);
@@ -172,6 +240,7 @@ export default function LoginPage() {
   const handleGoogleAuth = async () => {
     console.log("Google auth button pressed");
     setIsLoading(true);
+    trackLoginAttempt("google");
     try {
       // Check if Google Play Services are available
       console.log("Checking Google Play Services...");
@@ -197,6 +266,8 @@ export default function LoginPage() {
         });
 
         console.log("Better-auth Google signin successful");
+        trackLoginSuccess("google");
+        // Note: User identification happens after session is established
         router.replace("/dashboard");
       } else {
         throw new Error("No ID token received from Google");
@@ -213,6 +284,7 @@ export default function LoginPage() {
         console.log("Google sign-in already in progress");
         return;
       } else if (googleError.code === "PLAY_SERVICES_NOT_AVAILABLE") {
+        trackLoginError("google", "Play Services not available");
         Alert.alert(
           "Google Play Services Required",
           "Please update Google Play Services to continue.",
@@ -220,6 +292,7 @@ export default function LoginPage() {
         return;
       }
 
+      trackLoginError("google", (error as Error).message ?? "Unknown error");
       Alert.alert(
         "Authentication Failed",
         (error as Error).message || "Failed to sign in with Google",
@@ -232,6 +305,7 @@ export default function LoginPage() {
   const handleAppleAuth = async () => {
     console.log("Apple auth button pressed");
     setIsLoading(true);
+    trackLoginAttempt("apple");
 
     try {
       // Check if Apple Sign In is available
@@ -251,13 +325,17 @@ export default function LoginPage() {
 
       if (result.success) {
         console.log("✅ Apple Sign In successful, navigating to dashboard");
+        trackLoginSuccess("apple");
+        // Note: User identification happens after session is established
         router.replace("/dashboard");
       } else {
         console.error("❌ Apple Sign In failed:", result.error);
+        trackLoginError("apple", result.error ?? "Unknown error");
         Alert.alert("Sign In Failed", result.error ?? "Apple Sign In failed");
       }
     } catch (error: unknown) {
       console.error("Apple auth error:", error);
+      trackLoginError("apple", (error as Error).message ?? "Unknown error");
       Alert.alert(
         "Authentication Failed",
         (error as Error).message || "Failed to sign in with Apple",

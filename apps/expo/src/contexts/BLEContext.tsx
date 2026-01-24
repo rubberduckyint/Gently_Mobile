@@ -29,6 +29,12 @@ import type {
   BLECommandResponse,
 } from "~/services/ble/types";
 import {
+  trackBleConnectionAttempt,
+  trackBleConnectionError,
+  trackBleConnectionSuccess,
+  trackBleDisconnection,
+} from "~/services/analytics";
+import {
   createAcknowledgeEventRequest,
   parseAcknowledgeEventResponse,
 } from "~/services/ble/commands/acknowledgeEvent";
@@ -928,6 +934,9 @@ export function BLEProvider({ children }: BLEProviderProps) {
         `🔗 [BLE Context] Starting connectToPeripheral for serial: ${serialNumber}, peripheral: ${peripheral.id}`,
       );
 
+      // Track connection attempt
+      trackBleConnectionAttempt(peripheral.id);
+
       const defaultConfig: Required<BLEConnectionConfig> = {
         maxRetries: 3,
         connectionTimeoutMs: 20000,
@@ -1034,6 +1043,8 @@ export function BLEProvider({ children }: BLEProviderProps) {
           isError: true,
         });
         setConnectionState("error");
+        // Track connection error
+        trackBleConnectionError(peripheral.id, errorMessage);
         throw error;
       }
     },
@@ -1094,6 +1105,10 @@ export function BLEProvider({ children }: BLEProviderProps) {
       console.log(
         "🧹 [BLE Context] Clearing connection state and encryption key",
       );
+      // Track disconnection
+      if (connectedDevice?.id) {
+        trackBleDisconnection(connectedDevice.id, "user_initiated");
+      }
       setConnectedDevice(null);
       setEncryptionKey(null);
       setConnectionState("disconnected");
@@ -1624,6 +1639,9 @@ export function BLEProvider({ children }: BLEProviderProps) {
     });
     setEncryptionKey(foundEncryptionKey);
     setConnectionState("connected");
+
+    // Track successful connection
+    trackBleConnectionSuccess(peripheral.id);
 
     onProgress?.({
       step: "connection_complete",

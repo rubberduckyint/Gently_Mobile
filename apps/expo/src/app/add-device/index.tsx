@@ -19,6 +19,13 @@ import { Header } from "~/components/ui/Header";
 import { useBLE } from "~/contexts/BLEContext";
 import { useResponsive } from "~/hooks/useResponsive";
 import {
+  trackDevicePairingError,
+  trackDevicePairingStarted,
+  trackDevicePairingSuccess,
+  trackDeviceScanCompleted,
+  trackDeviceScanStarted,
+} from "~/services/analytics";
+import {
   buttons,
   buttonText,
   cards,
@@ -30,6 +37,8 @@ import {
   typography,
 } from "~/styles";
 import { trpc } from "~/utils/api";
+import { authClient } from "~/utils/auth";
+import { getSimulatedDeviceData, isTestUserSession } from "~/utils/testMode";
 
 interface DiscoveredGentlyDevice {
   peripheral: Peripheral;
@@ -54,6 +63,10 @@ const AddDeviceScreen = () => {
   // Use BLE context
   const { connectToPeripheral, scanForDevices, disconnectDevice } = useBLE();
 
+  // Get session to check for test user
+  const { data: session } = authClient.useSession();
+  const isTestUser = isTestUserSession(session?.user?.email);
+
   // Responsive design hook
   const { getIconSize, getSpacing } = useResponsive();
 
@@ -69,6 +82,9 @@ const AddDeviceScreen = () => {
   const [discoveredDevices, setDiscoveredDevices] = useState(
     new Map<Peripheral["id"], DiscoveredGentlyDevice>(),
   );
+
+  // Test mode state
+  const [isSimulatingPairing, setIsSimulatingPairing] = useState(false);
 
   // Form state for naming the device
   const [deviceName, setDeviceName] = useState("");
@@ -120,6 +136,7 @@ const AddDeviceScreen = () => {
     setDiscoveredDevices(new Map<Peripheral["id"], DiscoveredGentlyDevice>());
     setHasScanned(true);
     setIsScanning(true);
+    trackDeviceScanStarted();
 
     try {
       console.debug("[Add Device] Starting scan via BLE context...");
@@ -205,6 +222,8 @@ const AddDeviceScreen = () => {
       }
     } finally {
       if (isMountedRef.current) {
+        // Track scan completed with device count
+        trackDeviceScanCompleted(discoveredDevices.size);
         setIsScanning(false);
       }
     }
@@ -215,6 +234,7 @@ const AddDeviceScreen = () => {
 
     const { peripheral, advertisementData } = device;
     setIsConnecting(peripheral.id);
+    trackDevicePairingStarted(advertisementData.serialNumber);
 
     try {
       // Start with connection step
@@ -274,6 +294,7 @@ const AddDeviceScreen = () => {
         // Set default device name for the form
         setDeviceName("My Gently");
 
+        trackDevicePairingSuccess(newDevice.title);
         setPairingSuccess({
           deviceName: newDevice.title,
           deviceId: newDevice.id,
@@ -284,6 +305,7 @@ const AddDeviceScreen = () => {
       console.error("❌ Device pairing failed:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+      trackDevicePairingError(errorMessage);
 
       // Cleanup on error
       try {
@@ -324,6 +346,127 @@ const AddDeviceScreen = () => {
       }
     } finally {
       setIsConnecting(null);
+      setPairingStatus(null);
+    }
+  };
+
+  /**
+   * Simulated device pairing for Apple App Review test users.
+   * Creates a mock device without requiring actual BLE hardware.
+   */
+  const simulateDevicePairing = async () => {
+    if (isSimulatingPairing) return;
+
+    setIsSimulatingPairing(true);
+    const simulatedDevice = getSimulatedDeviceData();
+    trackDevicePairingStarted(simulatedDevice.serialNumber);
+
+    try {
+      // Simulate connection progress
+      setPairingStatus({
+        step: "Connecting to simulated device...",
+        progress: 10,
+        isComplete: false,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      setPairingStatus({
+        step: "Authenticating device...",
+        progress: 30,
+        isComplete: false,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      setPairingStatus({
+        step: "Synchronizing time...",
+        progress: 50,
+        isComplete: false,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      setPairingStatus({
+        step: "Configuring device settings...",
+        progress: 70,
+        isComplete: false,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check if a test device already exists for this user
+      const existingDevice = await trpc.device.findBySerialNumber.query({
+        serialNumber: simulatedDevice.serialNumber,
+      });
+
+      if (existingDevice) {
+        console.log(
+          "🧪 [Test Mode] Test device already exists, using existing device",
+        );
+        setPairingStatus({
+          step: "Device already paired!",
+          progress: 100,
+          isComplete: true,
+        });
+
+        setDeviceName(existingDevice.title);
+        trackDevicePairingSuccess(existingDevice.title);
+        setPairingSuccess({
+          deviceName: existingDevice.title,
+          deviceId: existingDevice.id,
+          serialNumber: simulatedDevice.serialNumber,
+        });
+        return;
+      }
+
+      setPairingStatus({
+        step: "Registering device...",
+        progress: 90,
+        isComplete: false,
+      });
+
+      // Create the simulated device in the database
+      const newDevice = await trpc.device.create.mutate({
+        title: simulatedDevice.name,
+        description: "Simulated test device for Apple App Review",
+        serialNumber: simulatedDevice.serialNumber,
+        batteryLevel: simulatedDevice.batteryLevel,
+        firmwareVersion: simulatedDevice.firmwareVersion,
+      });
+
+      setPairingStatus({
+        step: "Pairing complete!",
+        progress: 100,
+        isComplete: true,
+      });
+
+      if (newDevice?.id) {
+        setDeviceName(simulatedDevice.name);
+        trackDevicePairingSuccess(newDevice.title);
+        setPairingSuccess({
+          deviceName: newDevice.title,
+          deviceId: newDevice.id,
+          serialNumber: simulatedDevice.serialNumber,
+        });
+        console.log(
+          "🧪 [Test Mode] Simulated device created successfully:",
+          newDevice.id,
+        );
+      }
+    } catch (error) {
+      console.error("🧪 [Test Mode] Simulated pairing failed:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      trackDevicePairingError(errorMessage);
+
+      Alert.alert(
+        "Simulated Pairing Failed",
+        `Could not create test device. ${errorMessage}`,
+        [{ text: "OK" }],
+      );
+    } finally {
+      setIsSimulatingPairing(false);
       setPairingStatus(null);
     }
   };
@@ -792,6 +935,157 @@ const AddDeviceScreen = () => {
             </Text>
           </View>
         </Pressable>
+
+        {/* Test Mode Section - Only visible for Apple App Review test users */}
+        {isTestUser && (
+          <View
+            style={{
+              marginBottom: spacing[6],
+              padding: spacing[4],
+              backgroundColor: colors.warning[50],
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.warning[200],
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: spacing[3],
+              }}
+            >
+              <Ionicons
+                name="flask"
+                size={getIconSize(20)}
+                color={colors.warning[600]}
+                style={{ marginRight: spacing[2] }}
+              />
+              <Text
+                style={[typography.subtitle, { color: colors.warning[700] }]}
+              >
+                Test Mode
+              </Text>
+            </View>
+            <Text
+              style={[
+                typography.body,
+                {
+                  color: colors.warning[700],
+                  marginBottom: spacing[4],
+                  lineHeight: 20,
+                },
+              ]}
+            >
+              You are signed in as a test user. You can simulate pairing a
+              Gently device without physical hardware.
+            </Text>
+            <Pressable
+              style={[
+                buttons.base,
+                buttons.large,
+                {
+                  backgroundColor: colors.warning[500],
+                  opacity: isSimulatingPairing ? 0.7 : 1,
+                },
+              ]}
+              onPress={simulateDevicePairing}
+              disabled={isSimulatingPairing}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {isSimulatingPairing ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.text.inverse}
+                    style={{ marginRight: spacing[2] }}
+                  />
+                ) : (
+                  <Ionicons
+                    name="hardware-chip"
+                    size={scanIconSize}
+                    color={colors.text.inverse}
+                    style={{ marginRight: spacing[2] }}
+                  />
+                )}
+                <Text style={[buttonText.primary, buttonText.large]}>
+                  {isSimulatingPairing
+                    ? "Simulating..."
+                    : "Simulate Device Pairing"}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Simulated Pairing Progress Overlay */}
+        {isSimulatingPairing && pairingStatus && (
+          <View
+            style={[
+              cards.base,
+              {
+                marginBottom: spacing[6],
+                padding: spacing[5],
+                alignItems: "center",
+              },
+            ]}
+          >
+            <ActivityIndicator
+              size="large"
+              color={colors.primary[500]}
+              style={{ marginBottom: spacing[3] }}
+            />
+            <Text
+              style={[
+                typography.subtitle,
+                {
+                  color: colors.text.primary,
+                  textAlign: "center",
+                  marginBottom: spacing[2],
+                },
+              ]}
+            >
+              {pairingStatus.step}
+            </Text>
+            <View
+              style={{
+                width: "100%",
+                height: 8,
+                backgroundColor: colors.gray[200],
+                borderRadius: 4,
+                marginBottom: spacing[2],
+                overflow: "hidden",
+              }}
+            >
+              <View
+                style={{
+                  width: `${pairingStatus.progress}%`,
+                  height: "100%",
+                  backgroundColor: pairingStatus.isComplete
+                    ? colors.success[500]
+                    : colors.primary[500],
+                  borderRadius: 4,
+                }}
+              />
+            </View>
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: colors.text.secondary,
+                  textAlign: "center",
+                },
+              ]}
+            >
+              {pairingStatus.progress}% complete
+            </Text>
+          </View>
+        )}
 
         {/* Device List */}
         {Array.from(discoveredDevices.values()).length > 0 ? (
