@@ -201,9 +201,6 @@ importers:
       expo-location:
         specifier: 19.1.0-canary-20260121-a63c0dd
         version: 19.1.0-canary-20260121-a63c0dd(expo@55.0.0-canary-20260121-a63c0dd)
-      expo-modules-autolinking:
-        specifier: ^3.0.24
-        version: 3.0.24
       expo-notifications:
         specifier: 1.0.0-canary-20260121-a63c0dd
         version: 1.0.0-canary-20260121-a63c0dd(expo@55.0.0-canary-20260121-a63c0dd)(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3))(react@19.2.3)
@@ -5862,10 +5859,6 @@ packages:
     resolution: {integrity: sha512-8hd3ChS+d/RCH3wyMsC4U8ndR2vK5s7FT+iwvWUj2wSr4Q62hwa9/crLGfgSPytlH8nFn4/IoLSbnsMoJfpDnw==}
     peerDependencies:
       expo: 55.0.0-canary-20260121-a63c0dd
-
-  expo-modules-autolinking@3.0.24:
-    resolution: {integrity: sha512-TP+6HTwhL7orDvsz2VzauyQlXJcAWyU3ANsZ7JGL4DQu8XaZv/A41ZchbtAYLfozNA2Ya1Hzmhx65hXryBMjaQ==}
-    hasBin: true
 
   expo-modules-autolinking@3.1.0-canary-20260121-a63c0dd:
     resolution: {integrity: sha512-hAz/ws/46z+sSGHb5Be+TjIWo8NxJMs+ccP5jLuj+1Z9NljyqqSnzPYTrncfX/c3OB0aa+kmUVuWymXkw7sL1g==}
@@ -14938,14 +14931,6 @@ snapshots:
       expo-json-utils: 0.15.1-canary-20260121-a63c0dd
     transitivePeerDependencies:
       - supports-color
-
-  expo-modules-autolinking@3.0.24:
-    dependencies:
-      '@expo/spawn-async': 1.7.2
-      chalk: 4.1.2
-      commander: 7.2.0
-      require-from-string: 2.0.2
-      resolve-from: 5.0.0
 
   expo-modules-autolinking@3.1.0-canary-20260121-a63c0dd:
     dependencies:
