@@ -385,10 +385,10 @@ The app includes a special test mode designed for Apple App Store review. This a
 
 ### Test User Credentials
 
-| Field | Value |
-|-------|-------|
-| **Email** | `extraspecialtestuser@gentlyus.com` |
-| **OTP Code** | `123456` |
+| Field        | Value                               |
+| ------------ | ----------------------------------- |
+| **Email**    | `extraspecialtestuser@gentlyus.com` |
+| **OTP Code** | `123456`                            |
 
 ### How It Works
 
@@ -430,6 +430,7 @@ The test mode is implemented across several files:
 - **`apps/expo/src/contexts/BLEContext.tsx`** - Automatic routing to mock BLE for test users (NEW)
 
 The BLE bypass works by:
+
 1. Detecting when the logged-in user is the test user (`extraspecialtestuser@gentlyus.com`)
 2. Routing all Bluetooth operations to the mock service instead of real BLE hardware
 3. Simulating device discovery, connection, commands, and notifications

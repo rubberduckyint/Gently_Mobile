@@ -55,6 +55,7 @@ import {
   sendMultiPacketCommand,
   startNotifications,
 } from "~/services/ble/manager";
+import * as mockBLE from "~/services/ble/mockBLEService";
 import {
   parseActiveEventNotification,
   parseBatteryStatusNotification,
@@ -64,9 +65,8 @@ import {
 import { FACTORY_BRACELET_KEY, ResponseStatus } from "~/services/ble/types";
 import { requestBluetoothPermissions } from "~/services/ble/utils";
 import { NotificationService } from "~/services/notifications";
-import * as mockBLE from "~/services/ble/mockBLEService";
-import { isTestUserSession } from "~/utils/testMode";
 import { authClient } from "~/utils/auth";
+import { isTestUserSession } from "~/utils/testMode";
 
 export type BLEConnectionState =
   | "disconnected"
@@ -755,9 +755,7 @@ export function BLEProvider({ children }: BLEProviderProps) {
 
       // Use mock BLE for test users
       if (isTestUser) {
-        console.log(
-          `🧪 [BLE Context] Using mock BLE connection for test user`,
-        );
+        console.log(`🧪 [BLE Context] Using mock BLE connection for test user`);
 
         try {
           onProgress?.({

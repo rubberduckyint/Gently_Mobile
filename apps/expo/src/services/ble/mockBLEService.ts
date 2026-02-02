@@ -9,12 +9,9 @@
 
 import type { Peripheral } from "react-native-ble-manager";
 
-import type {
-  BLECommandRequest,
-  BLECommandResponse,
-} from "./types";
+import type { BLECommandRequest, BLECommandResponse } from "./types";
+import { SIMULATED_DEVICE } from "~/utils/testMode";
 import { CommandCode, ResponseStatus } from "./types";
-import { SIMULATED_DEVICE, TEST_USER_EMAIL } from "~/utils/testMode";
 
 // Mock device state
 interface MockDeviceState {
@@ -76,7 +73,7 @@ export function resetMockDeviceState(): void {
 /**
  * Simulate a delay to mimic real BLE communication
  */
-async function simulateDelay(ms: number = 100): Promise<void> {
+async function simulateDelay(ms = 100): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -86,7 +83,7 @@ async function simulateDelay(ms: number = 100): Promise<void> {
  */
 export async function mockScanForDevices(
   onDeviceFound: (peripheral: Peripheral) => void,
-  timeoutSeconds: number = 5,
+  timeoutSeconds = 5,
 ): Promise<void> {
   console.log(`🧪 [Mock BLE] Simulating device scan for ${timeoutSeconds}s`);
 
@@ -103,9 +100,11 @@ export async function mockScanForDevices(
       localName: SIMULATED_DEVICE.name,
       serviceUUIDs: ["0000fff0-0000-1000-8000-00805f9b34fb"],
       manufacturerData: {
-        CDVType: "ArrayBuffer",
-        bytes: [2, 1, 6, 9, 9, 71, 101, 110, 116, 108, 121],
-        data: "AgEGCQlHZW50bHk=", // Base64 encoded
+        Gently: {
+          CDVType: "ArrayBuffer",
+          bytes: [2, 1, 6, 9, 9, 71, 101, 110, 116, 108, 121],
+          data: "AgEGCQlHZW50bHk=", // Base64 encoded
+        },
       },
     },
   };
@@ -158,7 +157,9 @@ export function isMockDeviceConnected(): boolean {
 /**
  * Mock start notifications
  */
-export async function mockStartNotifications(peripheralId: string): Promise<void> {
+export async function mockStartNotifications(
+  peripheralId: string,
+): Promise<void> {
   console.log(`🧪 [Mock BLE] Starting notifications for: ${peripheralId}`);
   await simulateDelay(100);
 }
@@ -166,7 +167,9 @@ export async function mockStartNotifications(peripheralId: string): Promise<void
 /**
  * Mock stop notifications
  */
-export async function mockStopNotifications(peripheralId: string): Promise<void> {
+export async function mockStopNotifications(
+  peripheralId: string,
+): Promise<void> {
   console.log(`🧪 [Mock BLE] Stopping notifications for: ${peripheralId}`);
   await simulateDelay(100);
 }
@@ -174,21 +177,14 @@ export async function mockStopNotifications(peripheralId: string): Promise<void>
 /**
  * Generate mock response for a command
  */
-function generateMockResponse(
-  command: BLECommandRequest,
-): BLECommandResponse {
-  const responsePayload: number[] = [
-    0xaa, // Header byte 0
-    0x55, // Header byte 1
-    command.command, // Echo command code
-  ];
+function generateMockResponse(command: BLECommandRequest): BLECommandResponse {
+  const responsePayload: number[] = [];
 
   switch (command.command) {
     case CommandCode.GET_DEVICE_INFO: {
       // Device info response
       const version = mockDeviceState.firmwareVersion.split(".");
       responsePayload.push(
-        ResponseStatus.OK,
         parseInt(version[0] ?? "1"), // Major version
         parseInt(version[1] ?? "0"), // Minor version
         parseInt(version[2] ?? "0"), // Patch version
@@ -202,7 +198,6 @@ function generateMockResponse(
       mockDeviceState.uptime += 60; // Increment by 1 minute each time
       const uptime = mockDeviceState.uptime;
       responsePayload.push(
-        ResponseStatus.OK,
         uptime & 0xff,
         (uptime >> 8) & 0xff,
         (uptime >> 16) & 0xff,
@@ -215,9 +210,6 @@ function generateMockResponse(
       // Time response (BCD format)
       const now = mockDeviceState.currentTime;
       responsePayload.push(
-        ResponseStatus.OK,
-        ((Math.floor(now.getFullYear() / 1000) % 10) << 4) |
-          (Math.floor(now.getFullYear() / 100) % 10),
         (Math.floor((now.getFullYear() % 100) / 10) << 4) |
           ((now.getFullYear() % 100) % 10),
         (Math.floor((now.getMonth() + 1) / 10) << 4) |
@@ -234,7 +226,6 @@ function generateMockResponse(
     case CommandCode.SET_TIME: {
       // Update mock device time
       mockDeviceState.currentTime = new Date();
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
@@ -268,7 +259,6 @@ function generateMockResponse(
           `🧪 [Mock BLE] Added event ${eventIndex}: ${eventName} (${cronExpression})`,
         );
       }
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
@@ -277,7 +267,6 @@ function generateMockResponse(
       const eventIndex = command.payload?.[0] ?? 0;
       mockDeviceState.events.delete(eventIndex);
       console.log(`🧪 [Mock BLE] Removed event ${eventIndex}`);
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
@@ -285,13 +274,12 @@ function generateMockResponse(
       // Clear all events
       mockDeviceState.events.clear();
       console.log(`🧪 [Mock BLE] Removed all events`);
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
     case CommandCode.GET_NUMBER_OF_EVENTS: {
       // Return event count
-      responsePayload.push(ResponseStatus.OK, mockDeviceState.events.size);
+      responsePayload.push(mockDeviceState.events.size);
       break;
     }
 
@@ -306,7 +294,6 @@ function generateMockResponse(
           `🧪 [Mock BLE] Set event ${eventIndex} to ${enabled ? "ON" : "OFF"}`,
         );
       }
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
@@ -314,14 +301,12 @@ function generateMockResponse(
       // Acknowledge alarm
       const eventIndex = command.payload?.[0] ?? 0;
       console.log(`🧪 [Mock BLE] Acknowledged event ${eventIndex}`);
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
     case CommandCode.FIND_ME: {
       // Find device command
       console.log(`🧪 [Mock BLE] Find Me activated`);
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
@@ -332,13 +317,11 @@ function generateMockResponse(
       console.log(
         `🧪 [Mock BLE] Triggered pattern: 0x${command.command.toString(16)}`,
       );
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
 
     case CommandCode.REBOOT_BRACELET: {
       console.log(`🧪 [Mock BLE] Rebooting device`);
-      responsePayload.push(ResponseStatus.OK);
       // Simulate disconnect after reboot
       setTimeout(() => {
         mockDeviceState.isConnected = false;
@@ -349,7 +332,6 @@ function generateMockResponse(
     case CommandCode.GET_DEVICE_STATUS: {
       // Comprehensive device status
       responsePayload.push(
-        ResponseStatus.OK,
         mockDeviceState.batteryLevel,
         mockDeviceState.isCharging ? 0x80 : 0x00,
         mockDeviceState.batteryVoltage & 0xff,
@@ -363,7 +345,6 @@ function generateMockResponse(
       console.warn(
         `🧪 [Mock BLE] Unknown command: 0x${command.command.toString(16)}`,
       );
-      responsePayload.push(ResponseStatus.OK);
       break;
     }
   }
@@ -381,7 +362,7 @@ function generateMockResponse(
  */
 export async function mockSendCommand(
   command: BLECommandRequest,
-  timeoutMs?: number,
+  _timeoutMs?: number,
 ): Promise<BLECommandResponse> {
   console.log(
     `🧪 [Mock BLE] Sending command: 0x${command.command.toString(16).padStart(2, "0")}`,
@@ -515,12 +496,4 @@ export function getMockDeviceInfo(): {
     isCharging: mockDeviceState.isCharging,
     firmwareVersion: mockDeviceState.firmwareVersion,
   };
-}
-
-/**
- * Check if a user email is the test user
- */
-export function isTestUserEmail(email: string | undefined): boolean {
-  if (!email) return false;
-  return email.toLowerCase().trim() === TEST_USER_EMAIL.toLowerCase();
 }
