@@ -66,13 +66,11 @@ export default function LoginPage() {
     trackLoginAttempt("email");
 
     // Special handling for Apple review test user
+    // We still need to call sendVerificationOtp to generate and store the OTP
+    // The backend will skip sending the actual email for test users
     if (isTestUser(email.trim())) {
-      console.log("🧪 [Test Mode] Test user detected, skipping OTP send");
+      console.log("🧪 [Test Mode] Test user detected");
       console.log(`🧪 [Test Mode] Use OTP: ${TEST_USER_OTP}`);
-      trackOtpSent(email.trim());
-      setOtpSent(true);
-      setIsLoading(false);
-      return;
     }
 
     try {
@@ -371,6 +369,9 @@ export default function LoginPage() {
         style={containers.screen}
       >
         <View style={otpSent ? containers.content : containers.contentCentered}>
+          {/* Add top spacing for OTP screen */}
+          {otpSent && <View style={{ height: spacing[4] }} />}
+
           {/* Header */}
           <View style={commonStyles.headerSection}>
             <Text style={typography.h1}>Welcome to Gently</Text>
@@ -485,7 +486,7 @@ export default function LoginPage() {
 
           {/* OTP Input Screen */}
           {otpSent && (
-            <View style={[flex.itemsCenter, { paddingVertical: spacing[4] }]}>
+            <View style={flex.itemsCenter}>
               <Text
                 style={[
                   typography.body,
@@ -494,6 +495,7 @@ export default function LoginPage() {
                     textAlign: "center",
                     lineHeight: 24,
                     marginBottom: spacing[6],
+                    paddingHorizontal: spacing[2],
                   },
                 ]}
               >
