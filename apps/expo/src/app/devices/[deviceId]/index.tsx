@@ -375,7 +375,7 @@ export default function DeviceDetailPage() {
           totalDurationSeconds: 2,
         }),
       );
-    } catch (e) {
+    } catch {
       Alert.alert("Error", "Failed to trigger vibration");
     } finally {
       setTriggerLoading(null);
@@ -392,7 +392,7 @@ export default function DeviceDetailPage() {
           totalDurationSeconds: 2,
         }),
       );
-    } catch (e) {
+    } catch {
       Alert.alert("Error", "Failed to trigger sound");
     } finally {
       setTriggerLoading(null);
@@ -410,7 +410,7 @@ export default function DeviceDetailPage() {
           totalDurationSeconds: 2,
         }),
       );
-    } catch (e) {
+    } catch {
       Alert.alert("Error", "Failed to trigger light");
     } finally {
       setTriggerLoading(null);
