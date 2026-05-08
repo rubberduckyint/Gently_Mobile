@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,8 +7,12 @@ import { vexo } from "vexo-analytics";
 import "react-native-reanimated";
 
 import { BLEProvider } from "~/contexts/BLEContext";
-import { NotificationService } from "~/services/notifications";
-import { queryClient } from "~/utils/api";
+import {
+  NotificationService,
+  registerForPushNotificationsAsync,
+} from "~/services/notifications";
+import { queryClient, trpc } from "~/utils/api";
+import { authClient } from "~/utils/auth";
 
 // Initialize Vexo Analytics at module level (before component renders)
 // Only run in production to avoid polluting analytics during development
@@ -44,6 +48,39 @@ export default function RootLayout() {
         console.error("Failed to initialize push notifications:", error);
       });
   }, []);
+
+  // Sync the OS-level Expo push token to SRF once per authenticated session.
+  // Compare-and-update keeps it idempotent across cold starts and handles
+  // token rotation (Expo can rotate on reinstall). Resets the guard on
+  // sign-out so a subsequent sign-in re-syncs.
+  const { data: session } = authClient.useSession();
+  const lastSyncedUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) {
+      lastSyncedUserIdRef.current = null;
+      return;
+    }
+    if (lastSyncedUserIdRef.current === userId) return;
+    lastSyncedUserIdRef.current = userId;
+
+    void (async () => {
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (!token) return; // simulator, denied permission, or fetch error — already logs
+
+        const preferences = await trpc.userPreferences.get.query({});
+        if (preferences.pushNotificationToken === token) return;
+
+        await trpc.userPreferences.update.mutate({
+          pushNotificationToken: token,
+        });
+        console.log("Push token synced to SRF");
+      } catch (error) {
+        console.error("Failed to sync push token to SRF:", error);
+      }
+    })();
+  }, [session?.user.id]);
 
   return (
     <QueryClientProvider client={queryClient}>
