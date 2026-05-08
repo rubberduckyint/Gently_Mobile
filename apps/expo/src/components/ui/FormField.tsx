@@ -38,6 +38,10 @@ interface FormFieldProps {
   keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   /** Auto-capitalize behavior */
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  /** Render input as a secure text field (passwords). */
+  secureTextEntry?: boolean;
+  /** Disable autocorrect (useful for usernames/passwords) */
+  autoCorrect?: boolean;
   /** Disable the input */
   disabled?: boolean;
   /** Additional styles for the container */
@@ -60,6 +64,8 @@ export function FormField({
   maxLength,
   keyboardType = "default",
   autoCapitalize = "sentences",
+  secureTextEntry = false,
+  autoCorrect,
   disabled = false,
   style,
   autoFocus = false,
@@ -134,6 +140,8 @@ export function FormField({
         maxLength={maxLength}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
+        secureTextEntry={secureTextEntry}
+        autoCorrect={autoCorrect}
         editable={!disabled}
         autoFocus={autoFocus}
         // Allow font scaling up to a reasonable limit

@@ -162,6 +162,20 @@ export default function RootLayout() {
               headerShown: false,
             }}
           />
+          <Stack.Screen
+            name="cgm/index"
+            options={{
+              title: "Dexcom Sources",
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="cgm/add"
+            options={{
+              title: "Connect Dexcom Share",
+              headerShown: false,
+            }}
+          />
         </Stack>
         <StatusBar style="dark" />
       </BLEProvider>

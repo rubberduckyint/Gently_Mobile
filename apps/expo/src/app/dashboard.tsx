@@ -365,6 +365,11 @@ export default function DashboardPage() {
                 icon: "help-circle",
               },
               {
+                label: "Dexcom Sources",
+                onPress: () => router.push("/cgm"),
+                icon: "pulse",
+              },
+              {
                 label: "User Settings",
                 onPress: handleUserProfile,
                 icon: "settings",
