@@ -1,9 +1,9 @@
 # Gently CGM Cloud — Stack Decisions
 
 **Date locked:** 2026-05-05
-**Status:** Confirmed.
+**Status:** ⚠️ OBSOLETE as of 2026-05-07 — describes stack choices for the standalone "Gently CGM Cloud" repo that was abandoned in favor of consolidation into sibling repo `Gently_SRF` (single backend at `srf.gentlyus.com`). Three-Railway-services layout (`cgm-api` / `cgm-worker` / `cgm-web` at `cgm-api.gently.us` / `cgm.gently.us`) was never deployed. The actual locked stack lives in `Gently_SRF/CLAUDE.md`. Kept for historical context only.
 
-This is the canonical record of every stack choice for `Gently_CGM_Cloud`. If something here doesn't match a code or config decision later, the docs are wrong — re-litigate here first, then update the code.
+This was the canonical record of every stack choice for the now-abandoned `Gently_CGM_Cloud` repo.
 
 ---
 

@@ -1,8 +1,8 @@
 # Gently CGM — Separated-Cloud Architecture (v2)
 
 **Date:** 2026-05-05
-**Status:** Decisions confirmed — separate repo, separate CC project, separate hosting.
-**Supersedes the integration sections of:** v1 of this doc and `02_phase2_integration_plan.md` v1.
+**Status:** ⚠️ OBSOLETE as of 2026-05-07 — superseded by the 2-repo / single-backend consolidation. The unified backend now lives in sibling repo `Gently_SRF` at `srf.gentlyus.com`. The 3-repo split this doc describes (separate CGM Cloud at `cgm-api.gently.us`, JWT seam, etc.) was abandoned. Kept for historical context only.
+**Originally superseded:** v1 of this doc and `02_phase2_integration_plan.md` v1.
 
 ---
 
@@ -120,8 +120,7 @@ When the token rotates (rare on Expo, but happens), the mobile app updates both 
 The Expo app stays one app, in the existing Gently Core repo. Inside it, two HTTP clients:
 
 ```ts
-// apps/expo/src/services/api/core.ts       → Gently Core (existing tRPC)
-// apps/expo/src/services/api/cgm.ts        → CGM Cloud   (new tRPC, points to cgm-api.gently.us)
+// apps/expo/src/utils/api.tsx              → unified backend (tRPC, srf.gentlyus.com)
 ```
 
 The CGM module (`apps/expo/src/features/cgm/`):
@@ -168,12 +167,9 @@ The alert engine itself sits in `packages/alert-engine` as **pure functions with
 Strict separation from wherever Gently Core is hosted: separate Railway project, separate environment variables, separate Sentry project, separate uptime monitoring (Better Stack pings the worker's `/healthz` — which fails if `lastSuccessAt` is stale across the fleet). Decision rationale and full stack details in `05_stack_decisions.md`.
 
 ### Domains
-- `api.gently.us` → Gently Core
-- `app.gently.us` → device management web
-- `cgm-api.gently.us` → CGM Cloud API
-- `cgm.gently.us` → CGM Cloud web dashboard
+- `srf.gentlyus.com` → unified backend (tRPC API + admin web + Dexcom worker)
 
-Subdomains of one root keeps email/auth/cookie stories simpler than separate roots.
+Single domain post-consolidation (2026-05-07). Earlier drafts of this doc planned `api.gently.us` / `cgm-api.gently.us` / `cgm.gently.us` for a 3-repo split that was abandoned.
 
 ### Claude Code project
 A second CC project rooted at `gently-cgm-cloud`. Fresh `CLAUDE.md` capturing:

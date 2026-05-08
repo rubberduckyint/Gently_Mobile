@@ -1,9 +1,10 @@
 # Gently CGM Cloud — Starter / Build Map
 
 **Date:** 2026-05-05
+**Status:** ⚠️ OBSOLETE as of 2026-05-07 — the standalone "Gently CGM Cloud" repo this doc describes was never built as a separate service. The work consolidated into sibling repo `Gently_SRF` at `srf.gentlyus.com` (single backend). Domain references to `api.gently.us` / `cgm-api.gently.us` and the `verifyGentlyCoreJwt` / JWKS auth-seam machinery in this doc are dead — Mobile authenticates directly via Better-Auth on SRF. Kept for historical context only.
 **Companion to:** `01`, `02`, `03` in this folder.
-**Audience:** future-Dave (or future-Claude) opening the `Gently_CGM_Cloud/` repo for the first time and wanting to ship something.
-**Scope:** Concrete blueprint — repo layout, the actual Dexcom Share connection in code, data model, auth verification, push dispatch, env vars, build sequence.
+**Original audience:** future-Dave (or future-Claude) opening the `Gently_CGM_Cloud/` repo for the first time and wanting to ship something.
+**Original scope:** Concrete blueprint — repo layout, the actual Dexcom Share connection in code, data model, auth verification, push dispatch, env vars, build sequence.
 
 ---
 
