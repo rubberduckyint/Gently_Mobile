@@ -55,6 +55,17 @@ export default function LoginPage() {
     }
   }, [session]);
 
+  // autoFocus on Android can silently fail to open the soft keyboard when the
+  // previous screen's keyboard is still dismissing — focus moves but the IME
+  // never reopens. Defer the focus call past the dismissal animation.
+  useEffect(() => {
+    if (!otpSent) return;
+    const timer = setTimeout(() => {
+      otpRefs.current[0]?.focus();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [otpSent]);
+
   const handleSendOTP = async () => {
     if (!email.trim()) {
       Alert.alert("Error", "Please enter your email address");
@@ -554,7 +565,6 @@ export default function LoginPage() {
                       maxLength={1}
                       selectTextOnFocus
                       editable={!otpLoading}
-                      autoFocus={index === 0}
                     />
                   ))}
                 </View>
