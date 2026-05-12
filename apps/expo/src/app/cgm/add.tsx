@@ -28,6 +28,7 @@ import { router } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { SelectionOption } from "~/components/ui/SelectionGroup";
+import { UnitOfMeasurePicker } from "~/components/cgm/UnitOfMeasurePicker";
 import { FormField } from "~/components/ui/FormField";
 import { Header } from "~/components/ui/Header";
 import { SelectionGroup } from "~/components/ui/SelectionGroup";
@@ -40,6 +41,7 @@ import {
   typography,
 } from "~/styles";
 import { trpc } from "~/utils/api";
+import type { GlucoseUnit } from "~/utils/glucose-units";
 
 type Region = "us" | "ous" | "jp";
 
@@ -62,6 +64,7 @@ export default function ConnectDexcomPage() {
   const queryClient = useQueryClient();
 
   const [region, setRegion] = useState<Region | null>(null);
+  const [unitOfMeasure, setUnitOfMeasure] = useState<GlucoseUnit>("mg_dl");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -74,6 +77,7 @@ export default function ConnectDexcomPage() {
       username: string;
       password: string;
       displayName?: string;
+      unitOfMeasure: GlucoseUnit;
     }) => trpc.dexcom.create.mutate(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dexcom", "list"] });
@@ -103,6 +107,7 @@ export default function ConnectDexcomPage() {
       username: username.trim(),
       password,
       displayName: displayName.trim() ? displayName.trim() : undefined,
+      unitOfMeasure,
     };
 
     createMutation.mutate(payload, {
@@ -185,6 +190,16 @@ export default function ConnectDexcomPage() {
               {errors.region}
             </Text>
           )}
+
+          <View style={{ marginTop: spacing[6] }}>
+            <Text style={[typography.label, { marginBottom: spacing[2] }]}>
+              Glucose units
+            </Text>
+            <UnitOfMeasurePicker
+              value={unitOfMeasure}
+              onChange={setUnitOfMeasure}
+            />
+          </View>
 
           <View style={{ marginTop: spacing[6] }}>
             <FormField
