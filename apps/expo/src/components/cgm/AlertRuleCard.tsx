@@ -13,8 +13,8 @@ import { LevelSlider } from "./LevelSlider";
 import { LightColorPicker } from "./LightColorPicker";
 import type { RouterOutputs } from "~/utils/api";
 import { trpc } from "~/utils/api";
+import type { GlucoseUnit } from "~/utils/glucose-units";
 import {
-  type GlucoseUnit,
   clampCriticalLow,
   formatGlucose,
   toMgDl,
