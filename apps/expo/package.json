@@ -12,7 +12,8 @@
     "ios": "expo run:ios",
     "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path .prettierignore",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@better-auth/expo": "catalog:",
@@ -69,7 +70,8 @@
     "@types/react": "^19.2.9",
     "eslint": "^9.39.2",
     "prettier": "^3.8.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6"
   },
   "overrides": {
     "hermes-compiler": "250829098.0.1"
