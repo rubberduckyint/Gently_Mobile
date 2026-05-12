@@ -50,9 +50,6 @@ const REGION_OPTIONS: SelectionOption<Region>[] = [
 ];
 
 const DISPLAY_NAME_MAX = 50;
-// Loose check — Dexcom Share decides what's actually valid; we only filter
-// obvious typos here.
-const EMAIL_LIKE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface FormErrors {
   region?: string;
@@ -88,8 +85,6 @@ export default function ConnectDexcomPage() {
     const next: FormErrors = {};
     if (region === null) next.region = "Select the region your CGM uses.";
     if (!username.trim()) next.username = "Enter your Dexcom Share username.";
-    else if (!EMAIL_LIKE.test(username.trim()))
-      next.username = "Doesn't look like a valid email.";
     if (!password) next.password = "Enter your Dexcom Share password.";
     if (displayName.length > DISPLAY_NAME_MAX)
       next.displayName = `Keep it under ${DISPLAY_NAME_MAX} characters.`;
@@ -148,9 +143,9 @@ export default function ConnectDexcomPage() {
               },
             ]}
           >
-            Use the same email + password you use to sign in to the Dexcom
-            Share / Follow app. Gently encrypts your password before storing
-            it.
+            Use your Dexcom Share username (or email) and password — the same
+            ones you use to sign in to the Dexcom Share / Follow app. Gently
+            encrypts your password before storing it.
           </Text>
 
           <Text
@@ -202,7 +197,6 @@ export default function ConnectDexcomPage() {
                   setErrors((e) => ({ ...e, username: undefined }));
               }}
               placeholder="you@example.com"
-              keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
               disabled={createMutation.isPending}
