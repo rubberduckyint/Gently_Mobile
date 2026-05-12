@@ -5,6 +5,7 @@ import type { GlucoseUnit } from "~/utils/glucose-units";
 interface Props {
   value: GlucoseUnit;
   onChange: (next: GlucoseUnit) => void;
+  disabled?: boolean;
 }
 
 const UNIT_OPTIONS: SelectionOption<GlucoseUnit>[] = [
@@ -12,13 +13,14 @@ const UNIT_OPTIONS: SelectionOption<GlucoseUnit>[] = [
   { value: "mmol_l", label: "mmol/L" },
 ];
 
-export function UnitOfMeasurePicker({ value, onChange }: Props) {
+export function UnitOfMeasurePicker({ value, onChange, disabled }: Props) {
   return (
     <SelectionGroup<GlucoseUnit>
       options={UNIT_OPTIONS}
       value={value}
       onChange={(next) => onChange(next as GlucoseUnit)}
       orientation="horizontal"
+      disabled={disabled}
     />
   );
 }

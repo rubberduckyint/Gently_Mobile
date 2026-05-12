@@ -198,6 +198,7 @@ export default function ConnectDexcomPage() {
             <UnitOfMeasurePicker
               value={unitOfMeasure}
               onChange={setUnitOfMeasure}
+              disabled={createMutation.isPending}
             />
           </View>
 
