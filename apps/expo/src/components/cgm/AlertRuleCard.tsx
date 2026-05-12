@@ -16,6 +16,7 @@ import { trpc } from "~/utils/api";
 import {
   type GlucoseUnit,
   clampCriticalLow,
+  formatGlucose,
   toMgDl,
   toMmolL,
   CRITICAL_LOW_FLOOR_MG_DL,
@@ -202,7 +203,7 @@ function ThresholdRow({
   function commit() {
     const parsed = parseFloat(draft);
     if (Number.isNaN(parsed)) {
-      setDraft(display);
+      setDraft(unit === "mmol_l" ? toMmolL(mgDl).toFixed(1) : String(mgDl));
       return;
     }
     let next = unit === "mmol_l" ? toMgDl(parsed) : Math.round(parsed);
@@ -236,7 +237,7 @@ function ThresholdRow({
         <Text
           style={{ fontSize: 12, color: colors.text.tertiary, marginTop: 4 }}
         >
-          Minimum {CRITICAL_LOW_FLOOR_MG_DL} mg/dL — hardware safety limit.
+          Minimum {formatGlucose(CRITICAL_LOW_FLOOR_MG_DL, unit)} — hardware safety limit.
         </Text>
       )}
     </View>
