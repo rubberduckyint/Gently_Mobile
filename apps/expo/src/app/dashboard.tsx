@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
+import { sourceMenuItem } from "~/components/ui/hamburger-items";
 import { Header } from "~/components/ui/Header";
 import { HelpModal } from "~/components/ui/HelpModal";
 import { YearOfBirthModal } from "~/components/ui/YearOfBirthModal";
@@ -372,6 +373,8 @@ export default function DashboardPage() {
     );
   }
 
+  const dexcomItem = sourceMenuItem({ primarySourceId: sourcesQ.data?.[0]?.id });
+
   return (
     <SafeAreaView style={containers.safeArea}>
       <Header
@@ -385,11 +388,7 @@ export default function DashboardPage() {
                 onPress: () => setShowHelpModal(true),
                 icon: "help-circle",
               },
-              {
-                label: "Dexcom Sources",
-                onPress: () => router.push("/cgm"),
-                icon: "pulse",
-              },
+              ...(dexcomItem ? [dexcomItem] : []),
               {
                 label: "User Settings",
                 onPress: handleUserProfile,

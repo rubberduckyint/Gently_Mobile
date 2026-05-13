@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors, spacing, typography } from "~/styles";
 
-interface MenuOption {
+export interface MenuOption {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
