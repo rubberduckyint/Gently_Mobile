@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Bell, Chev, Info, Pulse } from "~/components/icons";
@@ -15,6 +15,18 @@ import type { RouterOutputs } from "~/utils/api";
 import { toMmolL } from "~/utils/glucose-units";
 
 type Rule = RouterOutputs["rule"]["listForSource"][number];
+
+interface MutationInput {
+  ruleId: string;
+  enabled?: boolean;
+  threshold?: number;
+  vibrationLevel?: number;
+  audioLevel?: number;
+  ledColor?: string | null;
+  durationSec?: number;
+  repeatAfterMin?: number | null;
+  escalateAfterMin?: number | null;
+}
 
 const VIBRATION_LABELS: [string, string, string, string, string] = [
   "Off", "Soft", "Medium", "Strong", "Max",
@@ -89,13 +101,29 @@ function thresholdBounds(kind: string): { min: number; max: number; step: number
   }
 }
 
+// Debounces fn calls; the ref keeps the latest fn without resetting the timer.
+function useDebouncedFn<T extends (...args: never[]) => void>(
+  fn: T,
+  delayMs: number,
+): T {
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  return useCallback(
+    ((...args: never[]) => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => fnRef.current(...args), delayMs);
+    }) as T,
+    [delayMs],
+  );
+}
+
 export default function EditAlarmScreen() {
   const { sourceId, ruleId } = useLocalSearchParams<{
     sourceId: string;
     ruleId: string;
   }>();
   const router = useRouter();
-  const navigation = useNavigation();
   const queryClient = useQueryClient();
 
   const rulesQ = useQuery({
@@ -109,20 +137,24 @@ export default function EditAlarmScreen() {
     queryFn: () => trpc.dexcom.list.query(),
   });
 
-  const rule = rulesQ.data?.find((r) => r.id === ruleId);
+  const serverRule = rulesQ.data?.find((r) => r.id === ruleId);
   const source = sourcesQ.data?.find((s) => s.id === sourceId);
 
-  const [draft, setDraft] = useState<Rule | null>(null);
+  const [local, setLocal] = useState<Rule | null>(null);
+  const [savingState, setSavingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Copy server rule into draft once loaded; never re-seed (draft owns the state).
+  // One-shot initialization from first server load; local owns state after that.
   useEffect(() => {
-    if (rule && !draft) setDraft(rule);
-  }, [rule, draft]);
+    if (serverRule && !local) setLocal(serverRule);
+  }, [serverRule, local]);
 
-  const dirty = useMemo(() => {
-    if (!draft || !rule) return false;
-    return !shallowEqualRule(draft, rule);
-  }, [draft, rule]);
+  // Clear "saved" status after 2s.
+  useEffect(() => {
+    if (savingState !== "saved") return;
+    const t = setTimeout(() => setSavingState("idle"), 2000);
+    return () => clearTimeout(t);
+  }, [savingState]);
 
   const testRule = useMutation({
     mutationFn: (input: {
@@ -136,43 +168,47 @@ export default function EditAlarmScreen() {
     }) => trpc.rule.test.mutate(input),
   });
 
-  const updateRule = useMutation({
-    mutationFn: (input: {
-      ruleId: string;
-      enabled?: boolean;
-      threshold?: number;
-      vibrationLevel?: number;
-      audioLevel?: number;
-      ledColor?: string | null;
-      durationSec?: number;
-      repeatAfterMin?: number | null;
-      escalateAfterMin?: number | null;
-    }) => trpc.rule.update.mutate(input),
+  const update = useMutation({
+    mutationFn: (input: MutationInput) => trpc.rule.update.mutate(input),
+    onMutate: () => {
+      setSavingState("saving");
+      setErrorMsg(null);
+    },
+    onError: () => {
+      // Revert to last server-confirmed value on failure.
+      if (serverRule) setLocal(serverRule);
+      setSavingState("error");
+      setErrorMsg("Couldn't save. Try again.");
+    },
     onSuccess: () => {
+      setSavingState("saved");
       void queryClient.invalidateQueries({
         queryKey: ["rule", "listForSource", sourceId],
       });
-      router.back();
     },
   });
 
-  // Warn before back navigation when there are unsaved changes.
-  useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const unsub = navigation.addListener("beforeRemove", (e: any) => {
-      if (!dirty || updateRule.isSuccess) return;
-      e.preventDefault();
-      Alert.alert("Discard changes?", "Your unsaved changes will be lost.", [
-        { text: "Keep editing", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: () => navigation.dispatch(e.data.action),
-        },
-      ]);
+  function applyChange(patch: Partial<Rule>) {
+    if (!local) return;
+    setLocal({ ...local, ...patch });
+    // Strip immutable fields and forward only the mutable patch to the mutation.
+    update.mutate({
+      ruleId: local.id,
+      ...(patch as Omit<MutationInput, "ruleId">),
     });
-    return unsub;
-  }, [navigation, dirty, updateRule.isSuccess]);
+  }
+
+  // Threshold stepper: immediate local update, debounced save to batch rapid ± presses.
+  const debouncedThresholdSave = useDebouncedFn((mgDl: number) => {
+    if (!local) return;
+    update.mutate({ ruleId: local.id, threshold: mgDl });
+  }, 400);
+
+  function handleThresholdChange(nextMgDl: number) {
+    if (!local) return;
+    setLocal({ ...local, threshold: nextMgDl }); // immediate UI
+    debouncedThresholdSave(nextMgDl);             // debounced save
+  }
 
   if (rulesQ.isLoading || sourcesQ.isLoading) {
     return (
@@ -189,7 +225,7 @@ export default function EditAlarmScreen() {
     );
   }
 
-  if (!rule || !source || !draft) {
+  if (!serverRule || !source || !local) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: tokens.color.bg }}>
         <Text
@@ -202,18 +238,6 @@ export default function EditAlarmScreen() {
         </Text>
       </SafeAreaView>
     );
-  }
-
-  function handleSave() {
-    if (!draft || !dirty) return;
-    // Strip identity/immutable fields — the SRF mutation only accepts mutable fields + ruleId.
-    const { id, cgmSourceId: _cgmSourceId, kind: _kind, userId: _userId, ...mutable } = draft;
-    updateRule.mutate({
-      ruleId: id,
-      ...mutable,
-      // threshold is number | null on the Rule; mutation expects number | undefined.
-      threshold: mutable.threshold ?? undefined,
-    });
   }
 
   return (
@@ -245,36 +269,51 @@ export default function EditAlarmScreen() {
             ALARM
           </Text>
           <Text style={[typographyV2.h1AlarmEdit, { color: tokens.color.inkH }]}>
-            {KIND_LABELS[rule.kind] ?? rule.kind}
+            {KIND_LABELS[serverRule.kind] ?? serverRule.kind}
           </Text>
         </View>
 
-        <Pressable
-          onPress={handleSave}
-          disabled={!dirty || updateRule.isPending}
-          style={{ width: 60, alignItems: "flex-end", paddingVertical: 12 }}
-          accessibilityLabel="Save alarm"
-        >
-          <Text
-            style={{
-              color: dirty ? tokens.color.cyanDeep : tokens.color.ink3,
-              fontSize: 17,
-              fontWeight: "600",
-            }}
-          >
-            Save
-          </Text>
-        </Pressable>
+        {/* Save indicator replaces the old Save button */}
+        <View style={{ width: 60, alignItems: "flex-end", paddingVertical: 12 }}>
+          {savingState === "saving" && (
+            <Text style={{ fontSize: 12, color: tokens.color.ink3 }}>Saving…</Text>
+          )}
+          {savingState === "saved" && (
+            <Text style={{ fontSize: 12, color: tokens.color.ink3 }}>Saved</Text>
+          )}
+          {savingState === "error" && (
+            <Text style={{ fontSize: 12, color: tokens.color.coral }}>
+              Couldn't save
+            </Text>
+          )}
+        </View>
       </View>
 
       {/* Body */}
       <ScrollView
         contentContainerStyle={{ padding: tokens.spacing.pageHorizontal, gap: 12 }}
       >
+        {/* Inline error pill shown below threshold card when a save fails */}
+        {errorMsg && (
+          <View
+            style={{
+              backgroundColor: tokens.color.coralBg,
+              borderRadius: tokens.radius.list,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={[typographyV2.body, { color: tokens.color.coral, fontSize: 13 }]}>
+              {errorMsg}
+            </Text>
+          </View>
+        )}
+
         <ThresholdHeroCard
-          kind={rule.kind}
-          draft={draft}
-          setDraft={setDraft}
+          kind={serverRule.kind}
+          local={local}
+          onEnabledChange={(v) => applyChange({ enabled: v })}
+          onThresholdChange={handleThresholdChange}
           isMmol={source.unitOfMeasure === "mmol_l"}
         />
 
@@ -297,11 +336,11 @@ export default function EditAlarmScreen() {
           <LevelSlider
             labels={VIBRATION_LABELS}
             accent={tokens.color.cyanDeep}
-            value={draft.vibrationLevel ?? 0}
-            onChange={(v) => setDraft({ ...draft, vibrationLevel: v })}
+            value={local.vibrationLevel ?? 0}
+            onChange={(v) => applyChange({ vibrationLevel: v })}
             readOut={{
-              value: String(draft.vibrationLevel ?? 0),
-              label: VIBRATION_LABELS[draft.vibrationLevel ?? 0] ?? "",
+              value: String(local.vibrationLevel ?? 0),
+              label: VIBRATION_LABELS[local.vibrationLevel ?? 0] ?? "",
             }}
           />
         </View>
@@ -325,11 +364,11 @@ export default function EditAlarmScreen() {
           <LevelSlider
             labels={AUDIO_LABELS}
             accent={tokens.color.cyanDeep}
-            value={draft.audioLevel ?? 0}
-            onChange={(v) => setDraft({ ...draft, audioLevel: v })}
+            value={local.audioLevel ?? 0}
+            onChange={(v) => applyChange({ audioLevel: v })}
             readOut={{
-              value: String(draft.audioLevel ?? 0),
-              label: AUDIO_LABELS[draft.audioLevel ?? 0] ?? "",
+              value: String(local.audioLevel ?? 0),
+              label: AUDIO_LABELS[local.audioLevel ?? 0] ?? "",
             }}
           />
         </View>
@@ -346,8 +385,8 @@ export default function EditAlarmScreen() {
           ]}
         >
           <LightColorPicker
-            value={draft.ledColor ?? null}
-            onChange={(c) => setDraft({ ...draft, ledColor: c })}
+            value={local.ledColor ?? null}
+            onChange={(c) => applyChange({ ledColor: c })}
           />
         </View>
 
@@ -356,12 +395,12 @@ export default function EditAlarmScreen() {
           <Pressable
             onPress={() => {
               testRule.mutate({
-                ruleId: rule.id,
+                ruleId: serverRule.id,
                 override: {
-                  vibrationLevel: draft.vibrationLevel ?? 0,
-                  audioLevel: draft.audioLevel ?? 0,
-                  ledColor: draft.ledColor ?? null,
-                  durationSec: draft.durationSec ?? 10,
+                  vibrationLevel: local.vibrationLevel ?? 0,
+                  audioLevel: local.audioLevel ?? 0,
+                  ledColor: local.ledColor ?? null,
+                  durationSec: local.durationSec ?? 10,
                 },
               });
             }}
@@ -429,24 +468,24 @@ export default function EditAlarmScreen() {
         >
           <TimingRow
             label="Duration"
-            value={draft.durationSec}
-            onChange={(v) => setDraft({ ...draft, durationSec: v ?? 10 })}
+            value={local.durationSec}
+            onChange={(v) => applyChange({ durationSec: v ?? 10 })}
             nullable={false}
             suffix="sec"
           />
           <View style={{ height: 1, backgroundColor: tokens.color.rule }} />
           <TimingRow
             label="Repeat after"
-            value={draft.repeatAfterMin ?? null}
-            onChange={(v) => setDraft({ ...draft, repeatAfterMin: v })}
+            value={local.repeatAfterMin ?? null}
+            onChange={(v) => applyChange({ repeatAfterMin: v })}
             nullable
             suffix="min"
           />
           <View style={{ height: 1, backgroundColor: tokens.color.rule }} />
           <TimingRow
             label="Escalate after"
-            value={draft.escalateAfterMin ?? null}
-            onChange={(v) => setDraft({ ...draft, escalateAfterMin: v })}
+            value={local.escalateAfterMin ?? null}
+            onChange={(v) => applyChange({ escalateAfterMin: v })}
             nullable
             suffix="min"
           />
@@ -475,27 +514,25 @@ export default function EditAlarmScreen() {
 
 function ThresholdHeroCard({
   kind,
-  draft,
-  setDraft,
+  local,
+  onEnabledChange,
+  onThresholdChange,
   isMmol,
 }: {
   kind: string;
-  draft: Rule;
-  setDraft: (r: Rule) => void;
+  local: Rule;
+  onEnabledChange: (enabled: boolean) => void;
+  onThresholdChange: (mgDl: number) => void;
   isMmol: boolean;
 }) {
   const tint = kindToTint(kind);
   const { min, max, step } = thresholdBounds(kind);
-  const rawValue = draft.threshold ?? min;
+  const rawValue = local.threshold ?? min;
 
   // mmol/L mode: display is converted; storage stays mg/dL.
   // Stepper operates in mg/dL throughout — onChange already delivers mg/dL — so no
   // back-conversion is needed; only the rendered label changes.
   const displayValue = isMmol ? toMmolL(rawValue).toFixed(1) : String(rawValue);
-
-  function handleStepperChange(next: number) {
-    setDraft({ ...draft, threshold: next });
-  }
 
   return (
     <View
@@ -537,8 +574,8 @@ function ThresholdHeroCard({
 
         {/* Enabled toggle */}
         <Switch
-          value={draft.enabled}
-          onValueChange={(val) => setDraft({ ...draft, enabled: val })}
+          value={local.enabled}
+          onValueChange={onEnabledChange}
           trackColor={{ false: "#D2D8E0", true: tokens.color.cyanDeep }}
           style={{ width: 52, height: 32 }}
           accessibilityLabel="Enable alarm"
@@ -549,7 +586,7 @@ function ThresholdHeroCard({
       <View style={{ alignItems: "center" }}>
         <Stepper
           value={rawValue}
-          onChange={handleStepperChange}
+          onChange={onThresholdChange}
           min={min}
           max={max}
           step={step}
@@ -639,18 +676,5 @@ function TimingRow({
         {suffix}
       </Text>
     </View>
-  );
-}
-
-function shallowEqualRule(a: Rule, b: Rule): boolean {
-  return (
-    a.enabled === b.enabled &&
-    a.threshold === b.threshold &&
-    a.vibrationLevel === b.vibrationLevel &&
-    a.audioLevel === b.audioLevel &&
-    a.ledColor === b.ledColor &&
-    a.durationSec === b.durationSec &&
-    a.repeatAfterMin === b.repeatAfterMin &&
-    a.escalateAfterMin === b.escalateAfterMin
   );
 }
