@@ -45,19 +45,20 @@ const KIND_LABELS: Record<string, string> = {
   low: "Low",
   high: "High",
   falling_fast: "Falling Fast",
-  stale: "Stale",
+  stale: "No Data",
   spike_above: "Spike Above",
   sustained_above: "Sustained Above",
   post_meal_unresolved: "Post-Meal Unresolved",
   tir_breach: "TIR Breach",
 };
 
-// Diabetes-pack display order: high first, then severity-ascending lows.
+// Diabetes-pack display order: high first, then severity-ascending lows, stale last.
 // Unlisted kinds (metabolic pack, etc.) fall to the end in tRPC order.
 const KIND_ORDER: Record<string, number> = {
   high: 0,
   low: 1,
   critical_low: 2,
+  stale: 3,
 };
 
 function kindToTint(kind: string): { bg: string; fg: string } {
@@ -86,10 +87,12 @@ function AlarmRuleRow({
 }) {
   const tint = kindToTint(rule.kind);
   const label = KIND_LABELS[rule.kind] ?? rule.kind;
-  const thresholdText =
-    rule.threshold !== null && rule.threshold !== undefined
-      ? `${rule.threshold} mg/dL`
-      : "—";
+  const previewText =
+    rule.kind === "stale"
+      ? `${rule.durationMin ?? "—"} min`
+      : rule.threshold !== null && rule.threshold !== undefined
+        ? `${rule.threshold} mg/dL`
+        : "—";
 
   return (
     <Pressable
@@ -156,7 +159,7 @@ function AlarmRuleRow({
         <Text
           style={{ fontSize: 15, color: tokens.color.ink, fontVariant: ["tabular-nums"] }}
         >
-          {thresholdText}
+          {previewText}
         </Text>
         {FLOOR_50_KINDS.has(rule.kind) && (
           <View

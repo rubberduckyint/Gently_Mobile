@@ -20,6 +20,7 @@ interface MutationInput {
   ruleId: string;
   enabled?: boolean;
   threshold?: number;
+  durationMin?: number;
   vibrationLevel?: number;
   audioLevel?: number;
   ledColor?: string | null;
@@ -41,7 +42,7 @@ const KIND_LABELS: Record<string, string> = {
   high: "High",
   falling_fast: "Falling fast",
   rising_fast: "Rising fast",
-  stale: "Stale reading",
+  stale: "No Data",
   spike_above: "Spike above",
   sustained_above: "Sustained above",
   post_meal_unresolved: "Post-meal unresolved",
@@ -87,7 +88,7 @@ function tierDescription(kind: string): string {
   }
 }
 
-// Per plan Step 2 — tier-aware stepper bounds (all values stored as mg/dL)
+// Per plan Step 2 — tier-aware stepper bounds (all values stored as mg/dL, except stale which is minutes)
 function thresholdBounds(kind: string): { min: number; max: number; step: number } {
   switch (kind) {
     case "critical_low":     return { min: 50, max: 70, step: 1 };
@@ -97,6 +98,7 @@ function thresholdBounds(kind: string): { min: number; max: number; step: number
     case "sustained_above":  return { min: 100, max: 400, step: 5 };
     case "falling_fast":
     case "rising_fast":      return { min: 50, max: 200, step: 5 };
+    case "stale":            return { min: 5, max: 60, step: 5 };
     default:                 return { min: 50, max: 400, step: 5 };
   }
 }
@@ -314,6 +316,7 @@ export default function EditAlarmScreen() {
           local={local}
           onEnabledChange={(v) => applyChange({ enabled: v })}
           onThresholdChange={handleThresholdChange}
+          onDurationMinChange={(next) => applyChange({ durationMin: next })}
           isMmol={source.unitOfMeasure === "mmol_l"}
         />
 
@@ -517,22 +520,35 @@ function ThresholdHeroCard({
   local,
   onEnabledChange,
   onThresholdChange,
+  onDurationMinChange,
   isMmol,
 }: {
   kind: string;
   local: Rule;
   onEnabledChange: (enabled: boolean) => void;
   onThresholdChange: (mgDl: number) => void;
+  onDurationMinChange: (minutes: number) => void;
   isMmol: boolean;
 }) {
   const tint = kindToTint(kind);
   const { min, max, step } = thresholdBounds(kind);
-  const rawValue = local.threshold ?? min;
+  const isStale = kind === "stale";
+
+  // Stale rules have no threshold — stepper binds to durationMin (minutes) instead.
+  const currentValue = isStale
+    ? (local.durationMin ?? 20)
+    : (local.threshold ?? min);
 
   // mmol/L mode: display is converted; storage stays mg/dL.
-  // Stepper operates in mg/dL throughout — onChange already delivers mg/dL — so no
-  // back-conversion is needed; only the rendered label changes.
-  const displayValue = isMmol ? toMmolL(rawValue).toFixed(1) : String(rawValue);
+  // Stale duration is always minutes — skip unit conversion.
+  const displayValue = (!isStale && isMmol)
+    ? toMmolL(currentValue).toFixed(1)
+    : String(currentValue);
+
+  const unitLabel = isStale ? "minutes" : (isMmol ? "mmol/L" : "mg/dL");
+
+  const eyebrow = isStale ? "ALERT WHEN NO READING FOR" : aboveOrBelow(kind);
+  const title = isStale ? "No Data" : tierDescription(kind);
 
   return (
     <View
@@ -565,10 +581,10 @@ function ThresholdHeroCard({
         {/* Text stack */}
         <View style={{ flex: 1 }}>
           <Text style={[typographyV2.eyebrow, { color: tokens.color.ink3 }]}>
-            {aboveOrBelow(kind)}
+            {eyebrow}
           </Text>
           <Text style={[typographyV2.body, { color: tokens.color.ink2 }]}>
-            {tierDescription(kind)}
+            {title}
           </Text>
         </View>
 
@@ -585,8 +601,11 @@ function ThresholdHeroCard({
       {/* Stepper row */}
       <View style={{ alignItems: "center" }}>
         <Stepper
-          value={rawValue}
-          onChange={onThresholdChange}
+          value={currentValue}
+          onChange={isStale
+            ? onDurationMinChange  // immediate save; step=5 so rapid presses are rare
+            : onThresholdChange
+          }
           min={min}
           max={max}
           step={step}
@@ -600,6 +619,9 @@ function ThresholdHeroCard({
             {displayValue}
           </Text>
         </Stepper>
+        <Text style={[typographyV2.body, { color: tokens.color.ink3, marginTop: 4 }]}>
+          {unitLabel}
+        </Text>
       </View>
 
       {/* Critical-low floor callout — hardware enforces 50 mg/dL minimum */}
