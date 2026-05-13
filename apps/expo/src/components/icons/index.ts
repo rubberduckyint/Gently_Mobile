@@ -1,0 +1,12 @@
+export { Watch } from "./Watch";
+export { Cloud } from "./Cloud";
+export { Bell } from "./Bell";
+export { Chev } from "./Chev";
+export { Check } from "./Check";
+export { TrendUp } from "./TrendUp";
+export { TrendDown } from "./TrendDown";
+export { TrendFlat } from "./TrendFlat";
+export { Menu } from "./Menu";
+export { Pulse } from "./Pulse";
+export { Info } from "./Info";
+export { Shield } from "./Shield";
