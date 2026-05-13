@@ -10,33 +10,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { AlertRuleCard } from "~/components/cgm/AlertRuleCard";
 import { UnitOfMeasurePicker } from "~/components/cgm/UnitOfMeasurePicker";
-import {
-  buttons,
-  buttonText,
-  colors,
-  containers,
-  spacing,
-  typography,
-} from "~/styles";
+import { buttons, buttonText, colors, containers } from "~/styles";
+import { tokens } from "~/styles/tokens";
+import { typographyV2 } from "~/styles/typographyV2";
 import { trpc } from "~/utils/api";
 import type { GlucoseUnit } from "~/utils/glucose-units";
-
-const DIABETES_KINDS = [
-  "low",
-  "critical_low",
-  "high",
-  "falling_fast",
-  "stale",
-];
-const METABOLIC_KINDS = [
-  "spike_above",
-  "sustained_above",
-  "post_meal_unresolved",
-  "tir_breach",
-  "low",
-];
 
 const REGION_LABELS: Record<"us" | "ous" | "jp", string> = {
   us: "United States",
@@ -52,17 +31,6 @@ export default function SourceEditScreen() {
   const sourcesQ = useQuery({
     queryKey: ["dexcom", "list"],
     queryFn: () => trpc.dexcom.list.query(),
-  });
-
-  const rulesQ = useQuery({
-    queryKey: ["rule", "listForSource", sourceId],
-    queryFn: () => trpc.rule.listForSource.query({ sourceId }),
-    enabled: !!sourceId,
-  });
-
-  const prefsQ = useQuery({
-    queryKey: ["userPreferences", "get"],
-    queryFn: () => trpc.userPreferences.get.query({}),
   });
 
   const updateSource = useMutation({
@@ -91,7 +59,7 @@ export default function SourceEditScreen() {
     },
   });
 
-  if (sourcesQ.isLoading || rulesQ.isLoading || prefsQ.isLoading) {
+  if (sourcesQ.isLoading) {
     return (
       <SafeAreaView style={containers.safeArea}>
         <Stack.Screen options={{ title: "Edit Source" }} />
@@ -113,20 +81,13 @@ export default function SourceEditScreen() {
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <Text style={[typography.body, { color: colors.text.secondary }]}>
+          <Text style={{ fontSize: 15, color: tokens.color.ink2 }}>
             Source not found.
           </Text>
         </View>
       </SafeAreaView>
     );
   }
-
-  const segment = prefsQ.data?.segment ?? "diabetes";
-  const visibleKinds =
-    segment === "metabolic_health" ? METABOLIC_KINDS : DIABETES_KINDS;
-  const visibleRules = (rulesQ.data ?? []).filter((r) =>
-    visibleKinds.includes(r.kind),
-  );
 
   const currentUnit: GlucoseUnit = source.unitOfMeasure ?? "mg_dl";
 
@@ -152,34 +113,83 @@ export default function SourceEditScreen() {
       <Stack.Screen options={{ title: source.displayName }} />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing[4] }}
+        contentContainerStyle={{
+          paddingHorizontal: tokens.spacing.pageHorizontal,
+          paddingTop: 16,
+          paddingBottom: 40,
+        }}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={{ marginBottom: spacing[6] }}>
-          <Text style={[typography.h5, { marginBottom: spacing[1] }]}>
-            {source.displayName}
+        {/* Connection card */}
+        <View
+          style={[
+            {
+              backgroundColor: tokens.color.card,
+              borderRadius: tokens.radius.card,
+              padding: tokens.spacing.cardInternal,
+              marginBottom: 24,
+            },
+            tokens.shadow.card,
+          ]}
+        >
+          {/* Region row */}
+          <Text
+            style={[
+              typographyV2.eyebrow,
+              { color: tokens.color.ink3, marginBottom: 4 },
+            ]}
+          >
+            Region
           </Text>
-          {source.dexcom !== null && (
-            <>
-              <Text
-                style={[
-                  typography.body,
-                  { color: colors.text.secondary, marginBottom: spacing[1] },
-                ]}
-              >
-                {source.dexcom.username}
-              </Text>
-              <Text
-                style={[typography.caption, { color: colors.text.tertiary }]}
-              >
-                {REGION_LABELS[source.dexcom.region]}
-              </Text>
-            </>
-          )}
-        </View>
+          <Text
+            style={{ fontSize: 15, color: tokens.color.ink, marginBottom: 16 }}
+          >
+            {source.dexcom?.region
+              ? REGION_LABELS[source.dexcom.region]
+              : "—"}
+          </Text>
 
-        <View style={{ marginBottom: spacing[6] }}>
-          <Text style={[typography.label, { marginBottom: spacing[2] }]}>
-            Glucose units
+          {/* Hairline */}
+          <View
+            style={{
+              height: 1,
+              backgroundColor: tokens.color.rule,
+              marginBottom: 16,
+            }}
+          />
+
+          {/* Username row */}
+          <Text
+            style={[
+              typographyV2.eyebrow,
+              { color: tokens.color.ink3, marginBottom: 4 },
+            ]}
+          >
+            Username
+          </Text>
+          <Text
+            style={{ fontSize: 15, color: tokens.color.ink, marginBottom: 16 }}
+          >
+            {source.dexcom?.username ?? "—"}
+          </Text>
+
+          {/* Hairline */}
+          <View
+            style={{
+              height: 1,
+              backgroundColor: tokens.color.rule,
+              marginBottom: 16,
+            }}
+          />
+
+          {/* Glucose units row */}
+          <Text
+            style={[
+              typographyV2.eyebrow,
+              { color: tokens.color.ink3, marginBottom: 8 },
+            ]}
+          >
+            Glucose Units
           </Text>
           <UnitOfMeasurePicker
             value={currentUnit}
@@ -190,47 +200,20 @@ export default function SourceEditScreen() {
           />
         </View>
 
-        <Text
+        {/* Disconnect */}
+        <Pressable
           style={[
-            typography.h5,
-            { marginBottom: spacing[4] },
+            buttons.base,
+            buttons.large,
+            buttons.error,
+            disconnectMutation.isPending && { opacity: 0.6 },
           ]}
+          onPress={confirmDisconnect}
+          disabled={disconnectMutation.isPending}
+          accessibilityLabel="Disconnect Dexcom source"
         >
-          Alert rules
-        </Text>
-
-        {visibleRules.length === 0 ? (
-          <Text
-            style={[
-              typography.body,
-              { color: colors.text.secondary, marginBottom: spacing[6] },
-            ]}
-          >
-            No alert rules yet. They are created automatically when a Dexcom
-            source is added. If you don{"'"}t see any here, remove and re-add
-            this source.
-          </Text>
-        ) : (
-          visibleRules.map((rule) => (
-            <AlertRuleCard key={rule.id} rule={rule} unit={currentUnit} />
-          ))
-        )}
-
-        <View style={{ marginTop: spacing[4], marginBottom: spacing[8] }}>
-          <Pressable
-            style={[
-              buttons.base,
-              buttons.large,
-              buttons.error,
-              disconnectMutation.isPending && { opacity: 0.6 },
-            ]}
-            onPress={confirmDisconnect}
-            disabled={disconnectMutation.isPending}
-            accessibilityLabel="Disconnect Dexcom source"
-          >
-            <Text style={[buttonText.primary]}>Disconnect Dexcom source</Text>
-          </Pressable>
-        </View>
+          <Text style={[buttonText.primary]}>Disconnect Dexcom source</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
