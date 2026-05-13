@@ -44,3 +44,9 @@ export { EmptyState } from "./EmptyState";
 // Modals
 export { HelpModal } from "./HelpModal";
 export { YearOfBirthModal } from "./YearOfBirthModal";
+
+// Shared UI primitives (onboarding + dashboard + alarm-detail)
+export { StepIndicator } from "./StepIndicator";
+export { StatusPill } from "./StatusPill";
+export { Segmented } from "./Segmented";
+export { Stepper } from "./Stepper";
