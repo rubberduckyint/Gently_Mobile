@@ -1,13 +1,5 @@
-/**
- * Dashboard Screen using the new design system
- *
- * This demonstrates the practical application of the design system
- * with improved consistency and maintainability
- */
-
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -17,166 +9,183 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router, useFocusEffect } from "expo-router";
 import type { RelativePathString } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { sourceMenuItem } from "~/components/ui/hamburger-items";
-import { Header } from "~/components/ui/Header";
 import { HelpModal } from "~/components/ui/HelpModal";
 import { YearOfBirthModal } from "~/components/ui/YearOfBirthModal";
+import { GentlyHeader } from "~/components/brand/GentlyHeader";
+import { CurrentGlucoseCard } from "~/components/cgm/CurrentGlucoseCard";
+import { StatusPill } from "~/components/ui/StatusPill";
+import { Watch } from "~/components/icons/Watch";
+import { Cloud } from "~/components/icons/Cloud";
+import { Chev } from "~/components/icons/Chev";
+import { FEATURE_FLAGS } from "~/config/feature-flags";
+import { tokens } from "~/styles/tokens";
+import { typographyV2 } from "~/styles/typographyV2";
+import { trpc } from "~/utils/api";
+import { authClient } from "~/utils/auth";
+import { nextOnboardingRoute } from "~/utils/onboarding-gate";
+import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
 import {
   clearUserIdentity,
   identifyUser,
   trackLogout,
   trackOnboardingCompleted,
 } from "~/services/analytics";
-// Import the new design system
-import {
-  buttons,
-  buttonText,
-  colors,
-  commonStyles,
-  containers,
-  emptyStates,
-  spacing,
-  typography,
-} from "~/styles";
-import { trpc } from "~/utils/api";
-import { authClient } from "~/utils/auth";
-import { nextOnboardingRoute } from "~/utils/onboarding-gate";
-import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
-import { CurrentGlucoseCard } from "~/components/cgm/CurrentGlucoseCard";
-import { FEATURE_FLAGS } from "~/config/feature-flags";
 import {
   hasSeenOnboarding,
   markOnboardingComplete,
   resetOnboarding,
 } from "~/utils/userPreferences";
+import { useBLE } from "~/contexts/BLEContext";
+// Range bar deferred per coordinator decision 2026-05-13
 
-type DeviceData = RouterOutputs["device"]["getAll"][number];
+type Rule = RouterOutputs["rule"]["listForSource"][number];
 
-function DeviceCard({ device }: { device: DeviceData }) {
+const FLOOR_50_KINDS = new Set(["critical_low"]);
+
+const KIND_LABELS: Record<string, string> = {
+  critical_low: "Critical Low",
+  low: "Low",
+  high: "High",
+  falling_fast: "Falling Fast",
+  stale: "Stale",
+  spike_above: "Spike Above",
+  sustained_above: "Sustained Above",
+  post_meal_unresolved: "Post-Meal Unresolved",
+  tir_breach: "TIR Breach",
+};
+
+function kindToTint(kind: string): { bg: string; fg: string } {
+  switch (kind) {
+    case "critical_low":
+      return { bg: tokens.color.coralBg, fg: tokens.color.coral };
+    case "low":
+      return { bg: tokens.color.cyanBg, fg: tokens.color.cyanDeep };
+    case "high":
+      return { bg: tokens.color.amberBg, fg: tokens.color.amber };
+    case "falling_fast":
+      return { bg: tokens.color.amberBg, fg: tokens.color.amber };
+    case "stale":
+      return { bg: tokens.color.bg, fg: tokens.color.ink2 };
+    default:
+      return { bg: tokens.color.bg, fg: tokens.color.ink2 };
+  }
+}
+
+function AlarmRuleRow({
+  rule,
+  sourceId,
+}: {
+  rule: Rule;
+  sourceId: string;
+}) {
+  const tint = kindToTint(rule.kind);
+  const label = KIND_LABELS[rule.kind] ?? rule.kind;
+  const thresholdText =
+    rule.threshold !== null && rule.threshold !== undefined
+      ? `${rule.threshold} mg/dL`
+      : "—";
+
   return (
-    <View style={{ marginBottom: spacing[6] }}>
-      <Link
-        href={{
-          pathname: "/devices/[deviceId]",
-          params: { deviceId: device.id },
+    <Pressable
+      onPress={() =>
+        router.push({
+          pathname: "/cgm/[sourceId]/alarms/[ruleId]/edit" as RelativePathString,
+          params: { sourceId, ruleId: rule.id },
+        })
+      }
+      style={({ pressed }) => [
+        {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          backgroundColor: tokens.color.card,
+          borderRadius: tokens.radius.list,
+          paddingHorizontal: tokens.spacing.cardInternal,
+          paddingVertical: 14,
+          marginBottom: 8,
+        },
+        tokens.shadow.card,
+        pressed && { opacity: 0.75 },
+      ]}
+    >
+      {/* Tier badge */}
+      <View
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          backgroundColor: tint.bg,
+          alignItems: "center",
+          justifyContent: "center",
         }}
-        asChild
       >
-        <Pressable
-          style={({ pressed }) => [
-            {
-              backgroundColor: "#FFFFFF",
-              borderRadius: 20,
-              padding: spacing[5],
-              shadowColor: colors.primary[900],
-              shadowOffset: { width: 0, height: 12 },
-              shadowOpacity: 0.15,
-              shadowRadius: 24,
-              elevation: 16,
-              borderWidth: 2,
-              borderColor: colors.primary[200],
-              overflow: "hidden",
-            },
-            pressed && {
-              transform: [{ scale: 0.97 }],
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.25,
-              borderColor: colors.primary[400],
-            },
-          ]}
+        <Text
+          style={{
+            fontSize: 10,
+            fontWeight: "700",
+            color: tint.fg,
+            letterSpacing: 0.3,
+            textTransform: "uppercase",
+          }}
+          numberOfLines={1}
         >
-          {/* Gradient accent bar at top */}
+          {rule.kind === "critical_low"
+            ? "!"
+            : rule.kind === "high"
+              ? "H"
+              : rule.kind === "low"
+                ? "L"
+                : "~"}
+        </Text>
+      </View>
+
+      {/* Center */}
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text
+          style={[typographyV2.eyebrow, { color: tint.fg }]}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+        <Text
+          style={{ fontSize: 15, color: tokens.color.ink, fontVariant: ["tabular-nums"] }}
+        >
+          {thresholdText}
+        </Text>
+        {FLOOR_50_KINDS.has(rule.kind) && (
           <View
             style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 4,
-              backgroundColor: colors.primary[500],
-            }}
-          />
-          {/* Device Header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginTop: spacing[2],
+              alignSelf: "flex-start",
+              backgroundColor: tokens.color.coralBg,
+              borderRadius: 999,
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+              marginTop: 2,
             }}
           >
-            {/* Device Icon */}
-            <View
+            <Text
               style={{
-                width: 56,
-                height: 56,
-                borderRadius: 16,
-                backgroundColor: colors.primary[50],
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: spacing[4],
-                position: "relative",
+                fontSize: 10,
+                fontWeight: "700",
+                color: tokens.color.coral,
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
               }}
             >
-              <Ionicons
-                name="watch-outline"
-                size={28}
-                color={colors.primary[600]}
-              />
-            </View>
-
-            {/* Device Info */}
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[
-                  typography.h4,
-                  {
-                    color: colors.text.primary,
-                    fontWeight: "700",
-                    marginBottom: spacing[1],
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {device.title}
-              </Text>
-              {device.serialNumber && (
-                <Text
-                  style={[
-                    typography.caption,
-                    { color: colors.text.tertiary },
-                  ]}
-                >
-                  SN: ...{device.serialNumber.slice(-5)}
-                </Text>
-              )}
-            </View>
-
-            {/* Chevron indicator */}
-            <View
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: colors.gray[100],
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.text.secondary}
-              />
-            </View>
+              Floor 50
+            </Text>
           </View>
-        </Pressable>
-      </Link>
-    </View>
+        )}
+      </View>
+
+      {/* Chevron */}
+      <Chev size={18} color={tokens.color.ink3} />
+    </Pressable>
   );
 }
 
@@ -185,6 +194,8 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [showYearOfBirthModal, setShowYearOfBirthModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+
+  const { connectionState } = useBLE();
 
   // Fetch user profile to check year of birth
   const { data: userProfile } = useQuery({
@@ -203,30 +214,19 @@ export default function DashboardPage() {
   // Check if user needs to provide year of birth and/or see onboarding
   useEffect(() => {
     const checkUserStatus = async () => {
-      // Wait for user profile to load
       if (!userProfile) return;
-
       const hasSeenHelp = await hasSeenOnboarding();
-
-      // First check: show year of birth modal if not in database
       if (!userProfile.yearOfBirth) {
         setShowYearOfBirthModal(true);
-      }
-      // Second check: show help modal if year of birth exists but haven't seen help
-      else if (!hasSeenHelp) {
+      } else if (!hasSeenHelp) {
         setShowHelpModal(true);
       }
     };
     void checkUserStatus();
   }, [userProfile]);
 
-  const {
-    data: devices,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ["devices"],
+  const devicesQ = useQuery({
+    queryKey: ["device", "getAll"],
     queryFn: () => trpc.device.getAll.query({}),
     enabled: !!session?.user,
     refetchOnMount: "always",
@@ -241,10 +241,19 @@ export default function DashboardPage() {
     enabled: !!session?.user,
   });
 
+  const primarySource = sourcesQ.data?.[0];
+
+  const rulesQ = useQuery({
+    queryKey: ["rule", "listForSource", primarySource?.id],
+    queryFn: () => trpc.rule.listForSource.query({ sourceId: primarySource?.id ?? "" }),
+    enabled: !!primarySource?.id,
+  });
+
+  // Onboarding gate
   useEffect(() => {
-    if (isLoading || sourcesQ.isLoading) return;
+    if (devicesQ.isLoading || sourcesQ.isLoading) return;
     const next = nextOnboardingRoute({
-      hasBracelet: (devices ?? []).length > 0,
+      hasBracelet: (devicesQ.data ?? []).length > 0,
       sources: (sourcesQ.data ?? []).map((s) => ({
         id: s.id,
         displayName: s.displayName,
@@ -252,7 +261,7 @@ export default function DashboardPage() {
       })),
     });
     if (next) router.replace(next as RelativePathString);
-  }, [isLoading, sourcesQ.isLoading, devices, sourcesQ.data]);
+  }, [devicesQ.isLoading, sourcesQ.isLoading, devicesQ.data, sourcesQ.data]);
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
@@ -276,9 +285,7 @@ export default function DashboardPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["userProfile"] });
-
       setShowYearOfBirthModal(false);
-
       const hasSeenHelp = await hasSeenOnboarding();
       if (!hasSeenHelp) {
         setShowHelpModal(true);
@@ -303,15 +310,10 @@ export default function DashboardPage() {
           );
           return;
         }
-
-        void queryClient.invalidateQueries({ queryKey: ["devices"] });
+        void queryClient.invalidateQueries({ queryKey: ["device", "getAll"] });
       }
     }, [session, queryClient]),
   );
-
-  const handleAddDevice = () => {
-    router.push("/add-device");
-  };
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -324,66 +326,41 @@ export default function DashboardPage() {
     router.push("/settings");
   };
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <SafeAreaView style={containers.safeArea}>
-        <View style={commonStyles.fullScreenLoading}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
-          <Text
-            style={[
-              typography.body,
-              { color: colors.text.secondary, marginTop: spacing[3] },
-            ]}
-          >
-            Loading your Gentlys...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleAddDevice = () => {
+    router.push("/add-device");
+  };
 
-  // Error state
-  if (error) {
-    return (
-      <SafeAreaView style={containers.safeArea}>
-        <View style={commonStyles.fullScreenLoading}>
-          <Text style={[typography.h4, { color: colors.error[600] }]}>
-            Something went wrong
-          </Text>
-          <Text
-            style={[
-              typography.body,
-              {
-                color: colors.text.secondary,
-                textAlign: "center",
-                marginTop: spacing[2],
-                marginBottom: spacing[6],
-              },
-            ]}
-          >
-            {error.message}
-          </Text>
-          <Pressable
-            style={[buttons.base, buttons.medium, buttons.primary]}
-            onPress={() => refetch()}
-          >
-            <Text style={buttonText.primary}>Try Again</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const primarySource = sourcesQ.data?.[0];
   const dexcomItem = sourceMenuItem({ primarySourceId: primarySource?.id });
 
+  // BLE pill value
+  const bleConnected = connectionState === "connected";
+  const braceletPillValue = bleConnected ? "Connected" : "Disconnected";
+  const braceletPillAccent = bleConnected
+    ? tokens.color.cyanDeep
+    : tokens.color.ink3;
+
+  // Dexcom pill value
+  const dexcomActive = primarySource?.dexcom?.active;
+  const dexcomPillValue =
+    primarySource == null
+      ? "Not configured"
+      : dexcomActive === false
+        ? "Paused"
+        : "Syncing";
+  const dexcomPillAccent =
+    primarySource != null && dexcomActive !== false
+      ? tokens.color.cyanDeep
+      : tokens.color.ink3;
+
+  const armedRules = (rulesQ.data ?? []).filter((r) => r.enabled);
+
   return (
-    <SafeAreaView style={containers.safeArea}>
-      <Header
-        title="Your Gentlys"
-        showBackButton={false}
-        rightComponent={
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: tokens.color.bg }}
+      edges={["top"]}
+    >
+      <GentlyHeader
+        right={
           <HamburgerMenu
             options={[
               {
@@ -408,73 +385,122 @@ export default function DashboardPage() {
         }
       />
 
-      {/* Content */}
-      <View style={containers.content}>
-        {!devices || devices.length === 0 ? (
-          /* Empty State */
-          <View style={emptyStates.container}>
-            <Text style={[typography.h4, { marginBottom: spacing[2] }]}>
-              No Gentlys yet
-            </Text>
-            <Text
-              style={[
-                typography.body,
-                {
-                  color: colors.text.secondary,
-                  textAlign: "center",
-                  lineHeight: 24,
-                  marginBottom: spacing[8],
-                },
-              ]}
-            >
-              Add your first Gently to get started.
-            </Text>
-            <Pressable
-              style={[
-                buttons.base,
-                buttons.large,
-                buttons.success,
-                { flexDirection: "row", gap: spacing[2], alignItems: "center" },
-              ]}
-              onPress={handleAddDevice}
-            >
-              <Ionicons name="add-circle" size={20} color="white" />
-              <Text style={buttonText.success}>Add Your First Gently</Text>
-            </Pressable>
-          </View>
-        ) : (
-          /* Device List */
-          <ScrollView
-            style={{ paddingVertical: spacing[4] }}
-            showsVerticalScrollIndicator={false}
-          >
-            {primarySource && (
-              <CurrentGlucoseCard
-                sourceId={primarySource.id}
-                unit={primarySource.unitOfMeasure ?? "mg_dl"}
-              />
-            )}
-            {devices.map((device) => (
-              <DeviceCard key={device.id} device={device} />
-            ))}
-
-            {/* Add device button */}
-            {FEATURE_FLAGS.MULTI_DEVICE_ENABLED && (
-              <Pressable
-                style={[
-                  buttons.base,
-                  buttons.large,
-                  buttons.outline,
-                  { marginTop: spacing[4] },
-                ]}
-                onPress={handleAddDevice}
-              >
-                <Text style={buttonText.outline}>+ Add Another Gently</Text>
-              </Pressable>
-            )}
-          </ScrollView>
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: tokens.spacing.pageHorizontal,
+          paddingBottom: 40,
+          paddingTop: 12,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Glucose hero card */}
+        {primarySource && (
+          <CurrentGlucoseCard
+            sourceId={primarySource.id}
+            unit={primarySource.unitOfMeasure ?? "mg_dl"}
+          />
         )}
-      </View>
+
+        {/* Status pills row */}
+        <View style={{ flexDirection: "row", gap: 10, marginBottom: 22 }}>
+          <View style={{ flex: 1 }}>
+            <StatusPill
+              icon={<Watch size={18} color={braceletPillAccent} />}
+              label="Bracelet"
+              value={braceletPillValue}
+              accentColor={braceletPillAccent}
+              dot={
+                bleConnected
+                  ? { color: tokens.color.cyan }
+                  : undefined
+              }
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <StatusPill
+              icon={<Cloud size={18} color={dexcomPillAccent} />}
+              label="Dexcom"
+              value={dexcomPillValue}
+              accentColor={dexcomPillAccent}
+            />
+          </View>
+        </View>
+
+        {/* Alarms armed section */}
+        {primarySource && (
+          <View>
+            {/* Section header */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
+              }}
+            >
+              <Text
+                style={[typographyV2.eyebrow, { color: tokens.color.ink3 }]}
+              >
+                Alarms Armed
+              </Text>
+              <Link
+                href={{
+                  pathname: "/cgm/[sourceId]/edit",
+                  params: { sourceId: primarySource.id },
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: tokens.color.cyanDeep,
+                  }}
+                >
+                  Edit
+                </Text>
+              </Link>
+            </View>
+
+            {armedRules.length === 0 && !rulesQ.isLoading && (
+              <Text
+                style={{ fontSize: 13, color: tokens.color.ink3, marginBottom: 12 }}
+              >
+                No alarms armed yet.
+              </Text>
+            )}
+
+            {armedRules.map((rule) => (
+              <AlarmRuleRow
+                key={rule.id}
+                rule={rule}
+                sourceId={primarySource.id}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Add Another Gently button — behind feature flag */}
+        {FEATURE_FLAGS.MULTI_DEVICE_ENABLED && (
+          <Pressable
+            onPress={handleAddDevice}
+            style={({ pressed }) => ({
+              marginTop: 16,
+              paddingVertical: 14,
+              borderRadius: tokens.radius.cta,
+              borderWidth: 1.5,
+              borderColor: tokens.color.rule2,
+              alignItems: "center",
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text
+              style={{ fontSize: 15, fontWeight: "600", color: tokens.color.ink2 }}
+            >
+              + Add Another Gently
+            </Text>
+          </Pressable>
+        )}
+      </ScrollView>
 
       {/* Year of Birth Modal */}
       <YearOfBirthModal
