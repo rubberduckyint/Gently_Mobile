@@ -7,6 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: IS_DEV ? "Gently - DEV" : "Gently",
   slug: "gently",
   scheme: "gently",
+  owner: "surferdave",
   version: "0.1.0",
   orientation: "portrait",
   icon: IS_DEV
@@ -49,6 +50,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: IS_DEV ? "com.gentlyus.gently.dev" : "com.gentlyus.gently",
+    googleServicesFile: "./google-services.json",
     adaptiveIcon: {
       foregroundImage: IS_DEV
         ? "./assets/gently-white-no-background-dev.png"
@@ -66,7 +68,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     eas: {
-      projectId: "e881c3b6-0d21-4cc4-8933-176c9d6eb00e",
+      projectId: "5d361b77-11db-4d28-8097-972e1975c4c1",
     },
   },
   experiments: {

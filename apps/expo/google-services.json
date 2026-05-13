@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "782842188008",
+    "project_id": "gently-cgm",
+    "storage_bucket": "gently-cgm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:782842188008:android:9925a8a716abdb921db95d",
+        "android_client_info": {
+          "package_name": "com.gentlyus.gently.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCyxvejcfv7v06GDtZ0uwxrSR5Mog2c5qA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
