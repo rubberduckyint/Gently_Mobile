@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Bell, Chev, Info } from "~/components/icons";
+import { Bell, Chev, Info, Pulse } from "~/components/icons";
 import { LevelSlider } from "~/components/cgm/AlarmDetail/LevelSlider";
 import { LightColorPicker } from "~/components/cgm/AlarmDetail/LightColorPicker";
 import { Stepper } from "~/components/ui/Stepper";
@@ -123,6 +123,18 @@ export default function EditAlarmScreen() {
     if (!draft || !rule) return false;
     return !shallowEqualRule(draft, rule);
   }, [draft, rule]);
+
+  const testRule = useMutation({
+    mutationFn: (input: {
+      ruleId: string;
+      override?: {
+        vibrationLevel?: number;
+        audioLevel?: number;
+        ledColor?: string | null;
+        durationSec?: number;
+      };
+    }) => trpc.rule.test.mutate(input),
+  });
 
   const updateRule = useMutation({
     mutationFn: (input: {
@@ -338,6 +350,124 @@ export default function EditAlarmScreen() {
             onChange={(c) => setDraft({ ...draft, ledColor: c })}
           />
         </View>
+
+        {/* Test alarm CTA */}
+        <View style={{ gap: 8 }}>
+          <Pressable
+            onPress={() => {
+              testRule.mutate({
+                ruleId: rule.id,
+                override: {
+                  vibrationLevel: draft.vibrationLevel ?? 0,
+                  audioLevel: draft.audioLevel ?? 0,
+                  ledColor: draft.ledColor ?? null,
+                  durationSec: draft.durationSec ?? 10,
+                },
+              });
+            }}
+            disabled={testRule.isPending}
+            style={[
+              tokens.shadow.primary,
+              {
+                backgroundColor: tokens.color.cyan,
+                borderRadius: tokens.radius.cta,
+                paddingVertical: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                opacity: testRule.isPending ? 0.7 : 1,
+              },
+            ]}
+            accessibilityLabel="Test this alarm"
+          >
+            {testRule.isPending ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <>
+                <Pulse size={18} color="white" />
+                <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
+                  Test this alarm
+                </Text>
+              </>
+            )}
+          </Pressable>
+
+          <Text
+            style={[
+              typographyV2.body,
+              { color: tokens.color.ink3, fontSize: 13, textAlign: "center" },
+            ]}
+          >
+            Sends the pattern above to your bracelet right now.
+          </Text>
+
+          {testRule.error && (
+            <Text
+              style={[
+                typographyV2.body,
+                { color: tokens.color.coral, fontSize: 13, textAlign: "center" },
+              ]}
+            >
+              {/rate_limit|too many/i.test(testRule.error.message)
+                ? "Too many test alarms. Try again in a minute."
+                : `Test failed: ${testRule.error.message}`}
+            </Text>
+          )}
+        </View>
+
+        {/* Timing */}
+        <View
+          style={[
+            tokens.shadow.card,
+            {
+              backgroundColor: tokens.color.card,
+              borderRadius: tokens.radius.list,
+              paddingHorizontal: tokens.spacing.cardInternal,
+            },
+          ]}
+        >
+          <TimingRow
+            label="Duration"
+            value={draft.durationSec}
+            onChange={(v) => setDraft({ ...draft, durationSec: v ?? 10 })}
+            nullable={false}
+            suffix="sec"
+          />
+          <View style={{ height: 1, backgroundColor: tokens.color.rule }} />
+          <TimingRow
+            label="Repeat after"
+            value={draft.repeatAfterMin ?? null}
+            onChange={(v) => setDraft({ ...draft, repeatAfterMin: v })}
+            nullable
+            suffix="min"
+          />
+          <View style={{ height: 1, backgroundColor: tokens.color.rule }} />
+          <TimingRow
+            label="Escalate after"
+            value={draft.escalateAfterMin ?? null}
+            onChange={(v) => setDraft({ ...draft, escalateAfterMin: v })}
+            nullable
+            suffix="min"
+          />
+        </View>
+
+        {/* Footer */}
+        <Text
+          style={[
+            typographyV2.body,
+            {
+              color: tokens.color.ink3,
+              fontSize: 12,
+              textAlign: "center",
+              marginTop: 4,
+              marginBottom: 16,
+            },
+          ]}
+        >
+          Secondary alert only. Keep your Dexcom alerts on — Gently is here to make
+          sure you notice.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -455,6 +585,59 @@ function ThresholdHeroCard({
           </Text>
         </View>
       )}
+    </View>
+  );
+}
+
+function TimingRow({
+  label,
+  value,
+  onChange,
+  nullable,
+  suffix,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (next: number | null) => void;
+  nullable?: boolean;
+  suffix: string;
+}) {
+  const [localDraft, setLocalDraft] = useState(value === null ? "" : String(value));
+
+  useEffect(() => {
+    setLocalDraft(value === null ? "" : String(value));
+  }, [value]);
+
+  function commit() {
+    if (localDraft === "" && nullable) {
+      onChange(null);
+      return;
+    }
+    const n = parseInt(localDraft, 10);
+    if (Number.isNaN(n)) {
+      setLocalDraft(value === null ? "" : String(value));
+      return;
+    }
+    onChange(n);
+  }
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14 }}>
+      <Text style={[typographyV2.body, { flex: 1, color: tokens.color.ink }]}>{label}</Text>
+      <TextInput
+        value={localDraft}
+        onChangeText={setLocalDraft}
+        onBlur={commit}
+        keyboardType="number-pad"
+        placeholder={nullable ? "Off" : "0"}
+        placeholderTextColor={tokens.color.ink3}
+        style={{ minWidth: 60, textAlign: "right", color: tokens.color.ink, fontSize: 16 }}
+      />
+      <Text
+        style={[typographyV2.body, { color: tokens.color.ink3, marginLeft: 4 }]}
+      >
+        {suffix}
+      </Text>
     </View>
   );
 }
