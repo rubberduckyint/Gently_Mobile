@@ -87,7 +87,7 @@ export default function ConnectDexcomPage() {
     }) => trpc.dexcom.create.mutate(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dexcom", "list"] });
-      router.replace("/cgm");
+      router.replace("/dashboard");
     },
   });
 
