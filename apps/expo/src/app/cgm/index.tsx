@@ -16,10 +16,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { Redirect, router, useFocusEffect } from "expo-router";
+import type { RelativePathString } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "~/utils/api";
+import { FEATURE_FLAGS } from "~/config/feature-flags";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { Header } from "~/components/ui/Header";
 import {
@@ -223,6 +225,24 @@ export default function CgmSourcesPage() {
           </Pressable>
         </View>
       </SafeAreaView>
+    );
+  }
+
+  if (!FEATURE_FLAGS.MULTI_DEVICE_ENABLED) {
+    const first = (data ?? [])[0];
+    if (first) {
+      return (
+        <Redirect
+          href={{
+            pathname: "/cgm/[sourceId]/edit",
+            params: { sourceId: first.id },
+          }}
+        />
+      );
+    }
+    // No source yet — send back to the onboarding connect step.
+    return (
+      <Redirect href={"/(onboarding)/connect-dexcom" as RelativePathString} />
     );
   }
 
