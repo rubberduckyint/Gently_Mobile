@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:782842188008:android:b0a160295c11017d1db95d",
+        "android_client_info": {
+          "package_name": "com.gentlyus.gently"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCyxvejcfv7v06GDtZ0uwxrSR5Mog2c5qA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:782842188008:android:9925a8a716abdb921db95d",
         "android_client_info": {
           "package_name": "com.gentlyus.gently.dev"
