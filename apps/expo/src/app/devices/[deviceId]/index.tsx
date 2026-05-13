@@ -23,7 +23,6 @@ import { useQuery } from "@tanstack/react-query";
 import { RetryConnectionModal } from "~/components/RetryConnectionModal";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { Header } from "~/components/ui/Header";
-import { HelpModal } from "~/components/ui/HelpModal";
 import { useBLE } from "~/contexts/BLEContext";
 import { createTriggerAudioPatternRequest } from "~/services/ble/commands/triggerAudioPattern";
 import { createTriggerLedPatternRequest } from "~/services/ble/commands/triggerLedPattern";
@@ -38,7 +37,6 @@ import {
 } from "~/styles";
 import { trpc } from "~/utils/api";
 import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
-import { markOnboardingComplete } from "~/utils/userPreferences";
 
 export default function DeviceDetailPage() {
   const { deviceId } = useGlobalSearchParams<{ deviceId: string }>();
@@ -50,7 +48,6 @@ export default function DeviceDetailPage() {
   } | null>(null);
   const [showRetryModal, setShowRetryModal] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Store the initial device ID to prevent it from changing during navigation
   const [initialDeviceId] = useState(() => {
@@ -543,11 +540,6 @@ export default function DeviceDetailPage() {
           <HamburgerMenu
             options={[
               {
-                label: "Help",
-                onPress: () => setShowHelpModal(true),
-                icon: "help-circle",
-              },
-              {
                 label: "User Settings",
                 onPress: () => router.push("/settings"),
                 icon: "settings",
@@ -882,15 +874,6 @@ export default function DeviceDetailPage() {
         connectionError={connectionError}
         onRetry={handleReconnect}
         onClose={() => setShowRetryModal(false)}
-      />
-
-      {/* Help Modal */}
-      <HelpModal
-        visible={showHelpModal}
-        onClose={async () => {
-          setShowHelpModal(false);
-          await markOnboardingComplete();
-        }}
       />
     </SafeAreaView>
   );

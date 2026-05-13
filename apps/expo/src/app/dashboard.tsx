@@ -14,7 +14,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RouterOutputs } from "~/utils/api";
 import { HamburgerMenu } from "~/components/ui/HamburgerMenu";
 import { sourceMenuItem } from "~/components/ui/hamburger-items";
-import { HelpModal } from "~/components/ui/HelpModal";
 import { YearOfBirthModal } from "~/components/ui/YearOfBirthModal";
 import { GentlyHeader } from "~/components/brand/GentlyHeader";
 import { CurrentGlucoseCard } from "~/components/cgm/CurrentGlucoseCard";
@@ -33,13 +32,7 @@ import {
   clearUserIdentity,
   identifyUser,
   trackLogout,
-  trackOnboardingCompleted,
 } from "~/services/analytics";
-import {
-  hasSeenOnboarding,
-  markOnboardingComplete,
-  resetOnboarding,
-} from "~/utils/userPreferences";
 import { useBLE } from "~/contexts/BLEContext";
 // Range bar deferred per coordinator decision 2026-05-13
 
@@ -193,7 +186,6 @@ export default function DashboardPage() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const [showYearOfBirthModal, setShowYearOfBirthModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const { connectionState } = useBLE();
 
@@ -211,18 +203,12 @@ export default function DashboardPage() {
     }
   }, [session?.user?.id]);
 
-  // Check if user needs to provide year of birth and/or see onboarding
+  // Show year-of-birth modal once the profile loads if it's missing
   useEffect(() => {
-    const checkUserStatus = async () => {
-      if (!userProfile) return;
-      const hasSeenHelp = await hasSeenOnboarding();
-      if (!userProfile.yearOfBirth) {
-        setShowYearOfBirthModal(true);
-      } else if (!hasSeenHelp) {
-        setShowHelpModal(true);
-      }
-    };
-    void checkUserStatus();
+    if (!userProfile) return;
+    if (!userProfile.yearOfBirth) {
+      setShowYearOfBirthModal(true);
+    }
   }, [userProfile]);
 
   const devicesQ = useQuery({
@@ -267,7 +253,6 @@ export default function DashboardPage() {
     mutationFn: async () => {
       trackLogout();
       await clearUserIdentity();
-      await resetOnboarding();
       await authClient.signOut();
     },
     onSuccess: () => {
@@ -286,10 +271,6 @@ export default function DashboardPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["userProfile"] });
       setShowYearOfBirthModal(false);
-      const hasSeenHelp = await hasSeenOnboarding();
-      if (!hasSeenHelp) {
-        setShowHelpModal(true);
-      }
     },
     onError: (error) => {
       console.error("Failed to update year of birth:", error);
@@ -363,11 +344,6 @@ export default function DashboardPage() {
         right={
           <HamburgerMenu
             options={[
-              {
-                label: "Help",
-                onPress: () => setShowHelpModal(true),
-                icon: "help-circle",
-              },
               ...(dexcomItem ? [dexcomItem] : []),
               {
                 label: "User Settings",
@@ -507,16 +483,6 @@ export default function DashboardPage() {
         visible={showYearOfBirthModal}
         onComplete={handleYearOfBirthComplete}
         isLoading={updateYearOfBirthMutation.isPending}
-      />
-
-      {/* Help Modal */}
-      <HelpModal
-        visible={showHelpModal}
-        onClose={async () => {
-          setShowHelpModal(false);
-          await markOnboardingComplete();
-          trackOnboardingCompleted();
-        }}
       />
     </SafeAreaView>
   );

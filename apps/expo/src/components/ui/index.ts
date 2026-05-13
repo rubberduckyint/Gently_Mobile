@@ -42,7 +42,6 @@ export { LoadingState } from "./LoadingState";
 export { EmptyState } from "./EmptyState";
 
 // Modals
-export { HelpModal } from "./HelpModal";
 export { YearOfBirthModal } from "./YearOfBirthModal";
 
 // Shared UI primitives (onboarding + dashboard + alarm-detail)
