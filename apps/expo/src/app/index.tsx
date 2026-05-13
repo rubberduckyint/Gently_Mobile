@@ -15,6 +15,7 @@ import type { RelativePathString } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 
 import { GoogleIcon } from "~/components/GoogleIcon";
+import { GentlyWordmark } from "~/components/brand/GentlyWordmark";
 import {
   identifyUser,
   trackLoginAttempt,
@@ -35,6 +36,8 @@ import {
   spacing,
   typography,
 } from "~/styles";
+import { tokens } from "~/styles/tokens";
+import { typographyV2 } from "~/styles/typographyV2";
 import { completeAppleSignIn, isAppleAuthAvailable } from "~/utils/appleAuth";
 import { authClient, GoogleSignin } from "~/utils/auth";
 import { isTestUser, isValidTestOtp, TEST_USER_OTP } from "~/utils/testMode";
@@ -358,7 +361,9 @@ export default function LoginPage() {
   // Show loading while checking authentication status
   if (isPending) {
     return (
-      <SafeAreaView style={containers.safeArea}>
+      <SafeAreaView
+        style={[containers.safeArea, { backgroundColor: tokens.color.card }]}
+      >
         <View style={commonStyles.fullScreenLoading}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
           <Text
@@ -375,18 +380,34 @@ export default function LoginPage() {
   }
 
   return (
-    <SafeAreaView style={containers.safeArea}>
+    <SafeAreaView
+      style={[containers.safeArea, { backgroundColor: tokens.color.card }]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={containers.screen}
+        style={[containers.screen, { backgroundColor: tokens.color.card }]}
       >
         <View style={otpSent ? containers.content : containers.contentCentered}>
           {/* Add top spacing for OTP screen */}
           {otpSent && <View style={{ height: spacing[4] }} />}
 
           {/* Header */}
-          <View style={commonStyles.headerSection}>
-            <Text style={typography.h1}>Welcome to Gently</Text>
+          <View style={[commonStyles.headerSection, { alignItems: "center" }]}>
+            <View style={{ marginTop: spacing[8], marginBottom: spacing[6] }}>
+              <GentlyWordmark size={32} markSize={32} />
+            </View>
+            <Text
+              style={[
+                typographyV2.h1Onboarding,
+                {
+                  color: tokens.color.cyanDeep,
+                  textAlign: "center",
+                  marginBottom: spacing[2],
+                },
+              ]}
+            >
+              Welcome to Gently
+            </Text>
             <Text style={[typography.subtitle, { textAlign: "center" }]}>
               {otpSent
                 ? "Enter the verification code from your email"
