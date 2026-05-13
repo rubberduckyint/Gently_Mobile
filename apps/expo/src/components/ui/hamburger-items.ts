@@ -17,14 +17,15 @@ export function sourceMenuItem(opts: {
       onPress: () => router.push("/cgm"),
     };
   }
-  if (opts.primarySourceId) {
+  const sourceId = opts.primarySourceId;
+  if (sourceId) {
     return {
       label: "Dexcom Source",
       icon,
       onPress: () =>
         router.push({
           pathname: "/cgm/[sourceId]/edit",
-          params: { sourceId: opts.primarySourceId! },
+          params: { sourceId },
         }),
     };
   }
