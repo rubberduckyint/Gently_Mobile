@@ -52,6 +52,14 @@ const KIND_LABELS: Record<string, string> = {
   tir_breach: "TIR Breach",
 };
 
+// Diabetes-pack display order: high first, then severity-ascending lows.
+// Unlisted kinds (metabolic pack, etc.) fall to the end in tRPC order.
+const KIND_ORDER: Record<string, number> = {
+  high: 0,
+  low: 1,
+  critical_low: 2,
+};
+
 function kindToTint(kind: string): { bg: string; fg: string } {
   switch (kind) {
     case "critical_low":
@@ -334,6 +342,9 @@ export default function DashboardPage() {
       : tokens.color.ink3;
 
   const armedRules = (rulesQ.data ?? []).filter((r) => r.enabled);
+  const orderedRules = [...armedRules].sort(
+    (a, b) => (KIND_ORDER[a.kind] ?? 99) - (KIND_ORDER[b.kind] ?? 99),
+  );
 
   return (
     <SafeAreaView
@@ -445,7 +456,7 @@ export default function DashboardPage() {
               </Text>
             )}
 
-            {armedRules.map((rule) => (
+            {orderedRules.map((rule) => (
               <AlarmRuleRow
                 key={rule.id}
                 rule={rule}
