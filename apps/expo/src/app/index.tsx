@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import type { RelativePathString } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 
 import { GoogleIcon } from "~/components/GoogleIcon";
@@ -51,7 +52,7 @@ export default function LoginPage() {
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (session?.user) {
-      router.replace("/dashboard");
+      router.replace("/(onboarding)" as RelativePathString);
     }
   }, [session]);
 
@@ -159,7 +160,7 @@ export default function LoginPage() {
         if (data?.user?.id) {
           void identifyUser(data.user.id);
         }
-        router.replace("/dashboard");
+        router.replace("/(onboarding)" as RelativePathString);
       } catch (error) {
         console.error("🧪 [Test Mode] Error:", error);
         setOtpError("Test user verification failed.");
@@ -206,7 +207,7 @@ export default function LoginPage() {
       if (data?.user?.id) {
         void identifyUser(data.user.id);
       }
-      router.replace("/dashboard");
+      router.replace("/(onboarding)" as RelativePathString);
     } catch (error: unknown) {
       console.error("❌ Unexpected error during OTP verification:", error);
       setOtpError("An unexpected error occurred. Please try again.");
@@ -277,7 +278,7 @@ export default function LoginPage() {
         console.log("Better-auth Google signin successful");
         trackLoginSuccess("google");
         // Note: User identification happens after session is established
-        router.replace("/dashboard");
+        router.replace("/(onboarding)" as RelativePathString);
       } else {
         throw new Error("No ID token received from Google");
       }
@@ -336,7 +337,7 @@ export default function LoginPage() {
         console.log("✅ Apple Sign In successful, navigating to dashboard");
         trackLoginSuccess("apple");
         // Note: User identification happens after session is established
-        router.replace("/dashboard");
+        router.replace("/(onboarding)" as RelativePathString);
       } else {
         console.error("❌ Apple Sign In failed:", result.error);
         trackLoginError("apple", result.error ?? "Unknown error");

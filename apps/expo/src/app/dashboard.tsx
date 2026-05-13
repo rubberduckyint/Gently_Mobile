@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router, useFocusEffect } from "expo-router";
+import type { RelativePathString } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -43,6 +44,7 @@ import {
 } from "~/styles";
 import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
+import { nextOnboardingRoute } from "~/utils/onboarding-gate";
 import { devicesBeingDeleted } from "~/utils/deviceDeletionTracker";
 import {
   hasSeenOnboarding,
@@ -229,6 +231,25 @@ export default function DashboardPage() {
     staleTime: 0,
     gcTime: 0,
   });
+
+  const sourcesQ = useQuery({
+    queryKey: ["dexcom", "list"],
+    queryFn: () => trpc.dexcom.list.query(),
+    enabled: !!session?.user,
+  });
+
+  useEffect(() => {
+    if (isLoading || sourcesQ.isLoading) return;
+    const next = nextOnboardingRoute({
+      hasBracelet: (devices ?? []).length > 0,
+      sources: (sourcesQ.data ?? []).map((s) => ({
+        id: s.id,
+        displayName: s.displayName,
+        active: s.dexcom?.active ?? true,
+      })),
+    });
+    if (next) router.replace(next as RelativePathString);
+  }, [isLoading, sourcesQ.isLoading, devices, sourcesQ.data]);
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
