@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@better-auth/expo": "catalog:",
+    "@expo-google-fonts/inter": "^0.4.2",
     "@expo/dom-webview": "^0.2.8",
     "@expo/metro-runtime": "6.2.0-canary-20260121-a63c0dd",
     "@expo/vector-icons": "^15.0.3",
@@ -36,6 +37,7 @@
     "expo-crypto": "15.1.0-canary-20260121-a63c0dd",
     "expo-dev-client": "6.1.0-canary-20260121-a63c0dd",
     "expo-device": "8.0.11-canary-20260121-a63c0dd",
+    "expo-font": "14.1.0-canary-20260121-a63c0dd",
     "expo-linking": "8.0.12-canary-20260121-a63c0dd",
     "expo-location": "19.1.0-canary-20260121-a63c0dd",
     "expo-notifications": "1.0.0-canary-20260121-a63c0dd",

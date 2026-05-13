@@ -19,6 +19,7 @@ export * from "./components";
 export * from "./accessibleLayouts";
 
 export { tokens } from "./tokens";
+export { typographyV2, tabularNums } from "./typographyV2";
 
 export const commonStyles = {
   // Centered content
