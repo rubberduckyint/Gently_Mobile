@@ -10,7 +10,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { LevelSlider } from "./LevelSlider";
-import { LightColorPicker } from "./LightColorPicker";
+import { LightColorPicker } from "./AlarmDetail/LightColorPicker";
 import type { RouterOutputs } from "~/utils/api";
 import { trpc } from "~/utils/api";
 import type { GlucoseUnit } from "~/utils/glucose-units";
