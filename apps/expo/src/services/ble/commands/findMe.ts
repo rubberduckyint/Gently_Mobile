@@ -21,7 +21,7 @@ export function createFindMeRequest(
 
   return {
     command: CommandCode.FIND_ME,
-    apiVersion: 1,
+    apiVersion: 2,
     payload: new Uint8Array([audioPattern & 0xff]),
   };
 }

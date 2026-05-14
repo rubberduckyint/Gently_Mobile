@@ -110,7 +110,13 @@ export const BLE_RESPONSE_CHARACTERISTIC_UUID =
 export const FACTORY_BRACELET_KEY = "43EA5F35659859874A6F184742C32B2B";
 
 // API Version
-export const API_VERSION = 0x01;
+// Firmware V1.2.0-1 uses API version 2 (per "P308 - 2101 Rev 0.7 - Gently
+// Bracelet Secure Bluetooth Communication Protocol [API 2].pdf"). The firmware
+// enforces this at bt_manager.c:807 (BLE_PROTOCOL_VERSION check against
+// ble/inc/ble_types.h:14). Every outgoing command's byte 0 and every incoming
+// response's byte 0 must be 0x02. Was previously 0x01 (Rev 0.3 / API 1, the
+// DK test build's protocol); API 2 was a breaking-change release.
+export const API_VERSION = 0x02;
 
 // Vibration patterns for preview
 export enum VibrationPattern {
@@ -141,10 +147,15 @@ export enum CommandCode {
   ENTER_DFU_MODE = 0x11,
   REBOOT_BRACELET = 0x12,
   SET_DYNAMIC_KEY = 0x13,
-  // Trigger pattern commands
-  TRIGGER_LED_PATTERN = 0x14,
-  TRIGGER_VIBRATION_PATTERN = 0x15,
-  TRIGGER_AUDIO_PATTERN = 0x16,
+  // Trigger pattern commands. Opcodes are API-2 values per firmware
+  // engineer's spec (bt_manager.c FINDME=0x10, TRIGGER_LED=0x41,
+  // TRIGGER_AUDIO=0x42, TRIGGER_VIBRATION=0x43). The old 0x14/0x15/0x16
+  // values were API-1 codes — firmware V1.2.0-1 returns Status ERROR if
+  // those are sent. See the API 1 → API 2 breaking-change migration note
+  // in coordinator memory [[project-srf-deferred-threads]].
+  TRIGGER_LED_PATTERN = 0x41,
+  TRIGGER_AUDIO_PATTERN = 0x42,
+  TRIGGER_VIBRATION_PATTERN = 0x43,
   // Notifications
   BATTERY_STATUS_NOTIFY = 0x80,
   ACTIVE_EVENT_NOTIFY = 0x81,

@@ -34,7 +34,7 @@ export function createSetTimeRequest(
 
   return {
     command: CommandCode.SET_TIME,
-    apiVersion: 1,
+    apiVersion: 2,
     payload,
   };
 }

@@ -17,7 +17,7 @@ import { CommandCode } from "~/services/ble/types";
 export function createEnterDfuModeRequest(): BLECommandRequest {
   return {
     command: CommandCode.ENTER_DFU_MODE,
-    apiVersion: 1,
+    apiVersion: 2,
     // No payload needed for this command
   };
 }

@@ -48,10 +48,15 @@ export function createTriggerVibrationPatternRequest(
   const payload = new Uint8Array(8).fill(0);
   let offset = 0;
 
-  // Byte #0: Combined vibration byte
-  // Bits 0-5: Vibration Pattern (0-63)
-  // Bits 6-7: Vibration Intensity (0-3)
-  const vibrationByte = (patternNum & 0x3f) | ((intensityNum & 0x03) << 6);
+  // Byte #0: Combined vibration param byte. Firmware reads this bitfield
+  // LSB-first per app_types.h:107-110 (GCC on ARM-LE packs LSB-first):
+  //   bit 0-1: intensity (2 bits, 0=LOW..3=MAXIMUM)
+  //   bit 2-7: pattern   (6 bits, 0=QUICK..3=SYMPHONY, room for more)
+  // Compose: param = (pattern << 2) | (intensity & 0x03)
+  // The reverse ordering (pattern in low bits, intensity in high bits) was
+  // the original implementation and the firmware engineer flagged it as the
+  // #1 common mistake — produces junk vibration on the bracelet.
+  const vibrationByte = ((patternNum & 0x3f) << 2) | (intensityNum & 0x03);
   payload[offset++] = vibrationByte;
 
   // Byte #1: Total duration in seconds

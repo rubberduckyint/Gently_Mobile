@@ -18,7 +18,7 @@ export const GET_DEVICE_INFO_TIMEOUT_MS = 5000;
 export function createGetDeviceInfoRequest(): BLECommandRequest {
   return {
     command: CommandCode.GET_DEVICE_INFO,
-    apiVersion: 1,
+    apiVersion: 2,
   };
 }
 

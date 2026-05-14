@@ -20,7 +20,7 @@ export interface TimeResponse {
 export function createGetTimeRequest(): BLECommandRequest {
   return {
     command: CommandCode.GET_TIME,
-    apiVersion: 1,
+    apiVersion: 2,
   };
 }
 

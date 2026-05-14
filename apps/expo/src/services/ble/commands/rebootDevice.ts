@@ -14,7 +14,7 @@ import { CommandCode, ResponseStatus } from "~/services/ble/types";
 export function createRebootDeviceRequest(): BLECommandRequest {
   return {
     command: CommandCode.REBOOT_BRACELET,
-    apiVersion: 1,
+    apiVersion: 2,
     payload: new Uint8Array(0), // No payload needed for reboot
   };
 }

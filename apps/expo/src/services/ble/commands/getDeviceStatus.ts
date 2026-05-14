@@ -18,7 +18,7 @@ export interface DeviceStatusResponse {
 export function createGetDeviceStatusRequest(): BLECommandRequest {
   return {
     command: CommandCode.GET_DEVICE_STATUS,
-    apiVersion: 1,
+    apiVersion: 2,
   };
 }
 

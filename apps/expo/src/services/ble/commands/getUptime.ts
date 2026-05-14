@@ -16,7 +16,7 @@ export const GET_UPTIME_TIMEOUT_MS = 5000;
 export function createGetUptimeRequest(): BLECommandRequest {
   return {
     command: CommandCode.GET_UPTIME,
-    apiVersion: 1,
+    apiVersion: 2,
   };
 }
 
