@@ -246,78 +246,17 @@ export default function DeviceDetailPage() {
     }
   }, [error, initialDeviceId, deviceId]);
 
-  // Auto-connect to device when page loads
-  useEffect(() => {
-    const autoConnect = async () => {
-      if (autoConnectAttempted) {
-        return;
-      }
-
-      if (
-        !isMountedRef.current ||
-        !deviceId ||
-        !initialDeviceId ||
-        devicesBeingDeleted.has(deviceId) ||
-        !device?.serialNumber ||
-        error ||
-        connectionState === "connected" ||
-        connectionState === "connecting"
-      ) {
-        if (devicesBeingDeleted.has(deviceId)) {
-          console.log(
-            "Skipping auto-connect - device is being deleted:",
-            deviceId,
-          );
-        }
-        return;
-      }
-
-      console.log("Auto-connecting to device:", device.serialNumber);
-
-      try {
-        await connectToDevice(
-          device.serialNumber,
-          (progress) => {
-            setConnectionProgress({
-              message: progress.message,
-              progress: progress.progress,
-            });
-            console.log(
-              `[Auto-connect Progress] ${progress.message} (${progress.progress}%)`,
-            );
-          },
-          {
-            maxRetries: 3,
-            connectionTimeoutMs: 60000,
-            stabilizationDelayMs: 900,
-            mtuSize: 512,
-            scanTimeoutSeconds: 30,
-          },
-        );
-        console.log("Auto-connect successful!");
-        setConnectionProgress(null);
-        setConnectionError(null);
-        setAutoConnectAttempted(true);
-      } catch (error) {
-        console.warn("Auto-connect failed:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        setConnectionError(errorMessage);
-        setConnectionProgress(null);
-        setShowRetryModal(true);
-        setAutoConnectAttempted(true);
-      }
-    };
-
-    void autoConnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    device?.serialNumber,
-    deviceId,
-    initialDeviceId,
-    autoConnectAttempted,
-    error,
-  ]);
+  // Auto-connect-on-mount intentionally disabled 2026-05-14. This screen used
+  // to fire `connectToDevice(serialNumber, ...)` on mount, which runs
+  // scan-by-serial — but the bracelet does NOT advertise post-pairing, so the
+  // scan always times out. Worse, it sets BLEContext.connectionState to
+  // "scanning"/"connecting", which fights the BLE-context-level periodic
+  // reconnect loop and prevents real reconnect attempts. BLEContext is now
+  // the sole reconnect authority — it polls every 15s while disconnected and
+  // calls `BleManager.connect(id)` directly using the stored peripheralId
+  // (no scan needed since the bracelet is OS-known). The "Reconnecting…" UI
+  // on this screen still reflects connectionState from BLEContext, so the
+  // user-facing behavior is preserved.
 
   // Handle manual reconnect
   const handleReconnect = async () => {

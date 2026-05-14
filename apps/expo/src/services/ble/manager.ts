@@ -15,6 +15,23 @@ import {
   BLE_SERVICE_UUID,
 } from "./types";
 
+// Match the bracelet's response characteristic in either UUID form.
+// react-native-ble-manager delivers notification events with `characteristic`
+// in the form the device exposes it — Gently firmware uses the short 16-bit
+// form (`f024`). Our Android code uses the full 128-bit form
+// (`0000F024-...-9B34FB`) as the canonical constant. Strict-equal comparison
+// misses notifications when the forms don't match; the write goes out, the
+// bracelet replies, but our listener filters out the response and the command
+// times out after 5s. This helper accepts either representation.
+function isResponseCharacteristic(uuid: string): boolean {
+  const upper = uuid.toUpperCase();
+  return (
+    upper === BLE_RESPONSE_CHARACTERISTIC_UUID.toUpperCase() ||
+    upper === "0000F024-0000-1000-8000-00805F9B34FB" ||
+    upper === "F024"
+  );
+}
+
 export interface BLECommand {
   peripheralId: string;
   command: BLECommandRequest;
@@ -122,11 +139,10 @@ export async function sendMultiPacketCommand<T>(
       // Set up response listener for multiple packets
       responseListener = BleManager.onDidUpdateValueForCharacteristic(
         (data: BleManagerDidUpdateValueForCharacteristicEvent) => {
-          const isCharacteristicMatch =
-            data.characteristic.toUpperCase() ===
-            BLE_RESPONSE_CHARACTERISTIC_UUID.toUpperCase();
-
-          if (data.peripheral === peripheralId && isCharacteristicMatch) {
+          if (
+            data.peripheral === peripheralId &&
+            isResponseCharacteristic(data.characteristic)
+          ) {
             try {
               console.log(
                 `📥 Received multi-packet response from ${peripheralId}`,
@@ -188,23 +204,26 @@ export async function sendMultiPacketCommand<T>(
       }
 
       const dataToSend = Array.from(encryptedPacket);
-      console.log(`  - Sending ${dataToSend.length} bytes encrypted`);
+      console.log(
+        `  - Sending ${dataToSend.length} bytes encrypted:`,
+        dataToSend
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(" ")
+          .toUpperCase(),
+      );
 
-      const writePromise =
-        Platform.OS === "ios"
-          ? BleManager.write(
-              peripheralId,
-              BLE_SERVICE_UUID,
-              BLE_REQUEST_CHARACTERISTIC_UUID,
-              dataToSend,
-              dataToSend.length,
-            )
-          : BleManager.writeWithoutResponse(
-              peripheralId,
-              BLE_SERVICE_UUID,
-              BLE_REQUEST_CHARACTERISTIC_UUID,
-              dataToSend,
-            );
+      // Bracelet's F023 characteristic exposes only WRITE (not
+      // WRITE_WITHOUT_RESPONSE) per nRF Connect inspection. Calling
+      // writeWithoutResponse on a WRITE-only characteristic causes Android's
+      // BLE stack to silently drop the bytes — no error to JS, no bytes to
+      // peripheral. Always use Write Request (BleManager.write).
+      const writePromise = BleManager.write(
+        peripheralId,
+        BLE_SERVICE_UUID,
+        BLE_REQUEST_CHARACTERISTIC_UUID,
+        dataToSend,
+        dataToSend.length,
+      );
 
       writePromise.catch((error) => {
         console.error(`❌ Failed to send multi-packet command:`, error);
@@ -291,11 +310,19 @@ async function validateBLEConnection(peripheralId: string): Promise<void> {
   // Retrieve and check services
   try {
     const peripheralInfo = await BleManager.retrieveServices(peripheralId);
-    const hasService = peripheralInfo.services?.some(
-      (service) =>
-        service.uuid.toUpperCase() === BLE_SERVICE_UUID.toUpperCase() ||
-        service.uuid.toUpperCase() === "0000F021-0000-1000-8000-00805F9B34FB",
-    );
+    // Accept the bracelet's service UUID in either form: full 128-bit
+    // (`0000F021-...-9B34FB`) or short 16-bit (`F021`). react-native-ble-manager
+    // returns whatever form the device advertised — Gently firmware uses the
+    // short form, so on Android the services list contains `f021`. Strict
+    // comparison against just the full form misses this and fails validation.
+    const hasService = peripheralInfo.services?.some((service) => {
+      const uuid = service.uuid.toUpperCase();
+      return (
+        uuid === BLE_SERVICE_UUID.toUpperCase() ||
+        uuid === "0000F021-0000-1000-8000-00805F9B34FB" ||
+        uuid === "F021"
+      );
+    });
 
     if (!hasService) {
       console.warn(
@@ -361,12 +388,10 @@ export async function sendCommand({
       // Set up response listener
       responseListener = BleManager.onDidUpdateValueForCharacteristic(
         (data: BleManagerDidUpdateValueForCharacteristicEvent) => {
-          // Check if this is the response characteristic for our platform
-          const isCharacteristicMatch =
-            data.characteristic.toUpperCase() ===
-            BLE_RESPONSE_CHARACTERISTIC_UUID.toUpperCase();
-
-          if (data.peripheral === peripheralId && isCharacteristicMatch) {
+          if (
+            data.peripheral === peripheralId &&
+            isResponseCharacteristic(data.characteristic)
+          ) {
             try {
               console.log(`📥 Received response from ${peripheralId}`);
 
@@ -427,25 +452,24 @@ export async function sendCommand({
 
       // Send the encrypted packet
       const dataToSend = Array.from(encryptedPacket);
-      console.log(`  - Sending ${dataToSend.length} bytes encrypted`);
+      console.log(
+        `  - Sending ${dataToSend.length} bytes encrypted:`,
+        dataToSend
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(" ")
+          .toUpperCase(),
+      );
 
-      // Platform-specific BLE write methods - use write() for iOS, writeWithoutResponse() for Android
-      const writePromise =
-        Platform.OS === "ios"
-          ? BleManager.write(
-              peripheralId,
-              BLE_SERVICE_UUID,
-              BLE_REQUEST_CHARACTERISTIC_UUID,
-              dataToSend,
-              dataToSend.length, // Add length parameter for consistency
-            )
-          : BleManager.writeWithoutResponse(
-              peripheralId,
-              BLE_SERVICE_UUID,
-              BLE_REQUEST_CHARACTERISTIC_UUID,
-              dataToSend,
-              dataToSend.length,
-            );
+      // Bracelet's F023 characteristic exposes only WRITE (not
+      // WRITE_WITHOUT_RESPONSE) per nRF Connect inspection. Use Write Request
+      // on both platforms.
+      const writePromise = BleManager.write(
+        peripheralId,
+        BLE_SERVICE_UUID,
+        BLE_REQUEST_CHARACTERISTIC_UUID,
+        dataToSend,
+        dataToSend.length,
+      );
 
       writePromise.catch((error) => {
         console.error(`❌ Failed to send command ${command.command}:`, error);

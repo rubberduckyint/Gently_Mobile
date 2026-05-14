@@ -156,8 +156,8 @@ importers:
         specifier: 0.83.1
         version: 0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3)
       react-native-ble-manager:
-        specifier: ^12.4.4
-        version: 12.4.4(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3))(react@19.2.3)
+        specifier: ^12.4.5
+        version: 12.4.5(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3))(react@19.2.3)
       react-native-gesture-handler:
         specifier: ~2.30.0
         version: 2.30.0(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3))(react@19.2.3)
@@ -5037,8 +5037,8 @@ packages:
   react-is@19.2.0:
     resolution: {integrity: sha512-x3Ax3kNSMIIkyVYhWPyO09bu0uttcAIoecO/um/rKGQ4EltYWVYtyiGkS/3xMynrbVQdS69Jhlv8FXUEZehlzA==}
 
-  react-native-ble-manager@12.4.4:
-    resolution: {integrity: sha512-XdDdvJsIQ+MolGIC1sozKs/bJ+IB+2xMUEjnos2Sjs3ww1qWkNBM471b3LO7x3NQSRHH0Bhjh4hpPsOCw4EsVg==}
+  react-native-ble-manager@12.4.5:
+    resolution: {integrity: sha512-vVo4Ob9gdGOAjJnGr23ebZiUp2/4YBk9I7rAtFKguEdd5vu5ZPHQNXAz3GDV0bcaQ2Huepd1I4rwpmWQ6cMLxg==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -11793,7 +11793,7 @@ snapshots:
 
   react-is@19.2.0: {}
 
-  react-native-ble-manager@12.4.4(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3))(react@19.2.3):
+  react-native-ble-manager@12.4.5(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3))(react@19.2.3):
     dependencies:
       react: 19.2.3
       react-native: 0.83.1(@babel/core@7.28.6)(@types/react@19.2.9)(bufferutil@4.0.9)(react@19.2.3)

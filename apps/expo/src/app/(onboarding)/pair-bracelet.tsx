@@ -1,6 +1,6 @@
 import type { Peripheral } from "react-native-ble-manager";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Text, View } from "react-native";
+import { Alert, Linking, PermissionsAndroid, Platform, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -71,6 +71,67 @@ export default function PairBraceletScreen() {
 
   const startScan = async () => {
     if (!isMountedRef.current) return;
+
+    // Permission gate. The BLEContext-level requestBluetoothPermissions runs
+    // at app boot but users frequently miss / dismiss the prompt, leaving them
+    // staring at a silently-failing scan. Re-check here at the natural moment
+    // (user is about to look for their bracelet) and re-prompt or send them
+    // to Settings if denied with NEVER_ASK_AGAIN.
+    if (Platform.OS === "android" && !isTestUser) {
+      const apiLevel = Number(Platform.Version);
+      const required = apiLevel >= 31
+        ? [
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          ]
+        : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+
+      const granted = await Promise.all(
+        required.map((p) => PermissionsAndroid.check(p)),
+      );
+      const anyMissing = granted.some((g) => !g);
+      if (anyMissing) {
+        const results = await PermissionsAndroid.requestMultiple(required);
+        const everyGranted = Object.values(results).every(
+          (r) => r === PermissionsAndroid.RESULTS.GRANTED,
+        );
+        const neverAskAgain = Object.values(results).some(
+          (r) => r === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN,
+        );
+
+        if (!everyGranted) {
+          if (!isMountedRef.current) return;
+          Alert.alert(
+            "Bluetooth permission needed",
+            neverAskAgain
+              ? "Gently needs Nearby Devices permission to find your bracelet. Open Settings and enable it under Permissions → Nearby devices."
+              : "Gently needs Nearby Devices permission to find your bracelet. Allow it on the next prompt.",
+            neverAskAgain
+              ? [
+                  {
+                    text: "Open Settings",
+                    onPress: () => {
+                      void Linking.openSettings();
+                    },
+                  },
+                  { text: "Cancel", style: "cancel" },
+                ]
+              : [
+                  {
+                    text: "Try again",
+                    onPress: () => {
+                      void startScan();
+                    },
+                  },
+                  { text: "Cancel", style: "cancel" },
+                ],
+          );
+          setPairState("instruct");
+          return;
+        }
+      }
+    }
+
     setPairState("scanning");
 
     try {
@@ -114,7 +175,15 @@ export default function PairBraceletScreen() {
         Alert.alert(
           "No bracelet found",
           "Make sure your bracelet's light is flashing blue. Tap to try again.",
-          [{ text: "Try Again", onPress: resetToInstruct }],
+          [
+            {
+              text: "Try Again",
+              onPress: () => {
+                resetToInstruct();
+                void startScan();
+              },
+            },
+          ],
         );
         if (isMountedRef.current) setPairState("instruct");
       }
@@ -123,7 +192,15 @@ export default function PairBraceletScreen() {
       Alert.alert(
         "Scan Error",
         error instanceof Error ? error.message : "Failed to scan. Try again.",
-        [{ text: "OK", onPress: resetToInstruct }],
+        [
+          {
+            text: "Try Again",
+            onPress: () => {
+              resetToInstruct();
+              void startScan();
+            },
+          },
+        ],
       );
       setPairState("instruct");
     }

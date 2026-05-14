@@ -462,7 +462,9 @@ async function scanForTargetDevice(
 
     const handleDiscoverPeripheral = (peripheral: Peripheral) => {
       if (isResolved) return;
-      if (peripheral.name !== "Gently") return;
+      const advName =
+        peripheral.name ?? peripheral.advertising?.localName ?? "";
+      if (!/^gently/i.test(advName)) return;
 
       if (peripheral.advertising.manufacturerRawData) {
         try {

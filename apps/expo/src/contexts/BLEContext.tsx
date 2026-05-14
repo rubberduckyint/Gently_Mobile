@@ -16,11 +16,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { Platform } from "react-native";
+import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 import BleManager, {
   BleScanCallbackType,
   BleScanMatchMode,
   BleScanMode,
+  BleScanPhyMode,
 } from "react-native-ble-manager";
 import * as SecureStore from "expo-secure-store";
 
@@ -221,6 +222,178 @@ export function BLEProvider({ children }: BLEProviderProps) {
     encryptionKeyRef.current = encryptionKey;
   }, [encryptionKey]);
 
+  // Re-run the full pairing-style handshake against an already-OS-connected
+  // bracelet to derive a fresh per-session dynamic key and put the bracelet
+  // into the same "fully initialized" state that connectToFoundPeripheral
+  // leaves it in after a fresh pair. Used by both reconnect paths (the
+  // immediate post-disconnect autoConnect path and the periodic-poll loop).
+  //
+  // We mirror the fresh-pair sequence exactly: MTU → services → notifications
+  // → GET_UPTIME (factory key) → GET_DEVICE_INFO (dynamic key, validates) →
+  // SET_TIME (dynamic key, best-effort). Observation 2026-05-14: when we only
+  // ran GET_UPTIME on reconnect, the bracelet would send an unsolicited
+  // 16-byte notification and immediately drop the link, suggesting its
+  // firmware expects the device-info handshake to complete before treating
+  // the session as live.
+  //
+  // Returns the new key on success or null on failure.
+  const rehandshakeAfterReconnect = async (
+    peripheralId: string,
+    serialNumber: string,
+  ): Promise<string | null> => {
+    try {
+      if (Platform.OS === "android") {
+        try {
+          await BleManager.requestMTU(peripheralId, 512);
+        } catch (mtuError) {
+          console.warn(
+            "[BLE Context] Re-handshake MTU request failed (continuing):",
+            mtuError,
+          );
+        }
+      }
+      await BleManager.retrieveServices(peripheralId);
+      await startNotifications(peripheralId);
+
+      const uptimeResponse = await sendCommand({
+        peripheralId,
+        command: createGetUptimeRequest(),
+        encryptionKey: FACTORY_BRACELET_KEY,
+      });
+      const uptimeData = parseGetUptimeResponse(uptimeResponse.payload);
+      const newDynamicKey = generateDynamicKey(
+        FACTORY_BRACELET_KEY,
+        uptimeData.uptimeBytes,
+        serialNumber,
+      );
+
+      // Confirms the bracelet accepts the freshly-derived key AND tells the
+      // firmware "session is live" — without this the bracelet was dropping
+      // the GATT link a fraction of a second after GET_UPTIME completed.
+      const deviceInfoResponse = await sendCommand({
+        peripheralId,
+        command: createGetDeviceInfoRequest(),
+        encryptionKey: newDynamicKey,
+      });
+      if (deviceInfoResponse.status !== ResponseStatus.OK) {
+        throw new Error(
+          `Re-handshake device-info validation failed: Status=0x${deviceInfoResponse.status.toString(16)}`,
+        );
+      }
+
+      // Best-effort time sync — fresh-pair does this, mirror it. Non-fatal.
+      try {
+        await sendCommand({
+          peripheralId,
+          command: createSetTimeRequest(new Date()),
+          encryptionKey: newDynamicKey,
+          timeoutMs: 10000,
+        });
+      } catch (timeError) {
+        console.warn(
+          "[BLE Context] Re-handshake SET_TIME failed (non-fatal):",
+          timeError,
+        );
+      }
+
+      const sanitizedDeviceId = peripheralId.replace(/[^a-zA-Z0-9._-]/g, "_");
+      await SecureStore.setItemAsync(
+        `ble_device_${sanitizedDeviceId}`,
+        newDynamicKey,
+      );
+      console.log(
+        `[BLE Context] Re-handshake succeeded — fresh dynamic key derived for ${peripheralId}`,
+      );
+      return newDynamicKey;
+    } catch (err) {
+      console.warn("[BLE Context] Re-handshake after reconnect failed:", err);
+      return null;
+    }
+  };
+
+  // Background reconnect loop. When connectionState is "disconnected" AND
+  // SecureStore still holds ble_last_paired_device (user did NOT explicitly
+  // disconnect), poll every 15s for the bracelet coming back into range.
+  // Uses BleManager.isPeripheralConnected first (cheap), falls back to an
+  // active connect attempt. This is the belt-and-suspenders fallback for
+  // Android's autoConnect=true not working reliably without an OS-level bond,
+  // and for the JS-reload-but-OS-link-alive case where our app needs to
+  // re-mark connection as live.
+  useEffect(() => {
+    if (connectionState !== "disconnected") return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tryReconnect = async () => {
+      if (cancelled) return;
+      try {
+        const lastPairedJson = await SecureStore.getItemAsync(
+          "ble_last_paired_device",
+        );
+        if (!lastPairedJson) return; // user-initiated disconnect, no auto-reconnect
+        const lastPaired = JSON.parse(lastPairedJson) as {
+          id: string;
+          name: string | null;
+          serialNumber: string;
+        };
+        // Don't fight an in-progress manual connection.
+        if (
+          connectionStateRef.current === "connecting" ||
+          connectionStateRef.current === "scanning"
+        ) {
+          return;
+        }
+        const isOsConnected = await BleManager.isPeripheralConnected(
+          lastPaired.id,
+        );
+        if (!isOsConnected) {
+          // Active reconnect attempt. Short timeout (no autoConnect flag) so
+          // we can quickly tell whether bracelet is reachable.
+          try {
+            await BleManager.connect(lastPaired.id);
+          } catch {
+            // Bracelet not in range or rejecting — try again next tick
+            return;
+          }
+        }
+        if (cancelled) return;
+        // We're now OS-connected. Re-handshake to derive a fresh dynamic key
+        // (bracelet's uptime is different in this new session — stored key
+        // from previous session is stale).
+        const newKey = await rehandshakeAfterReconnect(
+          lastPaired.id,
+          lastPaired.serialNumber,
+        );
+        if (!newKey) return;
+        console.log(
+          `[BLE Context] Reconnect loop succeeded — restoring state for ${lastPaired.id}`,
+        );
+        setConnectedDevice({
+          id: lastPaired.id,
+          name: lastPaired.name ?? undefined,
+          serialNumber: lastPaired.serialNumber,
+          peripheral: { id: lastPaired.id } as Peripheral,
+        });
+        setEncryptionKey(newKey);
+        setConnectionState("connected");
+      } catch (err) {
+        console.warn("[BLE Context] Reconnect loop tick failed:", err);
+      }
+    };
+    // Fire once shortly after disconnect, then every 30s. Avoid hammering
+    // BleManager.connect() — each failed attempt fires a disconnect event,
+    // and the native side overflows an internal hash structure under rapid
+    // event rates (observed crash: __next_prime overflow in
+    // NativeBleManagerSpec.emitOnDisconnectPeripheral). 30s gives the OS time
+    // to settle between attempts.
+    const firstTick = setTimeout(() => void tryReconnect(), 3000);
+    timer = setInterval(() => void tryReconnect(), 30000);
+    return () => {
+      cancelled = true;
+      clearTimeout(firstTick);
+      if (timer) clearInterval(timer);
+    };
+  }, [connectionState]);
+
   // Create stable event handlers using refs
   const stableHandleStopScan = useCallback(() => {
     console.log("[BLE Context] Scan stopped event received");
@@ -245,6 +418,74 @@ export function BLEProvider({ children }: BLEProviderProps) {
         setEncryptionKey(null);
         setConnectionState("disconnected");
         setConnectedDevice(null);
+
+        // Range-loss-then-return: if this wasn't a user-initiated disconnect
+        // (i.e., the ble_last_paired_device pointer is still in SecureStore),
+        // ask Android to start a persistent background auto-reconnect.
+        // Android keeps trying in the background and re-establishes the link
+        // when the bracelet is in range again — no scan needed (bracelet
+        // doesn't advertise post-pairing). If user explicitly disconnects, the
+        // disconnect flow clears the pointer, so this is a no-op.
+        const peripheralId = event.peripheral;
+        void (async () => {
+          try {
+            const lastPairedJson = await SecureStore.getItemAsync(
+              "ble_last_paired_device",
+            );
+            if (!lastPairedJson) {
+              console.log(
+                "[BLE Context] No last-paired pointer — skipping auto-reconnect (user-initiated disconnect)",
+              );
+              return;
+            }
+            const lastPaired = JSON.parse(lastPairedJson) as {
+              id: string;
+              name: string | null;
+              serialNumber: string;
+            };
+            if (lastPaired.id !== peripheralId) {
+              console.log(
+                "[BLE Context] Disconnected peripheral doesn't match last-paired — skipping auto-reconnect",
+              );
+              return;
+            }
+            console.log(
+              `[BLE Context] Kicking off autoConnect for background reconnect to ${peripheralId}`,
+            );
+            // `autoconnect: true` tells Android to keep a slow background
+            // connection attempt alive until the bracelet is back in range.
+            // Option name is lowercase per react-native-ble-manager v12 — the
+            // camelCase `autoConnect` is silently ignored, which is what made
+            // the bond-then-reconnect path fail to engage in prior testing.
+            await BleManager.connect(peripheralId, { autoconnect: true });
+            console.log(
+              `[BLE Context] autoConnect resolved — bracelet back in range`,
+            );
+            // The bracelet's session is fresh after reconnect (new uptime →
+            // new dynamic key). Re-run the GET_UPTIME handshake to derive a
+            // valid session key. Reusing the previously-stored dynamic key
+            // would mean every subsequent command decrypts to garbage on the
+            // bracelet side and silently fails.
+            const newKey = await rehandshakeAfterReconnect(
+              peripheralId,
+              lastPaired.serialNumber,
+            );
+            if (!newKey) return;
+            setConnectedDevice({
+              id: peripheralId,
+              name: lastPaired.name ?? undefined,
+              serialNumber: lastPaired.serialNumber,
+              peripheral: { id: peripheralId } as Peripheral,
+            });
+            setEncryptionKey(newKey);
+            setConnectionState("connected");
+          } catch (err) {
+            console.warn(
+              "[BLE Context] autoConnect failed (will stay disconnected until manual re-pair):",
+              err,
+            );
+          }
+        })();
       }
     },
     [],
@@ -384,6 +625,30 @@ export function BLEProvider({ children }: BLEProviderProps) {
       "[BLE Context] Initializing BLE manager and global listeners...",
     );
 
+    // DIAG-V3 — raw NativeEventEmitter listener bypasses BleManager's wrapper
+    // to test whether the native module is emitting BleManagerDiscoverPeripheral
+    // events at all. If RAW-NATIVE fires but DIAG-V2 RAW PERIPHERAL doesn't,
+    // the wrapper is broken; if neither fires, the native module isn't emitting.
+    const bleNativeModule = NativeModules.BleManager as unknown;
+    if (bleNativeModule) {
+      const rawEmitter = new NativeEventEmitter(
+        bleNativeModule as ConstructorParameters<typeof NativeEventEmitter>[0],
+      );
+      rawEmitter.addListener("BleManagerDiscoverPeripheral", (p: unknown) => {
+        console.log(
+          "[DIAG-V3 RAW-NATIVE] BleManagerDiscoverPeripheral",
+          JSON.stringify(p).slice(0, 200),
+        );
+      });
+      console.log(
+        "[DIAG-V3] Raw NativeEventEmitter listener attached for BleManagerDiscoverPeripheral",
+      );
+    } else {
+      console.log(
+        "[DIAG-V3] NativeModules.BleManager is undefined — native module not linked!",
+      );
+    }
+
     bleInitialized.current = true;
 
     // Request Bluetooth permissions before starting BLE manager
@@ -395,8 +660,61 @@ export function BLEProvider({ children }: BLEProviderProps) {
       }
 
       BleManager.start({ showAlert: false })
-        .then(() => {
+        .then(async () => {
           console.log("[BLE Context] BLE Manager started successfully");
+          // Auto-restore connection state on app boot / JS reload.
+          // If the OS still holds an active BLE link to our last-paired
+          // bracelet, lift our React-state from "disconnected" back to
+          // "connected" without making the user re-pair.
+          try {
+            const lastPairedJson = await SecureStore.getItemAsync(
+              "ble_last_paired_device",
+            );
+            if (!lastPairedJson) return;
+            const lastPaired = JSON.parse(lastPairedJson) as {
+              id: string;
+              name: string | null;
+              serialNumber: string;
+            };
+            const isStillConnected = await BleManager.isPeripheralConnected(
+              lastPaired.id,
+            );
+            if (!isStillConnected) {
+              console.log(
+                "[BLE Context] Auto-restore skipped — last-paired device not OS-connected",
+              );
+              return;
+            }
+            const sanitizedDeviceId = lastPaired.id.replace(
+              /[^a-zA-Z0-9._-]/g,
+              "_",
+            );
+            const key = await SecureStore.getItemAsync(
+              `ble_device_${sanitizedDeviceId}`,
+            );
+            if (!key) {
+              console.log(
+                "[BLE Context] Auto-restore skipped — no stored key for last-paired device",
+              );
+              return;
+            }
+            console.log(
+              `[BLE Context] Auto-restoring connection to ${lastPaired.id}`,
+            );
+            setConnectedDevice({
+              id: lastPaired.id,
+              name: lastPaired.name ?? undefined,
+              serialNumber: lastPaired.serialNumber,
+              peripheral: { id: lastPaired.id } as Peripheral,
+            });
+            setEncryptionKey(key);
+            setConnectionState("connected");
+          } catch (restoreErr) {
+            console.warn(
+              "[BLE Context] Auto-restore failed (will require manual re-pair):",
+              restoreErr,
+            );
+          }
         })
         .catch((error) => {
           console.error("[BLE Context] BLE Manager failed to start:", error);
@@ -795,7 +1113,9 @@ export function BLEProvider({ children }: BLEProviderProps) {
 
           const handleDiscoverPeripheral = (peripheral: Peripheral) => {
             if (isResolved) return;
-            if (peripheral.name !== "Gently") return;
+            const advName =
+              peripheral.name ?? peripheral.advertising?.localName ?? "";
+            if (!/^gently/i.test(advName)) return;
 
             if (peripheral.advertising.manufacturerRawData) {
               try {
@@ -1099,8 +1419,9 @@ export function BLEProvider({ children }: BLEProviderProps) {
               await SecureStore.deleteItemAsync(
                 `ble_device_${sanitizedDeviceId}`,
               );
+              await SecureStore.deleteItemAsync("ble_last_paired_device");
               console.log(
-                `[BLE Context] Removed stored encryption key for ${connectedDevice.id}`,
+                `[BLE Context] Removed stored encryption key + last-paired pointer for ${connectedDevice.id}`,
               );
             } catch (keyError) {
               console.warn(
@@ -1194,7 +1515,9 @@ export function BLEProvider({ children }: BLEProviderProps) {
         let foundDevice: Peripheral | null = null;
 
         const handleDiscoverPeripheral = (peripheral: Peripheral) => {
-          if (peripheral.name !== "Gently") {
+          const advName =
+            peripheral.name ?? peripheral.advertising?.localName ?? "";
+          if (!/^gently/i.test(advName)) {
             return;
           }
 
@@ -1325,6 +1648,7 @@ export function BLEProvider({ children }: BLEProviderProps) {
       ) => void,
       timeoutSeconds = 30,
     ): Promise<void> => {
+      console.log("[DIAG-V2] scanForDevices ENTRY — diagnostic build is live");
       console.log(
         `[BLE Context] Starting scanForDevices with timeout: ${timeoutSeconds}s`,
       );
@@ -1343,10 +1667,40 @@ export function BLEProvider({ children }: BLEProviderProps) {
             `[BLE Context] Scan timeout reached after ${timeoutSeconds}s`,
           );
           BleManager.stopScan()
-            .then(() => {
+            .then(async () => {
               console.log(
                 `[BLE Context] Device scan completed after ${timeoutSeconds}s, found ${gentlyDevicesFound} Gently devices`,
               );
+
+              // DIAG-V4 — if the native side saw any peripherals at all, they
+              // accumulate in BleManager's internal cache. Querying it directly
+              // distinguishes "native scan saw nothing" from "native saw stuff
+              // but events never crossed the bridge to JS".
+              try {
+                const cached = await BleManager.getDiscoveredPeripherals();
+                console.log(
+                  "[DIAG-V4] getDiscoveredPeripherals returned",
+                  cached.length,
+                  "peripherals",
+                );
+                cached.slice(0, 10).forEach((p, i) => {
+                  console.log(
+                    `[DIAG-V4]   [${i}]`,
+                    p.id,
+                    JSON.stringify({
+                      name: p.name,
+                      rssi: p.rssi,
+                      localName: p.advertising?.localName,
+                    }),
+                  );
+                });
+              } catch (e) {
+                console.log(
+                  "[DIAG-V4] getDiscoveredPeripherals threw:",
+                  e instanceof Error ? e.message : String(e),
+                );
+              }
+
               resolve();
             })
             .catch((error) => {
@@ -1356,8 +1710,25 @@ export function BLEProvider({ children }: BLEProviderProps) {
         }, timeoutSeconds * 1000);
 
         const handleDiscoverPeripheral = (peripheral: Peripheral) => {
-          // Only process and return Gently devices
-          if (peripheral.name === "Gently") {
+          // TEMP DIAGNOSTIC — dump every peripheral the scan sees so we can
+          // identify what field exposes the bracelet's "Gently" name. Remove
+          // once name matching is reliable.
+          console.log("[BLE SCAN DIAG]", {
+            id: peripheral.id,
+            name: peripheral.name,
+            rssi: peripheral.rssi,
+            localName: peripheral.advertising?.localName,
+            serviceUUIDs: peripheral.advertising?.serviceUUIDs,
+            hasManufacturerData: Boolean(
+              peripheral.advertising?.manufacturerRawData,
+            ),
+          });
+          // Only process and return Gently devices (case-insensitive; also
+          // checks scan-response localName so we don't miss firmwares that
+          // put the name in the scan response rather than the advert).
+          const advName =
+            peripheral.name ?? peripheral.advertising?.localName ?? "";
+          if (/^gently/i.test(advName)) {
             gentlyDevicesFound++;
             console.log(
               `[BLE Context] Gently device discovered: ${peripheral.id} (${gentlyDevicesFound} total)`,
@@ -1399,14 +1770,40 @@ export function BLEProvider({ children }: BLEProviderProps) {
         console.log(`[BLE Context] Setting up discovery listener`);
         BleManager.onDiscoverPeripheral(handleDiscoverPeripheral);
 
+        // DIAG-V2 — also attach a totally unfiltered listener that logs every
+        // single peripheral the OS hands us, to confirm whether the BLE event
+        // pipeline is delivering anything at all.
+        BleManager.onDiscoverPeripheral((p) => {
+          console.log(
+            "[DIAG-V2] RAW PERIPHERAL",
+            p.id,
+            JSON.stringify({
+              name: p.name,
+              rssi: p.rssi,
+              localName: p.advertising?.localName,
+            }),
+          );
+        });
+
         console.log(`[BLE Context] Initiating BLE scan...`);
+        // DIAG-V6 — THE FIX: enable extended-advertising scans on all PHYs.
+        // The Gently bracelet uses Bluetooth 5 Advertising Extension with
+        // Secondary PHY LE 2M. Android's default scan is legacy-only (BLE 4.2
+        // and below) listening on PHY LE 1M only. Without `legacy: false` +
+        // `phy: ALL_SUPPORTED`, the bracelet's adverts are completely
+        // invisible to our scan even at -50 dBm right next to the phone.
+        // nRF Connect uses these settings by default which is why it sees it
+        // and we didn't. Confirmed via nRF: "Advertising type: Bluetooth 5
+        // Advertising Extension, Primary PHY LE 1M, Secondary PHY LE 2M".
         BleManager.scan({
           serviceUUIDs: [],
           seconds: timeoutSeconds,
-          allowDuplicates: false,
-          matchMode: BleScanMatchMode.Sticky,
+          allowDuplicates: true,
+          matchMode: BleScanMatchMode.Aggressive,
           scanMode: BleScanMode.LowLatency,
           callbackType: BleScanCallbackType.AllMatches,
+          legacy: false,
+          phy: BleScanPhyMode.ALL_SUPPORTED,
         })
           .then(() => {
             console.log(`[BLE Context] BLE scan initiated successfully`);
@@ -1638,6 +2035,43 @@ export function BLEProvider({ children }: BLEProviderProps) {
       `ble_device_${sanitizedDeviceId}`,
       foundEncryptionKey,
     );
+
+    // Persist a pointer to the most-recently-paired device so we can
+    // auto-restore connection state on JS reload / app cold-start without
+    // forcing the user to re-pair. Cleared in disconnectDevice/delete flow.
+    await SecureStore.setItemAsync(
+      "ble_last_paired_device",
+      JSON.stringify({
+        id: peripheral.id,
+        name: peripheral.name ?? null,
+        serialNumber,
+      }),
+    );
+
+    // Create OS-level bond on Android. The bracelet uses a Resolvable Private
+    // Address (RPA) — its MAC rotates over time. Without an OS-level bond,
+    // Android can't resolve a rotated RPA back to the same device, so any
+    // `BleManager.connect(storedMac)` call fails after range-loss with
+    // "Device disconnected". Bonding exchanges an IRK so the OS resolves
+    // future RPAs to the same identity, AND it enables `autoConnect: true`
+    // to actually trigger reconnect on range return. This pops a one-time
+    // Android system pairing dialog the user must accept. Fire-and-forget —
+    // if user dismisses the dialog, the session still works but auto-reconnect
+    // after range loss won't. iOS handles this implicitly via Core Bluetooth.
+    if (Platform.OS === "android") {
+      void BleManager.createBond(peripheral.id)
+        .then(() => {
+          console.log(
+            `[BLE Context] OS-level bond established for ${peripheral.id} — auto-reconnect on range return now enabled`,
+          );
+        })
+        .catch((bondErr) => {
+          console.warn(
+            `[BLE Context] createBond failed for ${peripheral.id} (auto-reconnect after range loss may not work):`,
+            bondErr,
+          );
+        });
+    }
 
     // Update context state
     setConnectedDevice({

@@ -63,13 +63,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: "#51b0d6",
     },
     edgeToEdgeEnabled: true,
-    permissions: [
-      "android.permission.BLUETOOTH",
-      "android.permission.BLUETOOTH_ADMIN",
-      "android.permission.BLUETOOTH_SCAN",
-      "android.permission.BLUETOOTH_CONNECT",
-      "android.permission.ACCESS_FINE_LOCATION",
-    ],
+    // BLE permissions are added by the react-native-ble-manager config plugin
+    // (see plugins[] below). The plugin sets `android:usesPermissionFlags=
+    // "neverForLocation"` on BLUETOOTH_SCAN and caps ACCESS_FINE_LOCATION at
+    // maxSdkVersion=30, so Android 12+ devices get no Location prompt at all.
+    // Without that attribute, Samsung Android 14 devices silently drop scan
+    // results with "permission : false" in logcat (see ScanController log).
+    permissions: ["android.permission.BLUETOOTH", "android.permission.BLUETOOTH_ADMIN"],
   },
   extra: {
     eas: {
@@ -88,6 +88,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-web-browser",
     "expo-apple-authentication",
     "@react-native-community/datetimepicker",
+    [
+      "react-native-ble-manager",
+      {
+        // neverForLocation: declares BLUETOOTH_SCAN as not location-deriving,
+        // which both (a) drops the legacy ACCESS_FINE_LOCATION prompt on
+        // Android 12+ and (b) tells Samsung's ScanController to actually
+        // deliver scan results to our client instead of silently dropping
+        // them with "permission : false" in logcat.
+        // isBleRequired: declares <uses-feature bluetooth_le required="true">
+        // so Play Store filters out devices without BLE hardware.
+        neverForLocation: true,
+        isBleRequired: true,
+      },
+    ],
     [
       "@react-native-google-signin/google-signin",
       {
