@@ -37,12 +37,21 @@ const LED_COLOR_BY_NAME: Record<string, LedColor> = {
   white: LedColor.WHITE,
 };
 
-// Audio is a buzzer with on/off + total. SRF/firmware identify a pattern
-// by integer id; the on/off ms are not in the payload. Mobile holds the
-// mapping for v1 — keep it small and obvious.
+// patternId → (onMs, offMs) — repeated for the duration of the alarm.
+// patternId values match SRF's level-translator AUDIO_BY_LEVEL mapping:
+// audioLevel 0 → null (Off, no command)
+// audioLevel 1 → patternId 1 (Quick)
+// audioLevel 2 → patternId 2 (Long)
+// audioLevel 3 → patternId 3 (Steady)
+// audioLevel 4 → patternId 4 (Heartbeat)
+//
+// The bracelet's buzzer is fixed-loudness — these patterns vary cadence,
+// not volume. Tuned by ear; revisit if firmware exposes finer controls.
 const AUDIO_PATTERN_PARAMS: Record<number, { onMs: number; offMs: number }> = {
-  1: { onMs: 200, offMs: 100 }, // "fast triple beep" — used by `low` rule kind
-  2: { onMs: 400, offMs: 200 }, // "slow long beep"
+  1: { onMs: 100, offMs: 100 }, // Quick — rapid alternating beeps
+  2: { onMs: 500, offMs: 200 }, // Long — slower, more deliberate beeps
+  3: { onMs: 2000, offMs: 0 },  // Steady — continuous tone within durationSec
+  4: { onMs: 80, offMs: 180 },  // Heartbeat — rapid pulse rhythm
 };
 
 function clampDurationSec(durationSec: number): number {
@@ -91,10 +100,11 @@ function ledCommand(
   });
 }
 
-function audioCommand(
-  audioPatternId: number,
+export function audioCommand(
+  audioPatternId: number | null,
   durationSec: number,
 ): BLECommandRequest | null {
+  if (audioPatternId === null) return null;
   const params = AUDIO_PATTERN_PARAMS[audioPatternId];
   if (!params) return null;
   const totalDurationSeconds = clampDurationSec(durationSec);
