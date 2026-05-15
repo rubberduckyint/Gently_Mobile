@@ -645,6 +645,9 @@ export function BLEProvider({ children }: BLEProviderProps) {
         // doesn't advertise post-pairing). If user explicitly disconnects, the
         // disconnect flow clears the pointer, so this is a no-op.
         const peripheralId = event.peripheral;
+        // Range-loss-then-return: kick off an immediate scan-and-reconnect.
+        // The periodic-poll useEffect is the safety net at 30s ticks if
+        // this immediate attempt fails (e.g., bracelet still out of range).
         void (async () => {
           try {
             const lastPairedJson = await SecureStore.getItemAsync(
@@ -656,50 +659,20 @@ export function BLEProvider({ children }: BLEProviderProps) {
               );
               return;
             }
-            const lastPaired = JSON.parse(lastPairedJson) as {
-              id: string;
-              name: string | null;
-              serialNumber: string;
-            };
-            if (lastPaired.id !== peripheralId) {
-              console.log(
-                "[BLE Context] Disconnected peripheral doesn't match last-paired — skipping auto-reconnect",
-              );
-              return;
-            }
-            console.log(
-              `[BLE Context] Kicking off autoConnect for background reconnect to ${peripheralId}`,
-            );
-            // `autoconnect: true` tells Android to keep a slow background
-            // connection attempt alive until the bracelet is back in range.
-            // Option name is lowercase per react-native-ble-manager v12 — the
-            // camelCase `autoConnect` is silently ignored, which is what made
-            // the bond-then-reconnect path fail to engage in prior testing.
-            await BleManager.connect(peripheralId, { autoconnect: true });
-            console.log(
-              `[BLE Context] autoConnect resolved — bracelet back in range`,
-            );
-            // The bracelet's session is fresh after reconnect (new uptime →
-            // new dynamic key). Re-run the GET_UPTIME handshake to derive a
-            // valid session key. Reusing the previously-stored dynamic key
-            // would mean every subsequent command decrypts to garbage on the
-            // bracelet side and silently fails.
-            const newKey = await rehandshakeAfterReconnect(
-              peripheralId,
-              lastPaired.serialNumber,
-            );
-            if (!newKey) return;
-            setConnectedDevice({
-              id: peripheralId,
-              name: lastPaired.name ?? undefined,
-              serialNumber: lastPaired.serialNumber,
-              peripheral: { id: peripheralId } as Peripheral,
+            // Small delay so the OS BLE stack settles after the disconnect
+            // event before we open a new scan.
+            await new Promise((r) => setTimeout(r, 1000));
+            const reconnected = await findAndReconnectPairedBracelet({
+              scanSeconds: 8,
             });
-            setEncryptionKey(newKey);
-            setConnectionState("connected");
+            if (!reconnected) {
+              console.log(
+                "[BLE Context] Immediate reconnect failed — periodic poll will retry every 30s",
+              );
+            }
           } catch (err) {
             console.warn(
-              "[BLE Context] autoConnect failed (will stay disconnected until manual re-pair):",
+              "[BLE Context] Disconnect-event reconnect threw:",
               err,
             );
           }
