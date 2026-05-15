@@ -2270,29 +2270,52 @@ export function BLEProvider({ children }: BLEProviderProps) {
       }),
     );
 
-    // Create OS-level bond on Android. The bracelet uses a Resolvable Private
-    // Address (RPA) — its MAC rotates over time. Without an OS-level bond,
-    // Android can't resolve a rotated RPA back to the same device, so any
-    // `BleManager.connect(storedMac)` call fails after range-loss with
-    // "Device disconnected". Bonding exchanges an IRK so the OS resolves
-    // future RPAs to the same identity, AND it enables `autoConnect: true`
-    // to actually trigger reconnect on range return. This pops a one-time
-    // Android system pairing dialog the user must accept. Fire-and-forget —
-    // if user dismisses the dialog, the session still works but auto-reconnect
-    // after range loss won't. iOS handles this implicitly via Core Bluetooth.
+    // Create OS-level bond on Android. The bracelet uses a Resolvable
+    // Private Address — its MAC rotates over time. An OS-level bond
+    // exchanges an IRK so Android's native autoConnect can resolve future
+    // RPAs to the same identity (fast-path reconnect without a scan).
+    // Without a bond we still recover via findAndReconnectPairedBracelet
+    // (scan-by-name), so this is a fast-path nice-to-have, not a hard
+    // requirement.
+    //
+    // BleManager.createBond resolves when Android *dispatches* the bond
+    // request, not when the user accepts the system dialog. Poll
+    // getBondedPeripherals for ~5s to confirm.
     if (Platform.OS === "android") {
-      void BleManager.createBond(peripheral.id)
-        .then(() => {
-          console.log(
-            `[BLE Context] OS-level bond established for ${peripheral.id} — auto-reconnect on range return now enabled`,
-          );
-        })
-        .catch((bondErr) => {
+      void (async () => {
+        try {
+          await BleManager.createBond(peripheral.id);
+        } catch (bondErr) {
           console.warn(
-            `[BLE Context] createBond failed for ${peripheral.id} (auto-reconnect after range loss may not work):`,
+            `[BLE Context] createBond rejected for ${peripheral.id}:`,
             bondErr,
           );
-        });
+          return;
+        }
+        const deadline = Date.now() + 5000;
+        let bonded = false;
+        while (Date.now() < deadline) {
+          try {
+            const list = await BleManager.getBondedPeripherals();
+            if (list.some((p) => p.id === peripheral.id)) {
+              bonded = true;
+              break;
+            }
+          } catch {
+            // ignore, retry next tick
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (bonded) {
+          console.log(
+            `[BLE Context] OS-level bond confirmed for ${peripheral.id} — native autoConnect fast-path enabled`,
+          );
+        } else {
+          console.warn(
+            `[BLE Context] OS-level bond NOT confirmed for ${peripheral.id} within 5s — reconnect will use scan-by-name fallback (still works, slightly slower)`,
+          );
+        }
+      })();
     }
 
     // Update context state
