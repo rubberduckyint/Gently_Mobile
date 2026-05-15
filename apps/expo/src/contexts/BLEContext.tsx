@@ -137,6 +137,11 @@ export interface BLEContextValue {
     config?: BLEConnectionConfig,
   ) => Promise<void>;
   disconnectDevice: () => Promise<void>;
+  // Force-trigger a reconnect attempt against the last-paired bracelet.
+  // Used by the dashboard "Try to reconnect" affordance so the user doesn't
+  // have to wait for the periodic-poll tick (up to 30s). Returns true if
+  // the reconnect+rehandshake succeeded.
+  reconnectLastPaired: () => Promise<boolean>;
   scanForDevice: (
     serialNumber: string,
     onProgress?: BLEConnectionCallback,
@@ -209,6 +214,12 @@ export function BLEProvider({ children }: BLEProviderProps) {
   const connectedDeviceRef = useRef(connectedDevice);
   const encryptionKeyRef = useRef(encryptionKey);
 
+  // Timestamp when the last pair / reconnect completed (state → "connected").
+  // Used by the disconnect handler to report "Δ since last connected" so
+  // we can tell if the bracelet is dropping seconds after pair vs. minutes
+  // later. null when state has never been "connected" in this session.
+  const lastConnectedAtRef = useRef<number | null>(null);
+
   // Update refs when state changes
   useEffect(() => {
     connectionStateRef.current = connectionState;
@@ -221,6 +232,29 @@ export function BLEProvider({ children }: BLEProviderProps) {
   useEffect(() => {
     encryptionKeyRef.current = encryptionKey;
   }, [encryptionKey]);
+
+  // Diagnostic: log every connectionState transition with timestamp and
+  // current connectedDevice/encryptionKey snapshot. The dashboard renders
+  // "Disconnected" any time connectionState !== "connected", so when a user
+  // reports "paired but dashboard says disconnected" we need to see exactly
+  // which transition fired between pair-complete and dashboard-mount, what
+  // device + key were in flight, and how it correlates with disconnect or
+  // bond events. Cheap to keep in production — flip to false to silence.
+  const TRACE_BLE_STATE = true;
+  useEffect(() => {
+    if (!TRACE_BLE_STATE) return;
+    if (connectionState === "connected") {
+      lastConnectedAtRef.current = Date.now();
+    }
+    console.log(
+      `[BLE TRACE] connectionState → "${connectionState}"`,
+      JSON.stringify({
+        at: new Date().toISOString(),
+        deviceId: connectedDeviceRef.current?.id ?? null,
+        hasKey: encryptionKeyRef.current !== null,
+      }),
+    );
+  }, [connectionState]);
 
   // Re-run the full pairing-style handshake against an already-OS-connected
   // bracelet to derive a fresh per-session dynamic key and put the bracelet
@@ -308,6 +342,59 @@ export function BLEProvider({ children }: BLEProviderProps) {
     } catch (err) {
       console.warn("[BLE Context] Re-handshake after reconnect failed:", err);
       return null;
+    }
+  };
+
+  // On-demand reconnect — same logic as one periodic-poll tick, but runs
+  // immediately. Used by the dashboard pill's "Try to reconnect" affordance.
+  // Returns true if we ended up in "connected" state.
+  const reconnectLastPairedNow = async (): Promise<boolean> => {
+    try {
+      const lastPairedJson = await SecureStore.getItemAsync(
+        "ble_last_paired_device",
+      );
+      if (!lastPairedJson) {
+        console.log(
+          "[BLE Context] reconnectLastPaired: no last-paired pointer in SecureStore — user must re-pair",
+        );
+        return false;
+      }
+      const lastPaired = JSON.parse(lastPairedJson) as {
+        id: string;
+        name: string | null;
+        serialNumber: string;
+      };
+      const isOsConnected = await BleManager.isPeripheralConnected(
+        lastPaired.id,
+      );
+      if (!isOsConnected) {
+        try {
+          await BleManager.connect(lastPaired.id);
+        } catch (connErr) {
+          console.warn(
+            "[BLE Context] reconnectLastPaired: connect failed (bracelet probably out of range):",
+            connErr,
+          );
+          return false;
+        }
+      }
+      const newKey = await rehandshakeAfterReconnect(
+        lastPaired.id,
+        lastPaired.serialNumber,
+      );
+      if (!newKey) return false;
+      setConnectedDevice({
+        id: lastPaired.id,
+        name: lastPaired.name ?? undefined,
+        serialNumber: lastPaired.serialNumber,
+        peripheral: { id: lastPaired.id } as Peripheral,
+      });
+      setEncryptionKey(newKey);
+      setConnectionState("connected");
+      return true;
+    } catch (err) {
+      console.warn("[BLE Context] reconnectLastPaired threw:", err);
+      return false;
     }
   };
 
@@ -410,7 +497,17 @@ export function BLEProvider({ children }: BLEProviderProps) {
 
   const stableHandleDisconnectedDevice = useCallback(
     (event: BleDisconnectPeripheralEvent) => {
-      console.log(`[BLE Context] Device disconnected: ${event.peripheral}`);
+      const elapsedMs =
+        lastConnectedAtRef.current != null
+          ? Date.now() - lastConnectedAtRef.current
+          : null;
+      console.log(
+        `[BLE Context] Device disconnected: ${event.peripheral}${
+          elapsedMs != null
+            ? ` (Δ ${elapsedMs}ms since last "connected" state)`
+            : " (no prior connected state in this session)"
+        }`,
+      );
       if (
         connectedDeviceRef.current &&
         event.peripheral === connectedDeviceRef.current.id
@@ -758,6 +855,7 @@ export function BLEProvider({ children }: BLEProviderProps) {
     setConnectedDevice,
     setEncryptionKey,
     setConnectionState,
+    reconnectLastPaired: reconnectLastPairedNow,
     sendBLECommand: async (command: BLECommandRequest, timeoutMs = 20000) => {
       if (!connectedDevice || !encryptionKey) {
         throw new Error("Device not connected or encryption key missing");

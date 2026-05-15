@@ -198,7 +198,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [showYearOfBirthModal, setShowYearOfBirthModal] = useState(false);
 
-  const { connectionState } = useBLE();
+  const { connectionState, reconnectLastPaired } = useBLE();
 
   // Fetch user profile to check year of birth
   const { data: userProfile } = useQuery({
@@ -367,9 +367,20 @@ export default function DashboardPage() {
               {
                 text: "Try to reconnect",
                 onPress: () => {
-                  router.push(
-                    `/devices/${primaryDevice.id}` as RelativePathString,
-                  );
+                  // Fire the reconnect immediately rather than navigating to
+                  // the device-detail screen (which had its legacy auto-
+                  // connect-on-mount disabled and would do nothing here).
+                  // Surfaces a follow-up Alert on failure so the user gets
+                  // a clear next step instead of silent no-op.
+                  void (async () => {
+                    const ok = await reconnectLastPaired();
+                    if (!ok) {
+                      Alert.alert(
+                        "Couldn't reconnect",
+                        "Your bracelet may be out of range or asleep. Make sure it's nearby; we'll keep retrying in the background. If that doesn't help, delete and pair a new bracelet.",
+                      );
+                    }
+                  })();
                 },
               },
             ]
