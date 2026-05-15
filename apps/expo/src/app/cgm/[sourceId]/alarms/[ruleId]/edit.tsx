@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Chev, Info, Pulse } from "~/components/icons";
 import { LevelSlider } from "~/components/cgm/AlarmDetail/LevelSlider";
 import { LightColorPicker } from "~/components/cgm/AlarmDetail/LightColorPicker";
+import { SoundPatternPicker } from "~/components/cgm/AlarmDetail/SoundPatternPicker";
+import type { SoundPatternId } from "~/components/cgm/AlarmDetail/SoundPatternPicker";
 import { Stepper } from "~/components/ui/Stepper";
 import { useBracePreview } from "~/hooks/useBracePreview";
 import { tabularNums, typographyV2 } from "~/styles/typographyV2";
@@ -16,6 +18,13 @@ import type { RouterOutputs } from "~/utils/api";
 import { toMmolL } from "~/utils/glucose-units";
 
 type Rule = RouterOutputs["rule"]["listForSource"][number];
+
+// tRPC's proxy client collapses the discriminated union on rule.test's output
+// to an intersection, making `reason` infer as `never`. Declaring the union
+// explicitly lets onSuccess narrow and access `reason` safely.
+type RuleTestOutput =
+  | { dispatched: boolean; reason: "no_push_token"; payload: unknown }
+  | { dispatched: boolean; reason: null; payload: unknown };
 
 interface MutationInput {
   ruleId: string;
@@ -31,13 +40,6 @@ interface MutationInput {
 }
 
 const VIBRATION_LABELS: [string, string, string, string, string] = [
-  "Off", "Soft", "Medium", "Strong", "Max",
-];
-// Audio is pattern-based, not volume-based — the bracelet buzzer has fixed
-// loudness. These labels match the vibration "intensity" vocabulary so the
-// two sliders feel coherent, even though the underlying mechanism differs
-// (vibration = motor amplitude, audio = beep pattern / count).
-const AUDIO_LABELS: [string, string, string, string, string] = [
   "Off", "Soft", "Medium", "Strong", "Max",
 ];
 
@@ -150,11 +152,12 @@ export default function EditAlarmScreen() {
   const [local, setLocal] = useState<Rule | null>(null);
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [testErrorMsg, setTestErrorMsg] = useState<string | null>(null);
 
   // Tactile previews fired directly to the bracelet (Mobile→BLE, bypassing
   // SRF push) whenever the user changes a feedback slider/color. Lets the
   // user feel level 3 vs level 4 before saving the alarm.
-  const { previewVibration, previewLed, previewAudio } = useBracePreview();
+  const { previewVibration, previewLed } = useBracePreview();
 
   // One-shot initialization from first server load; local owns state after that.
   useEffect(() => {
@@ -169,6 +172,44 @@ export default function EditAlarmScreen() {
   }, [savingState]);
 
   const testRule = useMutation({
+    mutationFn: (input: {
+      ruleId: string;
+      override?: {
+        vibrationLevel?: number;
+        audioLevel?: number;
+        ledColor?: string | null;
+        durationSec?: number;
+      };
+    }) => trpc.rule.test.mutate(input),
+    onSuccess: (rawResult) => {
+      // tRPC collapses the union output to an intersection; cast to preserve
+      // the discriminated union so we can safely read `reason`.
+      const result = rawResult as RuleTestOutput;
+      if (result.reason !== null) {
+        // SRF returned dispatched: false — most commonly because the user's
+        // pushNotificationToken is null or invalid. Surface the reason
+        // instead of letting the button silently succeed.
+        const reasonStr = result.reason as string;
+        const friendly =
+          reasonStr === "no_push_token"
+            ? "We don't have a valid push notification token registered for this device. Try signing out and back in."
+            : `Test couldn't be delivered (${reasonStr}).`;
+        setTestErrorMsg(friendly);
+      } else {
+        setTestErrorMsg(null);
+      }
+    },
+    onError: () => {
+      // Clear any stale dispatched-false message; the existing testRule.error
+      // path renders the TRPCError message instead.
+      setTestErrorMsg(null);
+    },
+  });
+
+  // Preview mutation for tap-to-audition. Distinct from the main "Test
+  // this alarm" CTA so its loading/error state doesn't bleed into the CTA's
+  // affordances. Same RPC, different UX surface.
+  const previewMutation = useMutation({
     mutationFn: (input: {
       ruleId: string;
       override?: {
@@ -361,7 +402,7 @@ export default function EditAlarmScreen() {
           />
         </View>
 
-        {/* Volume */}
+        {/* Sound pattern */}
         <View
           style={[
             tokens.shadow.card,
@@ -372,22 +413,19 @@ export default function EditAlarmScreen() {
             },
           ]}
         >
-          <Text
-            style={[typographyV2.eyebrow, { color: tokens.color.ink3, marginBottom: 14 }]}
-          >
-            SOUND
-          </Text>
-          <LevelSlider
-            labels={AUDIO_LABELS}
-            accent={tokens.color.cyanDeep}
-            value={local.audioLevel ?? 0}
+          <SoundPatternPicker
+            value={(local.audioLevel ?? 0) as SoundPatternId}
             onChange={(v) => {
               applyChange({ audioLevel: v });
-              previewAudio(v);
             }}
-            readOut={{
-              value: String(local.audioLevel ?? 0),
-              label: AUDIO_LABELS[local.audioLevel ?? 0] ?? "",
+            onPreview={(v) => {
+              // Fire a one-shot preview via rule.test with this audio override only.
+              // No threshold / vibration / LED override — those should not preview
+              // when user is auditioning sound patterns.
+              previewMutation.mutate({
+                ruleId: serverRule.id,
+                override: { audioLevel: v, durationSec: 5 },
+              });
             }}
           />
         </View>
@@ -463,16 +501,23 @@ export default function EditAlarmScreen() {
             Sends the pattern above to your bracelet right now.
           </Text>
 
-          {testRule.error && (
+          {(testRule.error ?? testErrorMsg) && (
             <Text
               style={[
                 typographyV2.body,
-                { color: tokens.color.coral, fontSize: 13, textAlign: "center" },
+                {
+                  color: tokens.color.coral,
+                  marginTop: 10,
+                  textAlign: "center",
+                  paddingHorizontal: 12,
+                },
               ]}
             >
-              {/rate_limit|too many/i.test(testRule.error.message)
-                ? "Too many test alarms. Try again in a minute."
-                : `Test failed: ${testRule.error.message}`}
+              {testRule.error
+                ? /rate_limit|too many/i.test(testRule.error.message)
+                  ? "Too many test alarms. Try again in a minute."
+                  : `Test failed: ${testRule.error.message}`
+                : testErrorMsg}
             </Text>
           )}
         </View>
