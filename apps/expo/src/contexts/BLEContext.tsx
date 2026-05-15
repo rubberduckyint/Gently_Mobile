@@ -16,7 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { AppState, type AppStateStatus, NativeEventEmitter, NativeModules, Platform } from "react-native";
+import { AppState, type AppStateStatus, Platform } from "react-native";
 import BleManager, {
   BleScanCallbackType,
   BleScanMatchMode,
@@ -828,30 +828,6 @@ export function BLEProvider({ children }: BLEProviderProps) {
     console.log(
       "[BLE Context] Initializing BLE manager and global listeners...",
     );
-
-    // DIAG-V3 — raw NativeEventEmitter listener bypasses BleManager's wrapper
-    // to test whether the native module is emitting BleManagerDiscoverPeripheral
-    // events at all. If RAW-NATIVE fires but DIAG-V2 RAW PERIPHERAL doesn't,
-    // the wrapper is broken; if neither fires, the native module isn't emitting.
-    const bleNativeModule = NativeModules.BleManager as unknown;
-    if (bleNativeModule) {
-      const rawEmitter = new NativeEventEmitter(
-        bleNativeModule as ConstructorParameters<typeof NativeEventEmitter>[0],
-      );
-      rawEmitter.addListener("BleManagerDiscoverPeripheral", (p: unknown) => {
-        console.log(
-          "[DIAG-V3 RAW-NATIVE] BleManagerDiscoverPeripheral",
-          JSON.stringify(p).slice(0, 200),
-        );
-      });
-      console.log(
-        "[DIAG-V3] Raw NativeEventEmitter listener attached for BleManagerDiscoverPeripheral",
-      );
-    } else {
-      console.log(
-        "[DIAG-V3] NativeModules.BleManager is undefined — native module not linked!",
-      );
-    }
 
     bleInitialized.current = true;
 
@@ -1870,7 +1846,6 @@ export function BLEProvider({ children }: BLEProviderProps) {
       ) => void,
       timeoutSeconds = 30,
     ): Promise<void> => {
-      console.log("[DIAG-V2] scanForDevices ENTRY — diagnostic build is live");
       console.log(
         `[BLE Context] Starting scanForDevices with timeout: ${timeoutSeconds}s`,
       );
@@ -1889,40 +1864,10 @@ export function BLEProvider({ children }: BLEProviderProps) {
             `[BLE Context] Scan timeout reached after ${timeoutSeconds}s`,
           );
           BleManager.stopScan()
-            .then(async () => {
+            .then(() => {
               console.log(
                 `[BLE Context] Device scan completed after ${timeoutSeconds}s, found ${gentlyDevicesFound} Gently devices`,
               );
-
-              // DIAG-V4 — if the native side saw any peripherals at all, they
-              // accumulate in BleManager's internal cache. Querying it directly
-              // distinguishes "native scan saw nothing" from "native saw stuff
-              // but events never crossed the bridge to JS".
-              try {
-                const cached = await BleManager.getDiscoveredPeripherals();
-                console.log(
-                  "[DIAG-V4] getDiscoveredPeripherals returned",
-                  cached.length,
-                  "peripherals",
-                );
-                cached.slice(0, 10).forEach((p, i) => {
-                  console.log(
-                    `[DIAG-V4]   [${i}]`,
-                    p.id,
-                    JSON.stringify({
-                      name: p.name,
-                      rssi: p.rssi,
-                      localName: p.advertising?.localName,
-                    }),
-                  );
-                });
-              } catch (e) {
-                console.log(
-                  "[DIAG-V4] getDiscoveredPeripherals threw:",
-                  e instanceof Error ? e.message : String(e),
-                );
-              }
-
               resolve();
             })
             .catch((error) => {
@@ -1992,31 +1937,12 @@ export function BLEProvider({ children }: BLEProviderProps) {
         console.log(`[BLE Context] Setting up discovery listener`);
         BleManager.onDiscoverPeripheral(handleDiscoverPeripheral);
 
-        // DIAG-V2 — also attach a totally unfiltered listener that logs every
-        // single peripheral the OS hands us, to confirm whether the BLE event
-        // pipeline is delivering anything at all.
-        BleManager.onDiscoverPeripheral((p) => {
-          console.log(
-            "[DIAG-V2] RAW PERIPHERAL",
-            p.id,
-            JSON.stringify({
-              name: p.name,
-              rssi: p.rssi,
-              localName: p.advertising?.localName,
-            }),
-          );
-        });
-
         console.log(`[BLE Context] Initiating BLE scan...`);
-        // DIAG-V6 — THE FIX: enable extended-advertising scans on all PHYs.
-        // The Gently bracelet uses Bluetooth 5 Advertising Extension with
-        // Secondary PHY LE 2M. Android's default scan is legacy-only (BLE 4.2
-        // and below) listening on PHY LE 1M only. Without `legacy: false` +
-        // `phy: ALL_SUPPORTED`, the bracelet's adverts are completely
-        // invisible to our scan even at -50 dBm right next to the phone.
-        // nRF Connect uses these settings by default which is why it sees it
-        // and we didn't. Confirmed via nRF: "Advertising type: Bluetooth 5
-        // Advertising Extension, Primary PHY LE 1M, Secondary PHY LE 2M".
+        // The Gently bracelet advertises using Bluetooth 5 Advertising
+        // Extension on Secondary PHY LE 2M. Android's default scan is
+        // legacy-only (BLE 4.2) on PHY LE 1M and will not see these
+        // adverts. `legacy: false` + `phy: ALL_SUPPORTED` are required for
+        // the scan to pick up the bracelet.
         BleManager.scan({
           serviceUUIDs: [],
           seconds: timeoutSeconds,

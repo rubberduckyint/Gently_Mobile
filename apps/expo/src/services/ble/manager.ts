@@ -204,13 +204,6 @@ export async function sendMultiPacketCommand<T>(
       }
 
       const dataToSend = Array.from(encryptedPacket);
-      console.log(
-        `  - Sending ${dataToSend.length} bytes encrypted:`,
-        dataToSend
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(" ")
-          .toUpperCase(),
-      );
 
       // Bracelet's F023 characteristic exposes only WRITE (not
       // WRITE_WITHOUT_RESPONSE) per nRF Connect inspection. Calling
@@ -452,13 +445,6 @@ export async function sendCommand({
 
       // Send the encrypted packet
       const dataToSend = Array.from(encryptedPacket);
-      console.log(
-        `  - Sending ${dataToSend.length} bytes encrypted:`,
-        dataToSend
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(" ")
-          .toUpperCase(),
-      );
 
       // Bracelet's F023 characteristic exposes only WRITE (not
       // WRITE_WITHOUT_RESPONSE) per nRF Connect inspection. Use Write Request
