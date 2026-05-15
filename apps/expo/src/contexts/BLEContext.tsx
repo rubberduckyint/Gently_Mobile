@@ -581,68 +581,18 @@ export function BLEProvider({ children }: BLEProviderProps) {
     if (connectionState !== "disconnected") return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
+
     const tryReconnect = async () => {
       if (cancelled) return;
-      try {
-        const lastPairedJson = await SecureStore.getItemAsync(
-          "ble_last_paired_device",
-        );
-        if (!lastPairedJson) return; // user-initiated disconnect, no auto-reconnect
-        const lastPaired = JSON.parse(lastPairedJson) as {
-          id: string;
-          name: string | null;
-          serialNumber: string;
-        };
-        // Don't fight an in-progress manual connection.
-        if (
-          connectionStateRef.current === "connecting" ||
-          connectionStateRef.current === "scanning"
-        ) {
-          return;
-        }
-        const isOsConnected = await BleManager.isPeripheralConnected(
-          lastPaired.id,
-        );
-        if (!isOsConnected) {
-          // Active reconnect attempt. Short timeout (no autoConnect flag) so
-          // we can quickly tell whether bracelet is reachable.
-          try {
-            await BleManager.connect(lastPaired.id);
-          } catch {
-            // Bracelet not in range or rejecting — try again next tick
-            return;
-          }
-        }
-        if (cancelled) return;
-        // We're now OS-connected. Re-handshake to derive a fresh dynamic key
-        // (bracelet's uptime is different in this new session — stored key
-        // from previous session is stale).
-        const newKey = await rehandshakeAfterReconnect(
-          lastPaired.id,
-          lastPaired.serialNumber,
-        );
-        if (!newKey) return;
-        console.log(
-          `[BLE Context] Reconnect loop succeeded — restoring state for ${lastPaired.id}`,
-        );
-        setConnectedDevice({
-          id: lastPaired.id,
-          name: lastPaired.name ?? undefined,
-          serialNumber: lastPaired.serialNumber,
-          peripheral: { id: lastPaired.id } as Peripheral,
-        });
-        setEncryptionKey(newKey);
-        setConnectionState("connected");
-      } catch (err) {
-        console.warn("[BLE Context] Reconnect loop tick failed:", err);
-      }
+      await findAndReconnectPairedBracelet({ scanSeconds: 6 });
+      // The helper flips state to "connected" on success; the useEffect
+      // will tear this loop down on the next render.
     };
-    // Fire once shortly after disconnect, then every 30s. Avoid hammering
-    // BleManager.connect() — each failed attempt fires a disconnect event,
-    // and the native side overflows an internal hash structure under rapid
-    // event rates (observed crash: __next_prime overflow in
-    // NativeBleManagerSpec.emitOnDisconnectPeripheral). 30s gives the OS time
-    // to settle between attempts.
+
+    // Fire once shortly after entering "disconnected", then every 30s.
+    // Don't tighten the interval — each scan eats radio time, and rapid
+    // back-to-back scans risk the __next_prime native overflow seen in
+    // the 2026-05-14 BLE marathon.
     const firstTick = setTimeout(() => void tryReconnect(), 3000);
     timer = setInterval(() => void tryReconnect(), 30000);
     return () => {
