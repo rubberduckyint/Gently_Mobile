@@ -343,7 +343,7 @@ export default function DashboardPage() {
       router.push("/cgm/add" as RelativePathString);
       return;
     }
-    router.push(`/cgm/${primarySource.id}` as RelativePathString);
+    router.push(`/cgm/${primarySource.id}/edit` as RelativePathString);
   };
 
   // Bracelet pill tap → action sheet with management options. Keeps the
