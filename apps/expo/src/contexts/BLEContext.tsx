@@ -16,7 +16,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { AppState, type AppStateStatus, Platform } from "react-native";
+import { AppState, Platform } from "react-native";
+import type { AppStateStatus } from "react-native";
 import BleManager, {
   BleScanCallbackType,
   BleScanMatchMode,
