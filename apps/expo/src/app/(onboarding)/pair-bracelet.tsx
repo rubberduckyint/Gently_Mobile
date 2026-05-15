@@ -1,6 +1,6 @@
 import type { Peripheral } from "react-native-ble-manager";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Linking, PermissionsAndroid, Platform, Text, View } from "react-native";
+import { Alert, Linking, PermissionsAndroid, Platform, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,11 +63,11 @@ export default function PairBraceletScreen() {
     };
   }, []);
 
-  // Auto-start scan on mount
-  useEffect(() => {
-    void startScan();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Scanning is gated on explicit user confirmation that the bracelet is in
+  // pairing mode (yellow blink). This is critical post-delete: without the
+  // gate the screen auto-scanned and could connect to a non-pairing-mode
+  // bracelet that happened to be in range, bypassing the firmware long-press
+  // handshake.
 
   const startScan = async () => {
     if (!isMountedRef.current) return;
@@ -274,14 +274,15 @@ export default function PairBraceletScreen() {
   }, [pairState]);
 
   const headingText: Record<PairState, string> = {
-    instruct: "Pair your bracelet",
+    instruct: "Put your bracelet in pairing mode",
     scanning: "Looking for your bracelet…",
     discovered: "Found your bracelet",
     success: "Connected",
   };
 
   const subtitleText: Record<PairState, string> = {
-    instruct: "Keep your bracelet nearby with its light flashing blue.",
+    instruct:
+      "Press and hold the button on your bracelet for about 6.5 seconds, until the light blinks yellow. You'll have about 60 seconds once it starts blinking.",
     scanning: "Scanning for Gently devices…",
     discovered: discovered
       ? `Found ${discovered.displayName}. Connecting…`
@@ -332,32 +333,34 @@ export default function PairBraceletScreen() {
           {subtitleText[pairState]}
         </Text>
 
-        {/* Tip card — instruct state only */}
+        {/* Primary CTA — instruct state only. Gates scan on explicit user
+            confirmation that the bracelet is blinking yellow (pairing mode). */}
         {pairState === "instruct" && (
-          <View
-            style={{
+          <Pressable
+            onPress={() => {
+              void startScan();
+            }}
+            accessibilityRole="button"
+            style={({ pressed }) => ({
               marginTop: 28,
-              backgroundColor: tokens.color.cyanBg,
+              backgroundColor: tokens.color.cyanDeep,
               borderRadius: tokens.radius.card,
-              paddingVertical: 14,
+              paddingVertical: 16,
               paddingHorizontal: 18,
               width: "100%",
-            }}
+              alignItems: "center",
+              opacity: pressed ? 0.85 : 1,
+            })}
           >
             <Text
               style={[
-                typographyV2.eyebrow,
-                { color: tokens.color.cyanDeep, marginBottom: 4 },
+                typographyV2.body,
+                { color: tokens.color.bg, fontWeight: "600" },
               ]}
             >
-              Tip
+              My bracelet is blinking yellow
             </Text>
-            <Text
-              style={[typographyV2.body, { color: tokens.color.ink, lineHeight: 21 }]}
-            >
-              Make sure your bracelet's light is flashing blue.
-            </Text>
-          </View>
+          </Pressable>
         )}
 
         {/* Device card — discovered state only */}
