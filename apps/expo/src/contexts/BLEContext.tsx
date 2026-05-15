@@ -346,10 +346,10 @@ export function BLEProvider({ children }: BLEProviderProps) {
     }
   };
 
-  // In-flight lock so concurrent triggers (disconnect + AppState +
-  // periodic poll + push arrival) don't race a second scan while one
-  // is mid-flight. Reset in finally.
-  const reconnectInFlightRef = useRef(false);
+  // In-flight promise so concurrent triggers (disconnect + AppState +
+  // periodic poll + push arrival) share the same outstanding scan and
+  // each receive the real result, not a placeholder "false".
+  const inFlightPromiseRef = useRef<Promise<boolean> | null>(null);
 
   // Scan-based reconnect to the last-paired bracelet. Replaces the previous
   // direct `BleManager.connect(storedMac)` approach which fails because the
@@ -362,204 +362,210 @@ export function BLEProvider({ children }: BLEProviderProps) {
   const findAndReconnectPairedBracelet = async (
     options: { scanSeconds?: number } = {},
   ): Promise<boolean> => {
-    const scanSeconds = options.scanSeconds ?? 8;
-
-    if (reconnectInFlightRef.current) {
-      console.log(
-        "[BLE Reconnect] Skipping — another reconnect attempt is already in flight",
-      );
-      return false;
+    if (inFlightPromiseRef.current) {
+      console.log("[BLE Reconnect] Awaiting in-flight reconnect attempt");
+      return inFlightPromiseRef.current;
     }
-    reconnectInFlightRef.current = true;
 
-    try {
-      const lastPairedJson = await SecureStore.getItemAsync(
-        "ble_last_paired_device",
-      );
-      if (!lastPairedJson) {
-        console.log(
-          "[BLE Reconnect] No last-paired pointer in SecureStore — user must re-pair",
-        );
-        return false;
-      }
-      const lastPaired = JSON.parse(lastPairedJson) as {
-        id: string;
-        name: string | null;
-        serialNumber: string;
-      };
-
-      // Don't fight a user-initiated flow (pair-bracelet screen).
-      if (
-        connectionStateRef.current === "connecting" ||
-        connectionStateRef.current === "scanning"
-      ) {
-        console.log(
-          `[BLE Reconnect] Skipping — current state "${connectionStateRef.current}" indicates user-initiated flow`,
-        );
-        return false;
-      }
-
-      // Test-user mock-BLE bypass — mirrors the gate at scanForDevices line ~1755.
-      if (isTestUser) {
-        console.log("[BLE Reconnect] Test user — skipping real BLE reconnect");
-        return false;
-      }
-
-      // Fast path: if Android still holds an active GATT link to the stored
-      // peripheral id, skip the scan and go straight to rehandshake.
+    const p = (async (): Promise<boolean> => {
+      const scanSeconds = options.scanSeconds ?? 8;
       try {
-        const isOsConnected = await BleManager.isPeripheralConnected(
-          lastPaired.id,
+        const lastPairedJson = await SecureStore.getItemAsync(
+          "ble_last_paired_device",
         );
-        if (isOsConnected) {
+        if (!lastPairedJson) {
           console.log(
-            `[BLE Reconnect] Fast path — OS-level link is alive to ${lastPaired.id}; skipping scan`,
+            "[BLE Reconnect] No last-paired pointer in SecureStore — user must re-pair",
           );
-          const fastKey = await rehandshakeAfterReconnect(
-            lastPaired.id,
-            lastPaired.serialNumber,
-          );
-          if (fastKey) {
-            setConnectedDevice({
-              id: lastPaired.id,
-              name: lastPaired.name ?? undefined,
-              serialNumber: lastPaired.serialNumber,
-              peripheral: { id: lastPaired.id } as Peripheral,
-            });
-            setEncryptionKey(fastKey);
-            setConnectionState("connected");
-            return true;
-          }
+          return false;
         }
-      } catch (osErr) {
-        console.log(
-          "[BLE Reconnect] isPeripheralConnected probe failed — proceeding with scan",
-          osErr,
-        );
-      }
-
-      // Slow path: scan to find the bracelet at its current RPA.
-      console.log(
-        `[BLE Reconnect] Starting ${scanSeconds}s scan for bracelet (serial ${lastPaired.serialNumber})`,
-      );
-
-      let foundPeripheralId: string | null = null;
-
-      await new Promise<void>((resolve) => {
-        let resolved = false;
-        const settle = () => {
-          if (resolved) return;
-          resolved = true;
-          try {
-            discoverSub.remove();
-          } catch {
-            /* ignore */
-          }
-          try {
-            stopSub.remove();
-          } catch {
-            /* ignore */
-          }
-          resolve();
+        const lastPaired = JSON.parse(lastPairedJson) as {
+          id: string;
+          name: string | null;
+          serialNumber: string;
         };
 
-        const discoverHandler = (peripheral: Peripheral) => {
-          const advName =
-            peripheral.advertising?.localName ?? peripheral.name ?? "";
-          if (!/^gently/i.test(advName)) return;
-          if (foundPeripheralId) return;
+        // Don't fight a user-initiated flow (pair-bracelet screen).
+        if (
+          connectionStateRef.current === "connecting" ||
+          connectionStateRef.current === "scanning"
+        ) {
           console.log(
-            `[BLE Reconnect] Discovered candidate ${peripheral.id} (name="${advName}")`,
+            `[BLE Reconnect] Skipping — current state "${connectionStateRef.current}" indicates user-initiated flow`,
           );
-          foundPeripheralId = peripheral.id;
-          BleManager.stopScan().catch(() => undefined);
-          settle();
-        };
+          return false;
+        }
 
-        const stopHandler = () => settle();
+        // Test-user mock-BLE bypass — mirrors the gate at scanForDevices line ~1755.
+        if (isTestUser) {
+          console.log("[BLE Reconnect] Test user — skipping real BLE reconnect");
+          return false;
+        }
 
-        const discoverSub = BleManager.onDiscoverPeripheral(discoverHandler);
-        const stopSub = BleManager.onStopScan(stopHandler);
+        // Fast path: if Android still holds an active GATT link to the stored
+        // peripheral id, skip the scan and go straight to rehandshake.
+        try {
+          const isOsConnected = await BleManager.isPeripheralConnected(
+            lastPaired.id,
+          );
+          if (isOsConnected) {
+            console.log(
+              `[BLE Reconnect] Fast path — OS-level link is alive to ${lastPaired.id}; skipping scan`,
+            );
+            const fastKey = await rehandshakeAfterReconnect(
+              lastPaired.id,
+              lastPaired.serialNumber,
+            );
+            if (fastKey) {
+              setConnectedDevice({
+                id: lastPaired.id,
+                name: lastPaired.name ?? undefined,
+                serialNumber: lastPaired.serialNumber,
+                peripheral: { id: lastPaired.id } as Peripheral,
+              });
+              setEncryptionKey(fastKey);
+              setConnectionState("connected");
+              return true;
+            }
+          }
+        } catch (osErr) {
+          console.log(
+            "[BLE Reconnect] isPeripheralConnected probe failed — proceeding with scan",
+            osErr,
+          );
+        }
 
-        void BleManager.scan({
-          serviceUUIDs: [],
-          seconds: scanSeconds,
-          allowDuplicates: false,
-          matchMode: BleScanMatchMode.Aggressive,
-          scanMode: BleScanMode.LowLatency,
-          callbackType: BleScanCallbackType.AllMatches,
-          legacy: false,
-          phy: BleScanPhyMode.ALL_SUPPORTED,
-        }).catch((err) => {
-          console.warn("[BLE Reconnect] scan() rejected:", err);
-          settle();
+        // Slow path: scan to find the bracelet at its current RPA.
+        console.log(
+          `[BLE Reconnect] Starting ${scanSeconds}s scan for bracelet (serial ${lastPaired.serialNumber})`,
+        );
+
+        let foundPeripheralId: string | null = null;
+
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+          const settle = () => {
+            if (resolved) return;
+            resolved = true;
+            try {
+              discoverSub.remove();
+            } catch {
+              /* ignore */
+            }
+            try {
+              stopSub.remove();
+            } catch {
+              /* ignore */
+            }
+            resolve();
+          };
+
+          const discoverHandler = (peripheral: Peripheral) => {
+            const advName =
+              peripheral.advertising?.localName ?? peripheral.name ?? "";
+            if (!/^gently/i.test(advName)) return;
+            if (foundPeripheralId) return;
+            console.log(
+              `[BLE Reconnect] Discovered candidate ${peripheral.id} (name="${advName}")`,
+            );
+            foundPeripheralId = peripheral.id;
+            BleManager.stopScan().catch(() => undefined);
+            settle();
+          };
+
+          const stopHandler = () => settle();
+
+          const discoverSub = BleManager.onDiscoverPeripheral(discoverHandler);
+          const stopSub = BleManager.onStopScan(stopHandler);
+
+          void BleManager.scan({
+            serviceUUIDs: [],
+            seconds: scanSeconds,
+            allowDuplicates: false,
+            matchMode: BleScanMatchMode.Aggressive,
+            scanMode: BleScanMode.LowLatency,
+            callbackType: BleScanCallbackType.AllMatches,
+            legacy: false,
+            phy: BleScanPhyMode.ALL_SUPPORTED,
+          }).catch((err) => {
+            console.warn("[BLE Reconnect] scan() rejected:", err);
+            settle();
+          });
+
+          // Belt-and-suspenders timeout — onStopScan should fire, but if native
+          // hangs we don't want to block forever.
+          setTimeout(settle, (scanSeconds + 2) * 1000);
         });
 
-        // Belt-and-suspenders timeout — onStopScan should fire, but if native
-        // hangs we don't want to block forever.
-        setTimeout(settle, (scanSeconds + 2) * 1000);
-      });
+        if (!foundPeripheralId) {
+          console.log(
+            "[BLE Reconnect] Scan finished — bracelet not found (out of range or not advertising)",
+          );
+          return false;
+        }
 
-      if (!foundPeripheralId) {
-        console.log(
-          "[BLE Reconnect] Scan finished — bracelet not found (out of range or not advertising)",
+        // Re-bind to a const so TS narrows past the closure assignment.
+        const foundId: string = foundPeripheralId;
+
+        try {
+          await BleManager.connect(foundId);
+        } catch (connErr) {
+          console.warn(
+            `[BLE Reconnect] connect(${foundId}) failed:`,
+            connErr,
+          );
+          return false;
+        }
+
+        const newKey = await rehandshakeAfterReconnect(
+          foundId,
+          lastPaired.serialNumber,
         );
-        return false;
-      }
+        if (!newKey) {
+          console.warn(
+            "[BLE Reconnect] Rehandshake failed after connect — bracelet may be in a stuck session",
+          );
+          return false;
+        }
 
-      // Re-bind to a const so TS narrows past the closure assignment.
-      const foundId: string = foundPeripheralId;
-
-      try {
-        await BleManager.connect(foundId);
-      } catch (connErr) {
-        console.warn(
-          `[BLE Reconnect] connect(${foundId}) failed:`,
-          connErr,
+        // Persist the new live id so the next fast-path probe + the rest of the
+        // session reference the current address.
+        await SecureStore.setItemAsync(
+          "ble_last_paired_device",
+          JSON.stringify({
+            id: foundId,
+            name: lastPaired.name,
+            serialNumber: lastPaired.serialNumber,
+          }),
         );
-        return false;
-      }
 
-      const newKey = await rehandshakeAfterReconnect(
-        foundId,
-        lastPaired.serialNumber,
-      );
-      if (!newKey) {
-        console.warn(
-          "[BLE Reconnect] Rehandshake failed after connect — bracelet may be in a stuck session",
-        );
-        return false;
-      }
-
-      // Persist the new live id so the next fast-path probe + the rest of the
-      // session reference the current address.
-      await SecureStore.setItemAsync(
-        "ble_last_paired_device",
-        JSON.stringify({
+        setConnectedDevice({
           id: foundId,
-          name: lastPaired.name,
+          name: lastPaired.name ?? undefined,
           serialNumber: lastPaired.serialNumber,
-        }),
-      );
+          peripheral: { id: foundId } as Peripheral,
+        });
+        setEncryptionKey(newKey);
+        setConnectionState("connected");
 
-      setConnectedDevice({
-        id: foundId,
-        name: lastPaired.name ?? undefined,
-        serialNumber: lastPaired.serialNumber,
-        peripheral: { id: foundId } as Peripheral,
-      });
-      setEncryptionKey(newKey);
-      setConnectionState("connected");
+        console.log(
+          `[BLE Reconnect] Reconnected to ${foundId} (serial ${lastPaired.serialNumber})`,
+        );
+        return true;
+      } catch (err) {
+        console.warn(
+          "[BLE Reconnect] findAndReconnectPairedBracelet threw:",
+          err,
+        );
+        return false;
+      }
+    })();
 
-      console.log(
-        `[BLE Reconnect] Reconnected to ${foundId} (serial ${lastPaired.serialNumber})`,
-      );
-      return true;
-    } catch (err) {
-      console.warn("[BLE Reconnect] findAndReconnectPairedBracelet threw:", err);
-      return false;
+    inFlightPromiseRef.current = p;
+    try {
+      return await p;
     } finally {
-      reconnectInFlightRef.current = false;
+      inFlightPromiseRef.current = null;
     }
   };
 
