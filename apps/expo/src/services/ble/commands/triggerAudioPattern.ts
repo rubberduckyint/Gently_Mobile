@@ -43,8 +43,13 @@ export function createTriggerAudioPatternRequest(
     `🔧 Creating TRIGGER_AUDIO_PATTERN: on=${params.onDurationMs}ms, off=${params.offDurationMs}ms, total=${params.totalDurationSeconds}s`,
   );
 
-  // 8-byte aligned payload
-  const payload = new Uint8Array(8).fill(0);
+  // 6-byte payload: 5 bytes of params + 1 byte pad. With the 2-byte
+  // [version, command] header prepended by constructCommandPacket, the
+  // on-wire frame is exactly 8 bytes = one TEA block, matching firmware.
+  // A larger payload would 8-byte-align to a second all-zero TEA block;
+  // firmware interprets that as v=0/cmd=0 and cancels the audio thread
+  // mid-pattern, producing a single short beep instead of the cadence.
+  const payload = new Uint8Array(6).fill(0);
   let offset = 0;
 
   // Bytes #0-1: ON duration in ms (UInt16, little-endian)
@@ -58,7 +63,7 @@ export function createTriggerAudioPatternRequest(
   // Byte #4: Total duration in seconds
   payload[offset++] = params.totalDurationSeconds & 0xff;
 
-  // Bytes #5-7: Reserved (already 0-filled)
+  // Byte #5: Pad (already 0-filled)
 
   return {
     command: CommandCode.TRIGGER_AUDIO_PATTERN,
