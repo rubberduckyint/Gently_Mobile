@@ -429,6 +429,13 @@ export async function sendCommand({
 
       // Construct and encrypt the command packet
       const packet = constructCommandPacket(command);
+      // TEMP DEBUG (audio cadence): dump plaintext frame bytes before TEA encrypt.
+      // Revert once BLE encoding bug for TRIGGER_AUDIO_PATTERN is localized.
+      console.log(
+        `🔬 TX plaintext (${packet.length}B): ${Array.from(packet)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(" ")}`,
+      );
       const tea = new TEAEncryption(encryptionKey);
 
       console.log(
