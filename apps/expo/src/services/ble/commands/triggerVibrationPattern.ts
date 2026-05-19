@@ -44,8 +44,14 @@ export function createTriggerVibrationPatternRequest(
     `🔧 Creating TRIGGER_VIBRATION_PATTERN: pattern=${patternNum}, intensity=${intensityNum}, total=${params.totalDurationSeconds}s`,
   );
 
-  // 8-byte aligned payload
-  const payload = new Uint8Array(8).fill(0);
+  // 2-byte payload: combined param byte + duration byte. With the 2-byte
+  // [version, command] header prepended by constructCommandPacket, the
+  // on-wire frame totals 4 bytes; constructCommandPacket pads to the next
+  // multiple of 8, giving a single 8-byte TEA block matching firmware.
+  // Avoids a trailing all-zero second TEA block that firmware would
+  // decrypt as v=0/cmd=0 — same encoding fix landed for audio in
+  // commit 82d90b3.
+  const payload = new Uint8Array(2).fill(0);
   let offset = 0;
 
   // Byte #0: Combined vibration param byte. Firmware reads this bitfield
@@ -61,8 +67,6 @@ export function createTriggerVibrationPatternRequest(
 
   // Byte #1: Total duration in seconds
   payload[offset++] = params.totalDurationSeconds & 0xff;
-
-  // Bytes #2-7: Reserved (already 0-filled)
 
   return {
     command: CommandCode.TRIGGER_VIBRATION_PATTERN,

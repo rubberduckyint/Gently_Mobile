@@ -47,8 +47,13 @@ export function createTriggerLedPatternRequest(
     `🔧 Creating TRIGGER_LED_PATTERN: color=${params.ledColor}, on=${params.onDurationMs}ms, off=${params.offDurationMs}ms, total=${params.totalDurationSeconds}s`,
   );
 
-  // 8-byte aligned payload
-  const payload = new Uint8Array(8).fill(0);
+  // 6-byte payload: 6 bytes of params, no pad. With the 2-byte
+  // [version, command] header prepended by constructCommandPacket, the
+  // on-wire frame is exactly 8 bytes = one TEA block, matching firmware.
+  // Avoids a trailing all-zero second TEA block that firmware would
+  // decrypt as v=0/cmd=0 — same encoding fix landed for audio in
+  // commit 82d90b3.
+  const payload = new Uint8Array(6).fill(0);
   let offset = 0;
 
   // Byte #0: LED Color
@@ -64,8 +69,6 @@ export function createTriggerLedPatternRequest(
 
   // Byte #5: Total duration in seconds
   payload[offset++] = params.totalDurationSeconds & 0xff;
-
-  // Bytes #6-7: Reserved (already 0-filled)
 
   return {
     command: CommandCode.TRIGGER_LED_PATTERN,
